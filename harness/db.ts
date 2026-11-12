@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { comRetentativa } from './retentativa.ts';
 
 export type Sql = postgres.Sql;
 
@@ -17,4 +18,25 @@ export function conectar(url: string | undefined = process.env.DATABASE_URL): Sq
     onnotice: () => {},
     connection: { statement_timeout: 30_000, application_name: 'cofilius' },
   });
+}
+
+/**
+ * Executa uma transação com até 3 novas tentativas em erro de conexão (a transação inteira é refeita;
+ * nada fica pela metade). Erros de dado (restrição, tipo) não se repetem.
+ */
+export async function conectarTransacao<T>(sql: Sql, operacao: string, fn: (tx: postgres.TransactionSql) => Promise<T>): Promise<T> {
+  return comRetentativa(() => sql.begin((tx) => fn(tx)) as Promise<T>, {
+    operacao: `db.${operacao}`,
+    deveTentarDeNovo: erroDeConexao,
+  });
+}
+
+/** Erros de rede/conexão do postgres.js e códigos Postgres de conexão (classe 08) e de serialização. */
+export function erroDeConexao(erro: unknown): boolean {
+  const e = erro as { code?: string };
+  if (!e?.code) return false;
+  return (
+    e.code.startsWith('08') || e.code === '40001' || e.code === '57P01' ||
+    ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'CONNECTION_CLOSED', 'CONNECTION_ENDED', 'CONNECT_TIMEOUT'].includes(e.code)
+  );
 }
