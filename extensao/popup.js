@@ -8,9 +8,10 @@ async function ler() {
 }
 
 function descrever(c) {
-  if (c.tipo === 'visita') return `página · ${c.titulo || c.pagina}`;
-  if (c.tipo === 'pagina') return `página salva · ${c.titulo || c.pagina}`;
-  return `${c.metodo} ${c.status} · ${c.url}`;
+  const p = (N.PLATAFORMAS.find((x) => x.id === c.plataforma) || { nome: '?' }).nome;
+  if (c.tipo === 'visita') return `${p} · página · ${c.titulo || c.pagina}`;
+  if (c.tipo === 'pagina') return `${p} · página salva · ${c.titulo || c.pagina}`;
+  return `${p} · ${c.metodo} ${c.status} · ${c.url}`;
 }
 
 async function desenhar() {
@@ -18,10 +19,12 @@ async function desenhar() {
   $('ponto').classList.toggle('ligado', gravando);
   $('estado').textContent = gravando ? 'Gravando' : 'Parado';
   $('alternar').textContent = gravando ? 'Parar de gravar' : 'Começar a gravar';
-  const respostas = capturas.filter((c) => c.tipo === 'resposta').length;
-  const paginas = capturas.length - respostas;
   $('contagem').textContent = capturas.length
-    ? `${respostas} respostas de dados e ${paginas} páginas gravadas.`
+    ? N.PLATAFORMAS.map((p) => {
+        const daqui = capturas.filter((c) => c.plataforma === p.id);
+        const respostas = daqui.filter((c) => c.tipo === 'resposta').length;
+        return `${p.nome}: ${respostas} dados, ${daqui.length - respostas} páginas`;
+      }).join(' · ')
     : 'Nada gravado.';
   $('aviso').hidden = !aviso;
   $('aviso').textContent = aviso;
@@ -51,8 +54,8 @@ function copiarPaginaNaAba() {
 
 $('pagina').addEventListener('click', async () => {
   const [aba] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!aba || !aba.url || !N.deveGravar(aba.url)) {
-    await chrome.storage.local.set({ aviso: 'Abra uma página do Mercado Livre para salvar.' });
+  if (!aba || !aba.url || !N.deveGravarPagina(aba.url)) {
+    await chrome.storage.local.set({ aviso: 'Abra uma página de afiliado (ou de produto) do Mercado Livre, Shopee ou Amazon para salvar.' });
     return;
   }
   const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: aba.id }, func: copiarPaginaNaAba });
@@ -60,6 +63,7 @@ $('pagina').addEventListener('click', async () => {
     cofilius: 'captura',
     captura: {
       tipo: 'pagina',
+      plataforma: N.idPlataforma(result.url),
       quando: new Date().toISOString(),
       pagina: N.limparUrl(result.url),
       titulo: N.mascararTexto(result.titulo || ''),
@@ -74,7 +78,7 @@ $('baixar').addEventListener('click', async () => {
   const blob = new Blob([JSON.stringify(arquivo, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `cofilius-mercadolivre-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`;
+  a.download = `cofilius-gravacao-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 });

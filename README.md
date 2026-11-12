@@ -11,7 +11,7 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - **Links e rastreio**: gera o link de afiliado da Shopee com os sub_ids e grava em `links`;
 - um comando de linha para testar os dois com a conta real;
 - **modo manual**, para usar enquanto a Open API da Shopee não estiver liberada: ofertas por planilha e links gerados no painel;
-- **extensão de Chrome (etapa 1, Mercado Livre)**: grava os dados que as páginas de afiliado carregam, para mapear o formato real. Instalação e uso em [extensao/LEIA-ME.md](extensao/LEIA-ME.md).
+- **extensão de Chrome (etapa 1: gravador para Mercado Livre, Shopee e Amazon)**: grava os dados que as páginas de afiliado carregam, para mapear o formato real. Instalação e uso em [extensao/LEIA-ME.md](extensao/LEIA-ME.md).
 
 ## Estrutura
 
@@ -24,7 +24,7 @@ services/
   links/     Links e rastreio · Shopee
 harness/     o que roda os serviços: config, log, timeout e novas tentativas, cifragem, banco, comando de teste
 db/          migrations, seed, script de migração, acesso a clientes e credenciais
-extensao/   extensão de Chrome (gravador do Mercado Livre)
+extensao/   extensão de Chrome (gravador: Mercado Livre, Shopee e Amazon)
 docs/        arquitetura
 ```
 

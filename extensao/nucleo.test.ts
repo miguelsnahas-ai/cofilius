@@ -3,16 +3,61 @@ import './nucleo.js';
 
 const N = (globalThis as any).CofiliusNucleo;
 
-describe('deveGravar', () => {
-  it('grava só Mercado Livre e ignora métricas', () => {
+describe('deveGravar · Mercado Livre', () => {
+  it('grava o site e a API do Mercado Livre e ignora métricas', () => {
     expect(N.deveGravar('https://www.mercadolivre.com.br/afiliados/api/links')).toBe(true);
     expect(N.deveGravar('https://api.mercadolibre.com/users/me')).toBe(true);
     expect(N.deveGravar('/api/relatorio', 'https://www.mercadolivre.com.br/afiliados')).toBe(true);
-    expect(N.deveGravar('https://shopee.com.br/api')).toBe(false);
     expect(N.deveGravar('https://mercadolivre.com.br.golpe.com/x')).toBe(false);
     expect(N.deveGravar('https://www.mercadolivre.com.br/melidata/tracks')).toBe(false);
     expect(N.deveGravar('https://www.google-analytics.com/collect')).toBe(false);
     expect(N.deveGravar('data:text/plain,oi')).toBe(false);
+  });
+  it('não grava áreas pessoais', () => {
+    expect(N.deveGravarPagina('https://www.mercadolivre.com.br/minhas-compras')).toBe(false);
+    expect(N.deveGravarPagina('https://www.mercadolivre.com.br/checkout/pagamento')).toBe(false);
+    expect(N.deveGravarPagina('https://www.mercadolivre.com.br/afiliados/painel')).toBe(true);
+    expect(N.deveGravar('https://api.mercadolibre.com/x', undefined, 'https://www.mercadolivre.com.br/carrinho')).toBe(false);
+  });
+});
+
+describe('deveGravar · Shopee', () => {
+  it('painel de afiliados: grava tudo, menos métricas', () => {
+    expect(N.deveGravarPagina('https://affiliate.shopee.com.br/report/conversion')).toBe(true);
+    expect(N.deveGravar('https://affiliate.shopee.com.br/api/v3/report/list?page=1')).toBe(true);
+    expect(N.deveGravar('https://affiliate.shopee.com.br/__t__/x')).toBe(false);
+  });
+  it('loja: só páginas de produto e só chamadas de afiliado', () => {
+    expect(N.deveGravarPagina('https://shopee.com.br/Organizador-i.334455667.22912345678')).toBe(true);
+    expect(N.deveGravarPagina('https://shopee.com.br/cart')).toBe(false);
+    expect(N.deveGravarPagina('https://shopee.com.br/user/purchase')).toBe(false);
+    expect(N.deveGravarPagina('https://shopee.com.br/')).toBe(false);
+    const produto = 'https://shopee.com.br/Organizador-i.1.2';
+    expect(N.deveGravar('https://shopee.com.br/api/v4/affiliate/link', undefined, produto)).toBe(true);
+    expect(N.deveGravar('https://shopee.com.br/api/v4/pdp/get_pc', undefined, produto)).toBe(false);
+  });
+});
+
+describe('deveGravar · Amazon', () => {
+  it('painel de associados: grava tudo', () => {
+    expect(N.deveGravarPagina('https://associados.amazon.com.br/home/reports')).toBe(true);
+    expect(N.deveGravar('https://associados.amazon.com.br/home/reports/table.json?type=orders')).toBe(true);
+  });
+  it('loja: só páginas de produto e só chamadas do SiteStripe', () => {
+    const produto = 'https://www.amazon.com.br/Creme-Weleda/dp/B0FH7C4YCS';
+    expect(N.deveGravarPagina(produto)).toBe(true);
+    expect(N.deveGravarPagina('https://www.amazon.com.br/gp/css/order-history')).toBe(false);
+    expect(N.deveGravarPagina('https://www.amazon.com.br/your-orders/orders')).toBe(false);
+    expect(N.deveGravarPagina('https://www.amazon.com.br/s?k=creme')).toBe(false);
+    expect(N.deveGravar('https://www.amazon.com.br/associates/sitestripe/getShortUrl?longUrl=x', undefined, produto)).toBe(true);
+    expect(N.deveGravar('https://www.amazon.com.br/gp/cart/view.html', undefined, produto)).toBe(false);
+    expect(N.deveGravar('https://www.amazon.com.br/1/events/com.amazon.csm', undefined, produto)).toBe(false);
+  });
+  it('identifica a plataforma', () => {
+    expect(N.idPlataforma('https://associados.amazon.com.br/x')).toBe('amazon');
+    expect(N.idPlataforma('https://affiliate.shopee.com.br/x')).toBe('shopee');
+    expect(N.idPlataforma('https://api.mercadolibre.com/x')).toBe('mercado_livre');
+    expect(N.idPlataforma('https://exemplo.com')).toBeNull();
   });
 });
 
@@ -58,7 +103,7 @@ describe('interpretarCorpo', () => {
 
 describe('montarArquivo', () => {
   it('cabeçalho do arquivo', () => {
-    const a = N.montarArquivo([{ tipo: 'visita' }], { versao: '0.1.0' });
-    expect(a).toMatchObject({ formato: 'cofilius-gravacao', versao: 1, plataforma: 'mercado_livre', extensao: '0.1.0', total: 1 });
+    const a = N.montarArquivo([{ tipo: 'visita', plataforma: 'shopee' }, { tipo: 'visita', plataforma: 'amazon' }], { versao: '0.2.0' });
+    expect(a).toMatchObject({ formato: 'cofilius-gravacao', versao: 2, plataformas: { shopee: 1, amazon: 1 }, extensao: '0.2.0', total: 2 });
   });
 });

@@ -37,8 +37,8 @@ chrome.runtime.onMessage.addListener((msg, remetente) => {
   if (!msg || msg.cofilius !== 'captura' || !msg.captura) return;
   if (remetente.id !== chrome.runtime.id) return;
   const daExtensao = !!remetente.url && remetente.url.startsWith(chrome.runtime.getURL(''));
-  // Captura vinda de aba precisa ser de página do Mercado Livre.
-  if (!daExtensao && !(remetente.url && N.deveGravar(remetente.url))) return;
+  // Captura vinda de aba precisa ser de página permitida (painel de afiliados ou produto).
+  if (!daExtensao && !(remetente.url && N.deveGravarPagina(remetente.url))) return;
   // "Salvar esta página" (vem do popup) grava mesmo com a gravação desligada.
   guardar(msg.captura, daExtensao && msg.captura.tipo === 'pagina');
 });

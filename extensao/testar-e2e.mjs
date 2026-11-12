@@ -54,6 +54,34 @@ await contexto.route('https://api.mercadolibre.com/**', (rota) =>
   }),
 );
 
+// Páginas falsas da Shopee e da Amazon.
+const paginaQueChama = (titulo, chamadas) => `<!doctype html><html><head><title>${titulo}</title></head><body><h1>${titulo}</h1><script>
+  ${chamadas.map((c) => `fetch(${JSON.stringify(c)}).catch(() => {});`).join('\n')}
+</script></body></html>`;
+const json = (rota, corpo) => rota.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(corpo) });
+await contexto.route('https://affiliate.shopee.com.br/**', (rota) => {
+  const u = new URL(rota.request().url());
+  if (u.pathname === '/report/conversion') return rota.fulfill({ contentType: 'text/html', body: paginaQueChama('Relatório de conversões', ['/api/v3/report/list?page=1', '/__t__/ping']) });
+  return json(rota, { data: { list: [{ order_id: '1', sub_id1: 'c1', sub_id4: '22912345678', commission: '3.59', buyer_email: 'comprador@exemplo.com' }] } });
+});
+await contexto.route('https://shopee.com.br/**', (rota) => {
+  const u = new URL(rota.request().url());
+  if (u.pathname.includes('-i.')) return rota.fulfill({ contentType: 'text/html', body: paginaQueChama('Produto Shopee', ['/api/v4/affiliate/get_link?item=2', '/api/v4/pdp/get_pc?item=2']) });
+  if (u.pathname === '/user/purchase') return rota.fulfill({ contentType: 'text/html', body: paginaQueChama('Minhas compras', ['/api/v4/affiliate/qualquer']) });
+  return json(rota, { link: 'https://s.shopee.com.br/Xyz' });
+});
+await contexto.route('https://associados.amazon.com.br/**', (rota) => {
+  const u = new URL(rota.request().url());
+  if (u.pathname === '/home/reports') return rota.fulfill({ contentType: 'text/html', body: paginaQueChama('Relatórios | Associados', ['/home/reports/table.json?type=orders']) });
+  return json(rota, { records: [{ asin: 'B0FH7C4YCS', tracking_id: 'loja-20', earnings: 1.2 }] });
+});
+await contexto.route('https://www.amazon.com.br/**', (rota) => {
+  const u = new URL(rota.request().url());
+  if (u.pathname.includes('/dp/')) return rota.fulfill({ contentType: 'text/html', body: paginaQueChama('Creme Weleda', ['/associates/sitestripe/getShortUrl?longUrl=x', '/gp/cart/view.json', '/1/events/com.amazon.csm']) });
+  if (u.pathname.startsWith('/gp/css/')) return rota.fulfill({ contentType: 'text/html', body: paginaQueChama('Seus pedidos', ['/associates/sitestripe/getShortUrl?longUrl=y']) });
+  return json(rota, { shortUrl: 'https://amzn.to/abc' });
+});
+
 let [sw] = contexto.serviceWorkers();
 if (!sw) sw = await contexto.waitForEvent('serviceworker');
 const idExtensao = new URL(sw.url()).host;
@@ -91,6 +119,39 @@ assert.equal(link.resposta.json.short_url, 'https://mercadolivre.com/sec/AbC123'
 assert.ok(!lista.some((c) => c.url && c.url.includes('melidata')), 'gravou métrica');
 assert.ok(lista.some((c) => c.tipo === 'visita' && c.titulo === 'Afiliados | Mercado Livre'), 'não gravou a visita');
 assert.equal(await popup.evaluate(() => chrome.action.getBadgeText({})), String(lista.length));
+
+// 2b. Shopee e Amazon: grava painel e produto; ignora métricas, carrinho e páginas de compras.
+for (const url of [
+  'https://affiliate.shopee.com.br/report/conversion',
+  'https://shopee.com.br/Organizador-i.1.2',
+  'https://shopee.com.br/user/purchase',
+  'https://associados.amazon.com.br/home/reports',
+  'https://www.amazon.com.br/Creme-Weleda/dp/B0FH7C4YCS',
+  'https://www.amazon.com.br/gp/css/order-history',
+]) {
+  await pagina.goto(url);
+  await pagina.waitForTimeout(500);
+}
+lista = await capturas();
+const urls = lista.map((c) => c.url || c.pagina);
+const tem = (trecho) => urls.some((u) => u.includes(trecho));
+assert.ok(tem('affiliate.shopee.com.br/api/v3/report/list'), 'Shopee: não gravou o relatório');
+const conv = lista.find((c) => c.url && c.url.includes('report/list'));
+assert.equal(conv.plataforma, 'shopee');
+assert.equal(conv.resposta.json.data.list[0].buyer_email, '[email]', 'Shopee: e-mail do comprador vazou');
+assert.ok(tem('/api/v4/affiliate/get_link'), 'Shopee: não gravou a chamada de afiliado na página de produto');
+assert.ok(!tem('/api/v4/pdp/get_pc'), 'Shopee: gravou chamada da loja');
+assert.ok(!tem('/__t__/'), 'Shopee: gravou métrica');
+assert.ok(!tem('/user/purchase') && !tem('affiliate/qualquer'), 'Shopee: gravou página de compras');
+assert.ok(tem('associados.amazon.com.br/home/reports/table.json'), 'Amazon: não gravou o relatório');
+assert.equal(lista.find((c) => c.url && c.url.includes('table.json')).plataforma, 'amazon');
+assert.ok(tem('sitestripe/getShortUrl?longUrl=x'), 'Amazon: não gravou o SiteStripe');
+assert.ok(!tem('/gp/cart') && !tem('/1/events'), 'Amazon: gravou carrinho ou métrica');
+assert.ok(!tem('order-history') && !tem('longUrl=y'), 'Amazon: gravou página de pedidos');
+console.log('Shopee e Amazon OK:', lista.length, 'capturas no total');
+await pagina.goto('https://www.mercadolivre.com.br/afiliados/painel');
+await pagina.waitForTimeout(500);
+
 
 // 3. Salvar página: HTML sem scripts e sem o valor digitado.
 await pagina.bringToFront();

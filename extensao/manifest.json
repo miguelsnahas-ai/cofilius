@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Cofilius · Gravador",
-  "version": "0.1.0",
-  "description": "Grava os dados que as páginas de afiliado do Mercado Livre carregam, para o Cofilius entender o formato.",
+  "version": "0.2.0",
+  "description": "Grava os dados que as páginas de afiliado do Mercado Livre, Shopee e Amazon carregam, para o Cofilius entender o formato.",
   "minimum_chrome_version": "111",
   "permissions": [
     "storage",
@@ -11,7 +11,9 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://*.mercadolivre.com.br/*"
+    "https://*.mercadolivre.com.br/*",
+    "https://*.shopee.com.br/*",
+    "https://*.amazon.com.br/*"
   ],
   "background": {
     "service_worker": "servico.js"
@@ -23,7 +25,9 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.mercadolivre.com.br/*"
+        "https://*.mercadolivre.com.br/*",
+        "https://*.shopee.com.br/*",
+        "https://*.amazon.com.br/*"
       ],
       "js": [
         "nucleo.js",
@@ -35,7 +39,9 @@
     },
     {
       "matches": [
-        "https://*.mercadolivre.com.br/*"
+        "https://*.mercadolivre.com.br/*",
+        "https://*.shopee.com.br/*",
+        "https://*.amazon.com.br/*"
       ],
       "js": [
         "ponte.js"
