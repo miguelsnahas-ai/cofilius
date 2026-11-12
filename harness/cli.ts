@@ -32,6 +32,14 @@ import { importarPlanilhaShopee } from '../services/ofertas/importarPlanilhaShop
 import { prepararLinks, registrarLinkManual } from '../services/links/linksManuaisShopee.ts';
 import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import { readFile } from 'node:fs/promises';
+import {
+  aprovar, confirmarPreco, criarRascunho, dataLocal, descartar, listarDia, registrarEnvio, validarDia,
+} from '../services/lista/lista.ts';
+import { importarVendas, resumoPeriodo } from '../services/vendas/atribuicao.ts';
+import { lerPlanilhaVendas } from '../services/vendas/planilhaVendas.ts';
+import { processarFila, statusFila } from './fila.ts';
+import { agendarDia, criarExecutores } from './esteira.ts';
+import { numeroBr } from './csv.ts';
 
 const AJUDA = `Uso:
   npm run cli -- credenciais-shopee --cliente c1
@@ -56,7 +64,26 @@ Modo manual (sem a Open API):
       Mostra os 5 sub_ids de cada oferta do dia, para digitar no painel da Shopee.
 
   npm run cli -- registrar-link --cliente c1 --oferta <id> --quando "2026-11-12 08:15" --link <link do painel>
-      Grava o link gerado no painel, com os mesmos sub_ids.`;
+      Grava o link gerado no painel, com os mesmos sub_ids.
+
+Lista do dia (texto com marcadores; o sistema preenche preço, desconto e link):
+  npm run cli -- rascunho --cliente c1 --oferta <id> --texto "Achado! {{preco}} com {{desconto}} off 👉 {{link}}" [--data AAAA-MM-DD]
+  npm run cli -- validar --cliente c1 [--data AAAA-MM-DD]
+  npm run cli -- lista --cliente c1 [--data AAAA-MM-DD]
+  npm run cli -- aprovar --cliente c1 --mensagem <id> [--por nome]
+  npm run cli -- descartar --cliente c1 --mensagem <id> --motivo "..."
+  npm run cli -- confirmar-preco --cliente c1 --oferta <id> --preco 29,90
+  npm run cli -- enviada --cliente c1 --mensagem <id>
+      Registra que a mensagem foi enviada (confere preço conferido há até 30 min e repetição antes).
+
+Vendas:
+  npm run cli -- importar-vendas --cliente c1 --arquivo vendas.csv   (modelo: docs/modelos/vendas.csv)
+  npm run cli -- resumo --cliente c1 --de AAAA-MM-DD --ate AAAA-MM-DD
+
+Esteira e fila (todos os clientes):
+  npm run cli -- agendar-dia [--data AAAA-MM-DD]
+  npm run cli -- fila [--limite 100]
+  npm run cli -- fila-status`;
 
 const { values: op, positionals } = parseArgs({
   allowPositionals: true,
@@ -73,6 +100,14 @@ const { values: op, positionals } = parseArgs({
     url: { type: 'string' },
     canal: { type: 'string' },
     gravar: { type: 'string' },
+    texto: { type: 'string' },
+    data: { type: 'string' },
+    mensagem: { type: 'string' },
+    por: { type: 'string' },
+    motivo: { type: 'string' },
+    preco: { type: 'string' },
+    de: { type: 'string' },
+    ate: { type: 'string' },
     ajuda: { type: 'boolean', short: 'h' },
   },
 });
@@ -132,6 +167,51 @@ function mostrarLink(l: LinkGravado): void {
   console.log(`  oferta        ${l.ofertaId ?? '(nenhuma)'}`);
 }
 
+function exigirOferta(): string {
+  const o = op.oferta?.[0];
+  if (!o) throw new Error('Falta --oferta.');
+  return o;
+}
+
+async function shopeeDoCliente(sql: Sql, cliente: Cliente) {
+  const chave = await importarChave(process.env.CREDENCIAIS_CHAVE);
+  return criarClienteShopee(await lerCredencialShopee(sql, chave, cliente.clienteId), {
+    endpoint: process.env.SHOPEE_ENDPOINT || ENDPOINT_BRASIL,
+  });
+}
+
+/** Comandos que valem para todos os clientes. Devolve true se tratou o comando. */
+async function comandoSemCliente(sql: Sql, comando: string): Promise<boolean> {
+  switch (comando) {
+    case 'agendar-dia': {
+      const data = op.data ?? dataLocal(new Date(), 'America/Sao_Paulo');
+      const r = await agendarDia(sql, data);
+      console.log(`Esteira de ${data}:`);
+      for (const a of r) {
+        const hora = a.horario.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+        console.log(`  ${a.cliente} · ${a.tipo}${a.nicho ? ` (${a.nicho})` : ''} · ${hora} (Brasília) · ${a.situacao}${a.motivo ? `: ${a.motivo}` : ''}`);
+      }
+      return true;
+    }
+    case 'fila': {
+      const executores = criarExecutores({ sql, shopeeDoCliente: (c) => shopeeDoCliente(sql, c) });
+      const limite = op.limite ? Number(op.limite) : undefined;
+      const r = await processarFila(sql, executores, { limite });
+      console.log(`Fila: ${r.executadas} executadas · ${r.concluidas} concluídas · ${r.novasTentativas} vão tentar de novo · ${r.falharam} falharam`);
+      if (r.falharam) process.exitCode = 3;
+      return true;
+    }
+    case 'fila-status': {
+      const linhas = await statusFila(sql, new Date(Date.now() - 86_400_000));
+      if (!linhas.length) console.log('Fila vazia.');
+      else console.table(linhas.map((l) => ({ ...l, agendadaPara: l.agendadaPara.toISOString(), erro: l.erro ?? '' })));
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
 async function principal(): Promise<void> {
   const comando = positionals[0];
   if (!comando || op.ajuda) {
@@ -140,7 +220,13 @@ async function principal(): Promise<void> {
   }
   const sql = conectar();
   try {
+    if (await comandoSemCliente(sql, comando)) return;
     const cliente = await buscarCliente(sql, exigir('cliente'));
+    const dataLista = () => {
+      const d = op.data ?? dataLocal(new Date(), cliente.fusoHorario);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new Error('--data no formato AAAA-MM-DD');
+      return d;
+    };
 
     switch (comando) {
       case 'credenciais-shopee': {
@@ -238,6 +324,91 @@ async function principal(): Promise<void> {
           nicho: op.nicho,
         });
         mostrarLink(l);
+        break;
+      }
+
+      case 'rascunho': {
+        const m = await criarRascunho(sql, { cliente, ofertaId: exigirOferta(), textoModelo: exigir('texto'), dataLista: dataLista() });
+        console.log(`Rascunho criado (${m.id}):\n\n${m.textoFinal}\n\nPróximo passo: npm run cli -- validar --cliente ${cliente.codigo}`);
+        break;
+      }
+
+      case 'validar': {
+        const r = await validarDia(sql, cliente, dataLista());
+        if (!r.length) console.log('Nenhum rascunho para validar neste dia.');
+        for (const v of r) {
+          console.log(`${v.ok ? '✔ validada' : '✘ barrada '}  ${v.mensagemId}`);
+          for (const regra of v.regras.filter((x) => !x.ok)) console.log(`      ${regra.regra}: ${regra.detalhe}`);
+        }
+        break;
+      }
+
+      case 'lista': {
+        const linhas = await listarDia(sql, cliente, dataLista());
+        if (!linhas.length) console.log('Lista vazia neste dia.');
+        for (const l of linhas) {
+          console.log(`\n[${l.estado.toUpperCase()}] ${l.id} · ${l.titulo ?? ''}`);
+          if (l.textoFinal) console.log(`  ${l.textoFinal.replace(/\n/g, '\n  ')}`);
+          for (const r of (l.validacao ?? []).filter((x) => !x.ok)) console.log(`  ✘ ${r.regra}: ${r.detalhe}`);
+          if (l.motivoDescarte) console.log(`  motivo: ${l.motivoDescarte}`);
+        }
+        break;
+      }
+
+      case 'aprovar': {
+        await aprovar(sql, cliente, exigir('mensagem'), op.por ?? 'operador');
+        console.log('Aprovada.');
+        break;
+      }
+
+      case 'descartar': {
+        await descartar(sql, cliente, exigir('mensagem'), exigir('motivo'));
+        console.log('Descartada.');
+        break;
+      }
+
+      case 'confirmar-preco': {
+        const preco = numeroBr(exigir('preco'));
+        if (preco === null || Number.isNaN(preco) || preco < 0) throw new Error('--preco inválido');
+        await confirmarPreco(sql, cliente, exigirOferta(), preco.toFixed(2));
+        console.log(`Preço confirmado: ${preco.toFixed(2)}. Mensagens com preço diferente serão barradas.`);
+        break;
+      }
+
+      case 'enviada': {
+        await registrarEnvio(sql, cliente, exigir('mensagem'));
+        console.log('Registrada como enviada.');
+        break;
+      }
+
+      case 'importar-vendas': {
+        const { vendas, erros } = lerPlanilhaVendas(await readFile(exigir('arquivo'), 'utf8'), cliente.fusoHorario);
+        const r = vendas.length ? await importarVendas(sql, cliente, vendas) : null;
+        if (r) {
+          console.log(`Vendas: ${r.total} (${r.novas} novas, ${r.atualizadas} atualizadas) · ${r.atribuidas} atribuídas, ${r.naoAtribuidas} NÃO atribuídas`);
+          for (const m of r.mudancasSituacao) console.log(`  pedido ${m.pedidoId}: ${m.de} → ${m.para}`);
+        }
+        if (erros.length) {
+          console.log(`\nLinhas NÃO importadas (${erros.length}):`);
+          for (const e of erros) console.log(`  linha ${e.linha}: ${e.motivo}`);
+          process.exitCode = 2;
+        }
+        break;
+      }
+
+      case 'resumo': {
+        const r = await resumoPeriodo(sql, cliente, exigir('de'), exigir('ate'));
+        console.log(`\nResumo ${r.inicio} a ${r.fim} · ${cliente.nome}`);
+        console.log(`  Comissão validada:  R$ ${r.comissao.validada}`);
+        console.log(`  Comissão pendente:  R$ ${r.comissao.pendente}   (pode cair se o pedido for cancelado)`);
+        console.log(`  Comissão cancelada: R$ ${r.comissao.cancelada}`);
+        console.log(`  Não atribuídas:     ${r.naoAtribuidas.pedidos} pedidos, R$ ${r.naoAtribuidas.comissao}`);
+        console.log(`  Cliques:            ${r.cliques}`);
+        if (r.porPlataformaESituacao.length) console.table(r.porPlataformaESituacao);
+        if (r.melhoresPostagens.length) {
+          console.log('  Melhores postagens:');
+          for (const m of r.melhoresPostagens) console.log(`    R$ ${m.comissao} · ${m.pedidos} pedidos · ${m.titulo ?? m.chaveRastreio}`);
+        }
         break;
       }
 
