@@ -40,6 +40,9 @@ import { lerPlanilhaVendas } from '../services/vendas/planilhaVendas.ts';
 import { processarFila, statusFila } from './fila.ts';
 import { agendarDia, criarExecutores } from './esteira.ts';
 import { numeroBr } from './csv.ts';
+import { criarModeloClaude, precosDoAmbiente } from './modeloClaude.ts';
+import { contratoRedator, redigirMensagem } from '../services/lista/redator.ts';
+import { carregarAgente, rodarCasos } from './agentes.ts';
 
 const AJUDA = `Uso:
   npm run cli -- credenciais-shopee --cliente c1
@@ -75,6 +78,12 @@ Lista do dia (texto com marcadores; o sistema preenche preço, desconto e link):
   npm run cli -- confirmar-preco --cliente c1 --oferta <id> --preco 29,90
   npm run cli -- enviada --cliente c1 --mensagem <id>
       Registra que a mensagem foi enviada (confere preço conferido há até 30 min e repetição antes).
+
+Redator (IA; usa a API do Claude e gera custo):
+  npm run cli -- redigir --cliente c1 --oferta <id> [--oferta <id2> ...] [--data AAAA-MM-DD]
+      Escreve a mensagem de cada oferta e cria o rascunho (preço e link preenchidos pelo sistema).
+  npm run cli -- testar-redator --cliente c1
+      Roda os casos de teste de agents/redator/casos com o modelo de verdade.
 
 Vendas:
   npm run cli -- importar-vendas --cliente c1 --arquivo vendas.csv   (modelo: docs/modelos/vendas.csv)
@@ -378,6 +387,41 @@ async function principal(): Promise<void> {
       case 'enviada': {
         await registrarEnvio(sql, cliente, exigir('mensagem'));
         console.log('Registrada como enviada.');
+        break;
+      }
+
+      case 'redigir': {
+        const ofertas = op.oferta ?? [];
+        if (!ofertas.length) throw new Error('Falta --oferta.');
+        const modelo = criarModeloClaude();
+        const contrato = await contratoRedator();
+        const precos = precosDoAmbiente();
+        let falhas = 0;
+        for (const ofertaId of ofertas) {
+          try {
+            const r = await redigirMensagem(sql, { cliente, ofertaId, modelo, contrato, precos, dataLista: dataLista() });
+            console.log(`\n✔ ${ofertaId} (${r.tentativas} tentativa(s), prompt ${r.versaoPrompt})\n  ${r.mensagem.textoFinal.replace(/\n/g, '\n  ')}`);
+          } catch (erro) {
+            falhas++;
+            console.log(`\n✘ ${ofertaId}: ${(erro as Error).message}`);
+          }
+        }
+        console.log(`\nRascunhos criados: ${ofertas.length - falhas} de ${ofertas.length}. Próximo passo: npm run cli -- validar --cliente ${cliente.codigo}`);
+        if (falhas) process.exitCode = 2;
+        break;
+      }
+
+      case 'testar-redator': {
+        const { casos } = await carregarAgente(new URL('../agents/redator', import.meta.url).pathname);
+        const r = await rodarCasos(sql, {
+          contrato: await contratoRedator(), casos, modelo: criarModeloClaude(), clienteId: cliente.clienteId, precos: precosDoAmbiente(),
+        });
+        for (const c of r) console.log(`${c.ok ? '✔' : '✘'} ${c.caso}: ${c.detalhe}`);
+        const [custo] = await sql`
+          select count(*)::int as chamadas, coalesce(sum(custo_usd), 0)::numeric(12,6)::text as custo
+          from execucoes_agente where cliente_id = ${cliente.clienteId} and criado_em > now() - interval '10 minutes'`;
+        console.log(`\n${r.filter((c) => c.ok).length} de ${r.length} casos ok · ${custo!.chamadas} chamadas · US$ ${custo!.custo}`);
+        if (r.some((c) => !c.ok)) process.exitCode = 2;
         break;
       }
 

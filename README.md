@@ -285,11 +285,40 @@ Rodar de novo não duplica.
 `fila` executa as tarefas vencidas: uma etapa que falha tenta de novo com espera crescente (1, 2 e 4 minutos), até 3 vezes,
 sem segurar as outras. Para rodar sozinho, basta chamar `fila` a cada poucos minutos (cron do servidor ou do Supabase).
 
-### Agentes
+### Agentes: o Redator
 
-O harness (`harness/agentes.ts`) e o formato do contrato estão em [agents/LEIA-ME.md](agents/LEIA-ME.md).
-O contrato do Redator já existe, mas **nenhum agente roda ainda**: falta o cliente da API do Claude e a escolha dos modelos
-(`MODELO_IA_PEQUENO` e `MODELO_IA_FORTE` no `.env`).
+O Redator escreve a mensagem de cada oferta com a API do Claude e cria o rascunho na lista do dia.
+Ele recebe só o título, o nicho, se a oferta tem desconto, o tom do grupo e até 3 mensagens já enviadas
+(as de mais cliques), **nunca preço nem link**. Devolve o texto com marcadores; o sistema preenche os valores.
+
+Configuração no `.env`:
+
+| Variável | O que é |
+|---|---|
+| `ANTHROPIC_API_KEY` | chave da API (console da Anthropic → API Keys) |
+| `MODELO_IA_PEQUENO` | modelo usado pelo Redator (porte "pequeno" no contrato) |
+| `MODELO_IA_PEQUENO_PRECO` | opcional: preço por milhão de tokens em US$, `"entrada,saida"`, para registrar o custo |
+
+```bash
+npm run cli -- redigir --cliente c1 --oferta <id> --oferta <id2>
+```
+
+Depois, o caminho é o mesmo de um texto escrito à mão: `validar`, `lista`, `aprovar`.
+
+Para testar o prompt com os casos de `agents/redator/casos` (gera custo, pequeno):
+
+```bash
+npm run cli -- testar-redator --cliente c1
+```
+
+Como a chamada é protegida:
+- O SDK oficial faz timeout (60 s) e até 3 novas tentativas em erro de rede, sobrecarga ou limite de chamadas.
+- A resposta vem em JSON com o esquema do agente (saída estruturada da API) e é conferida de novo pelo harness.
+- Texto com preço, link ou número escrito é recusado; o Redator tenta de novo com o motivo, no máximo 2 vezes.
+- Chave errada ou faltando para na primeira tentativa, com mensagem clara.
+- Cada tentativa fica em `execucoes_agente` (entrada, saída, versão do prompt, modelo, tokens, custo).
+
+Contrato e formato dos agentes: [agents/LEIA-ME.md](agents/LEIA-ME.md).
 
 ## 6. Testes automatizados
 
@@ -342,7 +371,7 @@ Se algo estiver diferente, o erro aparece no primeiro teste com a conta real: a 
 ### Decisões em aberto, para depois
 
 - **Aviso de falha:** etapa que falha de vez fica em `fila-status` e no log de erro. Falta mandar o aviso por WhatsApp quando o canal existir.
-- **Cliente da API do Claude:** falta, para os agentes rodarem. O harness já está pronto para recebê-lo.
+- **Redator na esteira:** hoje ele roda pelo comando `redigir`. Entra na fila do dia quando existir o Curador, que escolhe as ofertas.
 - **Casos de teste do Redator:** são 3 de exemplo; a meta é 15 a 20 reais.
 
 - **Link perdido se o banco falhar:** se a Shopee gerar o link e a gravação falhar depois das novas tentativas, o link não fica salvo. Ele é só registrado no log de erro. Basta pedir o link de novo.

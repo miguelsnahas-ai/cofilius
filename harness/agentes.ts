@@ -121,12 +121,14 @@ export async function executarAgente<E, S>(
   const validarSaida = ajv.compile(c.esquemaSaida);
   const preco = p.precos?.[c.modelo];
   let correcao: string | undefined;
+  let ultimoProblema = '';
 
   for (let tentativa = 1; tentativa <= 1 + MAX_REPETICOES; tentativa++) {
     const inicio = Date.now();
     let resposta: RespostaModelo | null = null;
     let saida: unknown = null;
     let problema: string | null = null;
+    let fatal = false;
     try {
       resposta = await p.modelo.gerar({
         modelo: c.modelo, sistema: c.prompt, entrada: JSON.stringify(p.entrada), esquemaSaida: c.esquemaSaida,
@@ -144,6 +146,8 @@ export async function executarAgente<E, S>(
       }
     } catch (erro) {
       problema = `falha ao chamar o modelo: ${(erro as Error).message}`;
+      // Erro marcado como fatal (ex.: chave inválida) não melhora repetindo.
+      fatal = (erro as { fatal?: boolean }).fatal === true;
     }
     const duracao = Date.now() - inicio;
     const custo = resposta && preco
@@ -162,10 +166,12 @@ export async function executarAgente<E, S>(
       log.info('agente.ok', { agente: c.nome, versao, tentativa, ms: duracao });
       return { saida: saida as S, tentativas: tentativa, versaoPrompt: versao };
     }
+    if (fatal) throw new ErroAgente(c.nome, problema!, tentativa);
+    ultimoProblema = problema!;
     log.warn('agente.saida_recusada', { agente: c.nome, versao, tentativa, problema });
     correcao = `Sua resposta anterior foi recusada: ${problema}. Responda de novo, só com o JSON pedido.`;
   }
-  throw new ErroAgente(c.nome, `saída recusada ${1 + MAX_REPETICOES} vezes`, 1 + MAX_REPETICOES);
+  throw new ErroAgente(c.nome, `saída recusada ${1 + MAX_REPETICOES} vezes; último motivo: ${ultimoProblema}`, 1 + MAX_REPETICOES);
 }
 
 // ---------------------------------------------------------------------------

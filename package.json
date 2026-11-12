@@ -16,6 +16,7 @@
     "extensao:e2e": "node extensao/testar-e2e.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "ajv": "^8.20.0",
     "dotenv": "^18.0.10",
     "postgres": "^4.1.1"

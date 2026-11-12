@@ -12,6 +12,7 @@ Cada agente é uma pasta com o contrato que o harness (`harness/agentes.ts`) exi
 
 Situação:
 
-- **redator**: contrato completo, com prompt **rascunho** e 3 casos. Ainda não foi rodado com um modelo de verdade.
+- **redator**: ligado à API do Claude (`harness/modeloClaude.ts`) e à lista do dia (`services/lista/redator.ts`, comando `redigir`).
+  O prompt ainda é um **rascunho**, com 3 casos.
   TODO: trocar os casos por 15 a 20 ofertas reais, com mensagens que tiveram bom clique.
 - curador, analista, atendente: ainda não existem.
