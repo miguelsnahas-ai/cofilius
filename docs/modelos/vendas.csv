@@ -1,0 +1,4 @@
+plataforma;pedido;produto;nome;quantidade;valor;comissao;situacao;etiqueta;sub_id1;sub_id2;sub_id3;sub_id4;sub_id5;data
+shopee;250101ABC;22912345678;Organizador de Gaveta;1;29,90;3,59;pendente;;c1;wa;20261112;22912345678;0815;12/11/2026 10:30
+mercado livre;2000001234;MLB123456;Air Fryer;1;289,90;14,50;validada;wa-s46-casa;;;;;;13/11/2026
+amazon;702-1234567-1234567;B0FH7C4YCS;Creme Weleda;1;79,90;2,40;pendente;loja-20;;;;;;2026-11-13
