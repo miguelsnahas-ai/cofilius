@@ -1,0 +1,27 @@
+{
+  "name": "cofilius",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "cli": "tsx harness/cli.ts",
+    "db:migrate": "tsx db/migrate.ts",
+    "db:seed": "tsx db/migrate.ts --seed",
+    "gerar-chave": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "postgres": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
