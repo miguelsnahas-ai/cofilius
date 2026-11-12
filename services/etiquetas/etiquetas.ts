@@ -116,3 +116,22 @@ export function gerarEtiquetas(entrada: EntradaEtiquetas): Etiquetas {
     amazon: { trackingId, sugestao: sugestaoAmazon, precisaCriarNoPainel: trackingId === null },
   };
 }
+
+/**
+ * Converte "AAAA-MM-DD HH:MM" (horário local do cliente) em Date.
+ * Usado quando o horário da postagem é informado à mão.
+ */
+export function horarioLocalParaData(texto: string, fuso: string = FUSO_PADRAO): Date {
+  const m = texto.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})$/);
+  if (!m) throw new Error(`Horário inválido: "${texto}". Use AAAA-MM-DD HH:MM, ex.: 2026-11-12 08:15`);
+  const [ano, mes, dia, hora, minuto] = m.slice(1).map(Number) as [number, number, number, number, number];
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31 || hora > 23 || minuto > 59) throw new Error(`Horário inválido: "${texto}"`);
+  const desejado = Date.UTC(ano, mes - 1, dia, hora, minuto);
+  // Ajusta pela diferença do fuso (duas passadas cobrem mudança de horário de verão).
+  let palpite = desejado;
+  for (let i = 0; i < 2; i++) {
+    const p = partesLocais(new Date(palpite), fuso);
+    palpite += desejado - Date.UTC(p.ano, p.mes - 1, p.dia, p.hora, p.minuto);
+  }
+  return new Date(palpite);
+}

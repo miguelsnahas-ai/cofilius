@@ -90,28 +90,62 @@ export async function coletarOfertasShopee(
     }
   }
 
-  const clienteId = entrada.cliente.clienteId;
-  const gravadas = await conectarTransacao(deps.sql, 'ofertas.gravar', async (tx) => {
+  const itens = [...coletadas.values()].map(({ oferta, palavra }) => ({ oferta, nicho: entrada.nicho, palavraChave: palavra }));
+  const gravadas = await gravarOfertas(deps.sql, entrada.cliente, itens, dataColeta);
+
+  const novas = gravadas.filter((g) => g.nova).length;
+  log.info('ofertas.coletadas', {
+    cliente: entrada.cliente.codigo, nicho: entrada.nicho, dataColeta, total: gravadas.length, novas, descartadas,
+  });
+  return { dataColeta, ofertas: gravadas, novas, atualizadas: gravadas.length - novas, descartadas };
+}
+
+export interface ItemParaGravar {
+  oferta: OfertaShopee;
+  nicho: string | null;
+  palavraChave: string | null;
+}
+
+/**
+ * Grava ofertas da Shopee sem duplicar (uma linha por cliente + produto + dia de coleta).
+ * Usada pela coleta via API e pela importação de planilha.
+ */
+export async function gravarOfertas(
+  sql: Sql, cliente: Cliente, itens: ItemParaGravar[], dataColeta: string,
+): Promise<OfertaGravada[]> {
+  const clienteId = cliente.clienteId;
+  return conectarTransacao(sql, 'ofertas.gravar', async (tx) => {
     const saida: OfertaGravada[] = [];
-    for (const { oferta: o, palavra } of coletadas.values()) {
+    for (const { oferta: o, nicho, palavraChave: palavra } of itens) {
       const [linha] = await tx`
         insert into ofertas (
           cliente_id, plataforma, produto_id, loja_id, nicho, palavra_chave, titulo, url_produto, url_oferta,
           imagem_url, loja_nome, preco, preco_maximo, desconto_pct, comissao_pct, comissao_valor, vendas,
           avaliacao, validade_inicio, validade_fim, data_coleta, dados_brutos
         ) values (
-          ${clienteId}, 'shopee', ${o.produtoId}, ${o.lojaId}, ${entrada.nicho}, ${palavra}, ${o.titulo},
+          ${clienteId}, 'shopee', ${o.produtoId}, ${o.lojaId}, ${nicho}, ${palavra}, ${o.titulo},
           ${o.urlProduto}, ${o.urlOferta}, ${o.imagemUrl}, ${o.lojaNome}, ${o.preco}, ${o.precoMaximo},
           ${o.descontoPct}, ${o.comissaoPct}, ${o.comissaoValor}, ${o.vendas}, ${o.avaliacao},
           ${o.validadeInicio}, ${o.validadeFim}, ${dataColeta}, ${tx.json(o.bruto as never)}
         )
         on conflict (cliente_id, plataforma, produto_id, data_coleta) do update set
-          loja_id = excluded.loja_id, titulo = excluded.titulo, url_produto = excluded.url_produto,
-          url_oferta = excluded.url_oferta, imagem_url = excluded.imagem_url, loja_nome = excluded.loja_nome,
-          preco = excluded.preco, preco_maximo = excluded.preco_maximo, desconto_pct = excluded.desconto_pct,
-          comissao_pct = excluded.comissao_pct, comissao_valor = excluded.comissao_valor,
-          vendas = excluded.vendas, avaliacao = excluded.avaliacao, validade_inicio = excluded.validade_inicio,
-          validade_fim = excluded.validade_fim, dados_brutos = excluded.dados_brutos
+          -- Campo vazio na nova coleta (ex.: planilha sem imagem) mantém o valor anterior.
+          titulo = excluded.titulo, url_produto = excluded.url_produto, preco = excluded.preco,
+          loja_id = coalesce(excluded.loja_id, ofertas.loja_id),
+          url_oferta = coalesce(excluded.url_oferta, ofertas.url_oferta),
+          imagem_url = coalesce(excluded.imagem_url, ofertas.imagem_url),
+          loja_nome = coalesce(excluded.loja_nome, ofertas.loja_nome),
+          preco_maximo = coalesce(excluded.preco_maximo, ofertas.preco_maximo),
+          desconto_pct = coalesce(excluded.desconto_pct, ofertas.desconto_pct),
+          comissao_pct = coalesce(excluded.comissao_pct, ofertas.comissao_pct),
+          comissao_valor = coalesce(excluded.comissao_valor, ofertas.comissao_valor),
+          vendas = coalesce(excluded.vendas, ofertas.vendas),
+          avaliacao = coalesce(excluded.avaliacao, ofertas.avaliacao),
+          validade_inicio = coalesce(excluded.validade_inicio, ofertas.validade_inicio),
+          validade_fim = coalesce(excluded.validade_fim, ofertas.validade_fim),
+          palavra_chave = coalesce(excluded.palavra_chave, ofertas.palavra_chave),
+          nicho = coalesce(excluded.nicho, ofertas.nicho),
+          dados_brutos = ofertas.dados_brutos || excluded.dados_brutos
         returning id, produto_id, titulo, preco::text, desconto_pct::text, comissao_pct::text,
                   comissao_valor::text, url_produto, palavra_chave, (xmax = 0) as nova`;
       saida.push({
@@ -129,10 +163,4 @@ export async function coletarOfertasShopee(
     }
     return saida;
   });
-
-  const novas = gravadas.filter((g) => g.nova).length;
-  log.info('ofertas.coletadas', {
-    cliente: entrada.cliente.codigo, nicho: entrada.nicho, dataColeta, total: gravadas.length, novas, descartadas,
-  });
-  return { dataColeta, ofertas: gravadas, novas, atualizadas: gravadas.length - novas, descartadas };
 }

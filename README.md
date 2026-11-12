@@ -9,7 +9,8 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - padrão de etiquetas de rastreio (sub_ids da Shopee, etiqueta do Mercado Livre, tracking ID da Amazon);
 - **Conector de ofertas**: busca ofertas na Shopee por palavra-chave do nicho e grava em `ofertas`;
 - **Links e rastreio**: gera o link de afiliado da Shopee com os sub_ids e grava em `links`;
-- um comando de linha para testar os dois com a conta real.
+- um comando de linha para testar os dois com a conta real;
+- **modo manual**, para usar enquanto a Open API da Shopee não estiver liberada: ofertas por planilha e links gerados no painel.
 
 ## Estrutura
 
@@ -79,6 +80,52 @@ O sistema acessa pela `DATABASE_URL`.
    npm run cli -- credenciais-shopee --cliente c1
    ```
    Depois disso, pode apagar `SHOPEE_APP_ID` e `SHOPEE_SECRET` do `.env`: os serviços leem do banco.
+
+## Sem a Open API: modo manual
+
+Enquanto a Open API não estiver liberada, as ofertas entram por planilha e os links são gerados no painel de afiliados.
+Os dados vão para as mesmas tabelas (`ofertas` e `links`), com as mesmas regras.
+Quando a API sair, basta trocar pelos comandos da seção 5. Para o modo manual, você só precisa do Supabase (seções 2 e 3) e de `DATABASE_URL` no `.env`.
+
+### 1. Ofertas pela planilha
+
+1. Faça uma cópia de [`docs/modelos/ofertas-shopee.csv`](docs/modelos/ofertas-shopee.csv) e abra no Excel ou no Google Planilhas.
+2. Preencha uma linha por produto:
+
+   | Coluna | Obrigatória | Exemplo | Observação |
+   |---|---|---|---|
+   | `link` | sim | `https://shopee.com.br/Nome-do-Produto-i.334455667.22912345678` | link **completo** da página do produto (o link curto não traz o ID do produto) |
+   | `titulo` | sim | `Organizador de Gaveta` | |
+   | `preco` | sim | `29,90` | aceita `R$ 1.299,90`, `29,90` ou `29.90` |
+   | `desconto` | não | `25` | em %, de 0 a 100 |
+   | `comissao` | não | `12` | taxa de comissão em %, como aparece no painel |
+   | `comissao_valor` | não | `3,59` | comissão em reais |
+   | `nicho` | não | `casa` | se vazio, usa o `--nicho` do comando |
+
+3. Salve como CSV (no Google Planilhas: Arquivo → Fazer download → CSV) e importe:
+   ```bash
+   npm run cli -- importar-ofertas --cliente c1 --arquivo ofertas.csv --nicho casa
+   ```
+
+Linhas com problema não são gravadas. O comando mostra o número da linha e o motivo; corrija e importe de novo.
+Importar de novo no mesmo dia não duplica: atualiza as ofertas que já estão lá.
+
+### 2. Links com rastreio, gerados no painel
+
+1. Peça os sub_ids das ofertas do dia, informando o horário em que a postagem vai sair:
+   ```bash
+   npm run cli -- preparar-links --cliente c1 --quando "2026-11-12 08:15"
+   ```
+   Para cada oferta, o comando mostra o link do produto, os 5 Sub_ids e um comando `registrar-link` pronto.
+2. No painel de afiliados da Shopee, gere o link personalizado do produto preenchendo Sub_id1 a Sub_id5 exatamente como mostrado. Um produto por vez, porque o Sub_id4 muda a cada produto.
+3. Copie o comando `registrar-link` que apareceu para aquela oferta, troque `COLE_O_LINK_AQUI` pelo link gerado e rode:
+   ```bash
+   npm run cli -- registrar-link --cliente c1 --oferta <id> --quando "2026-11-12 08:15" --link https://s.shopee.com.br/XXXX
+   ```
+
+O comando aceita só links da Shopee e recusa um link que já foi registrado.
+**Limite deste modo:** o sistema não consegue ver se os Sub_ids foram digitados certo no painel, porque o link curto não mostra isso.
+A conferência vem do relatório de conversões da Shopee, que traz os Sub_ids de cada venda.
 
 ## 5. Testar os dois serviços com a conta real
 
@@ -170,6 +217,13 @@ Se algo estiver diferente, o erro aparece no primeiro teste com a conta real: a 
 7. **sub_ids**: caracteres aceitos e tamanho máximo de cada um (o código usa só letras minúsculas e números).
 8. **Códigos de erro**: a suposição é 10020 para assinatura inválida e 10030 para limite de chamadas. 10000 e 10030 geram nova tentativa; os outros não.
 9. **Limite de chamadas** por minuto ou por dia da conta.
+
+### Relatórios recebidos em 12/nov (para o Sincronizador de ganhos)
+
+- **Shopee, `AffiliateDashboardReport`**: só totais por dia (cliques, pedidos, comissão). Não tem Sub_id nem produto, então não serve para ligar venda a postagem. Falta o **relatório de conversões**, com uma linha por pedido e as colunas de Sub_id.
+- **Amazon, relatórios `Tracking-Id`, `Linked-Product`, `Category` e `Top-Sellers`**: são resumos. O de tracking ID não tem data, e o de produto agrupa tudo em "Other". Faltam os relatórios de **pedidos** e de **ganhos**, que listam cada item com ASIN, data e tracking ID.
+- Detalhes de formato já vistos na Amazon: data `DD-MM-AAAA`, ponto como separador decimal, `-` para vazio, cabeçalhos ora em português, ora em inglês.
+- A conta da Amazon tem hoje **um único tracking ID**. Para separar canal e nicho, é preciso criar mais no painel. A Amazon termina todo tracking ID com `-20`; a sugestão de nome da função de etiquetas (`wa-casa`) ainda precisa seguir esse formato.
 
 ### Para confirmar nos painéis (da arquitetura)
 

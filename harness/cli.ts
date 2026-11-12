@@ -7,6 +7,11 @@
  *   npm run cli -- link --cliente c1 --url https://shopee.com.br/... [--canal wa] [--nicho casa]
  *   npm run cli -- teste --cliente c1 --nicho casa [--limite 10]
  *
+ * Modo manual (sem a Open API):
+ *   npm run cli -- importar-ofertas --cliente c1 --arquivo ofertas.csv [--nicho casa]
+ *   npm run cli -- preparar-links --cliente c1 [--quando "2026-11-12 08:15"] [--oferta <id> ...]
+ *   npm run cli -- registrar-link --cliente c1 --oferta <id> --quando "2026-11-12 08:15" --link https://s.shopee.com.br/...
+ *
  * Opção em ofertas, link e teste: --gravar <pasta> salva as respostas brutas da Shopee em JSON
  * (para virar resposta de exemplo nos testes).
  *
@@ -23,6 +28,10 @@ import { lerCredencialShopee, salvarCredencialShopee } from '../db/credenciais.t
 import { criarClienteShopee, ENDPOINT_BRASIL } from '../services/shopee/client.ts';
 import { coletarOfertasShopee, type ResultadoColeta } from '../services/ofertas/coletarOfertasShopee.ts';
 import { gerarLinkShopee, type LinkGravado } from '../services/links/gerarLinkShopee.ts';
+import { importarPlanilhaShopee } from '../services/ofertas/importarPlanilhaShopee.ts';
+import { prepararLinks, registrarLinkManual } from '../services/links/linksManuaisShopee.ts';
+import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
+import { readFile } from 'node:fs/promises';
 
 const AJUDA = `Uso:
   npm run cli -- credenciais-shopee --cliente c1
@@ -37,7 +46,17 @@ const AJUDA = `Uso:
   npm run cli -- teste --cliente c1 --nicho casa [--limite 10]
       Faz os dois: busca as ofertas e gera o link da primeira.
 
-Opções comuns: --gravar <pasta>  salva as respostas brutas da Shopee.`;
+Opções comuns: --gravar <pasta>  salva as respostas brutas da Shopee.
+
+Modo manual (sem a Open API):
+  npm run cli -- importar-ofertas --cliente c1 --arquivo ofertas.csv [--nicho casa]
+      Lê a planilha (modelo: docs/modelos/ofertas-shopee.csv) e grava em ofertas.
+
+  npm run cli -- preparar-links --cliente c1 [--quando "2026-11-12 08:15"] [--oferta <id> ...] [--canal wa]
+      Mostra os 5 sub_ids de cada oferta do dia, para digitar no painel da Shopee.
+
+  npm run cli -- registrar-link --cliente c1 --oferta <id> --quando "2026-11-12 08:15" --link <link do painel>
+      Grava o link gerado no painel, com os mesmos sub_ids.`;
 
 const { values: op, positionals } = parseArgs({
   allowPositionals: true,
@@ -47,7 +66,10 @@ const { values: op, positionals } = parseArgs({
     palavra: { type: 'string', multiple: true },
     limite: { type: 'string' },
     ordenacao: { type: 'string' },
-    oferta: { type: 'string' },
+    oferta: { type: 'string', multiple: true },
+    arquivo: { type: 'string' },
+    link: { type: 'string' },
+    quando: { type: 'string' },
     url: { type: 'string' },
     canal: { type: 'string' },
     gravar: { type: 'string' },
@@ -145,7 +167,7 @@ async function principal(): Promise<void> {
         if (!op.oferta && !op.url) throw new Error('Informe --oferta <id> ou --url <url>.');
         const shopee = await clienteShopee(sql, cliente);
         const l = await gerarLinkShopee({ sql, shopee }, {
-          cliente, ofertaId: op.oferta, url: op.url, canal: op.canal, nicho: op.nicho,
+          cliente, ofertaId: op.oferta?.[0], url: op.url, canal: op.canal, nicho: op.nicho,
           contexto: { origem: 'cli' },
         });
         mostrarLink(l);
@@ -169,6 +191,53 @@ async function principal(): Promise<void> {
           select (select count(*)::int from ofertas where cliente_id = ${cliente.clienteId} and data_coleta = ${r.dataColeta}) as ofertas,
                  (select count(*)::int from links where cliente_id = ${cliente.clienteId} and id = ${l.id}) as links`;
         console.log(`\nConferência no banco: ${cont!.ofertas} ofertas de hoje e ${cont!.links} link gravado.`);
+        break;
+      }
+
+      case 'importar-ofertas': {
+        const texto = await readFile(exigir('arquivo'), 'utf8');
+        const r = await importarPlanilhaShopee(sql, cliente, texto, {
+          nichoPadrao: op.nicho,
+          quando: op.quando ? horarioLocalParaData(op.quando, cliente.fusoHorario) : undefined,
+        });
+        mostrarOfertas({ ...r, descartadas: r.erros.length });
+        if (r.erros.length) {
+          console.log(`\nLinhas NÃO importadas (${r.erros.length}) — corrija na planilha e importe de novo:`);
+          for (const e of r.erros) console.log(`  linha ${e.linha}: ${e.motivo}`);
+          process.exitCode = 2;
+        }
+        break;
+      }
+
+      case 'preparar-links': {
+        const quando = op.quando ? horarioLocalParaData(op.quando, cliente.fusoHorario) : new Date();
+        const lista = await prepararLinks(sql, cliente, { quando, canal: op.canal, ofertaIds: op.oferta });
+        if (!lista.length) {
+          console.log('Nenhuma oferta encontrada para o dia. Importe a planilha primeiro (importar-ofertas).');
+          break;
+        }
+        console.log(`\nNo painel de afiliados da Shopee, gere um link por produto, com estes Sub_ids.`);
+        console.log(`Depois cole cada link gerado no comando "registrar-link" mostrado abaixo dele.\n`);
+        lista.forEach((l, i) => {
+          console.log(`${i + 1}. ${l.titulo} · R$ ${l.preco}${l.linksExistentes ? `  (já tem ${l.linksExistentes} link)` : ''}`);
+          console.log(`   Produto: ${l.urlProduto}`);
+          l.subIds.forEach((s, j) => console.log(`   Sub_id${j + 1}: ${s}`));
+          console.log(`   npm run cli -- registrar-link --cliente ${cliente.codigo} --oferta ${l.ofertaId} --quando "${l.quando}"${op.canal ? ` --canal ${op.canal}` : ''} --link COLE_O_LINK_AQUI\n`);
+        });
+        break;
+      }
+
+      case 'registrar-link': {
+        const l = await registrarLinkManual(sql, {
+          cliente,
+          ofertaId: op.oferta?.[0],
+          url: op.url,
+          link: exigir('link'),
+          quando: horarioLocalParaData(exigir('quando'), cliente.fusoHorario),
+          canal: op.canal,
+          nicho: op.nicho,
+        });
+        mostrarLink(l);
         break;
       }
 

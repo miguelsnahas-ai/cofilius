@@ -12,6 +12,8 @@ import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { lerCredencialShopee, salvarCredencialShopee } from '../db/credenciais.ts';
 import { coletarOfertasShopee } from './ofertas/coletarOfertasShopee.ts';
 import { gerarLinkShopee } from './links/gerarLinkShopee.ts';
+import { importarPlanilhaShopee } from './ofertas/importarPlanilhaShopee.ts';
+import { prepararLinks, registrarLinkManual } from './links/linksManuaisShopee.ts';
 import type { BuscaOfertas } from './shopee/client.ts';
 import type { OfertaShopee, PaginaOfertas } from './shopee/parser.ts';
 
@@ -177,6 +179,49 @@ describe.skipIf(!habilitado)('serviços com banco', () => {
       await expect(sql`
         insert into links (cliente_id, oferta_id, plataforma, url_origem, url_afiliado, chave_rastreio, canal)
         values (${cliente.clienteId}, ${col.ofertas[0]!.id}, 'shopee', 'x', 'y', 'z', 'wa')`).rejects.toThrow(/foreign key/);
+    });
+  });
+
+  describe('modo manual (sem API)', () => {
+    const planilha = [
+      'link;titulo;preco;desconto;comissao;nicho',
+      'https://shopee.com.br/A-i.9.101;Produto A;29,90;25;12;casa',
+      'https://shopee.com.br/B-i.9.102;Produto B;"1.299,00";;7,5;',
+      'https://s.shopee.com.br/curto;Produto C;10;;;casa',
+    ].join('\n');
+
+    it('importa a planilha, recusa a linha ruim e não duplica ao importar de novo', async () => {
+      const r = await importarPlanilhaShopee(sql, cliente, planilha, { nichoPadrao: 'beleza', quando });
+      expect(r.ofertas).toHaveLength(2);
+      expect(r.erros.map((e) => e.linha)).toEqual([4]);
+      const linhas = await sql`select produto_id, preco::text, nicho, dados_brutos->>'origem' as origem from ofertas order by produto_id`;
+      expect(linhas.map((l) => [l.produto_id, l.preco, l.nicho, l.origem])).toEqual([
+        ['101', '29.90', 'casa', 'planilha'], ['102', '1299.00', 'beleza', 'planilha'],
+      ]);
+      const r2 = await importarPlanilhaShopee(sql, cliente, planilha, { quando });
+      expect(r2.novas).toBe(0);
+      expect(r2.atualizadas).toBe(2);
+    });
+
+    it('prepara os sub_ids e registra o link colado do painel com os mesmos sub_ids', async () => {
+      await importarPlanilhaShopee(sql, cliente, planilha, { quando });
+      const preparados = await prepararLinks(sql, cliente, { quando });
+      expect(preparados).toHaveLength(2);
+      expect(preparados[0]).toMatchObject({
+        produtoId: '101', subIds: ['c1', 'wa', '20261112', '101', '0815'], quando: '2026-11-12 08:15', linksExistentes: 0,
+      });
+      const link = await registrarLinkManual(sql, {
+        cliente, ofertaId: preparados[0]!.ofertaId, link: 'https://s.shopee.com.br/Painel1', quando,
+      });
+      expect(link).toMatchObject({ urlAfiliado: 'https://s.shopee.com.br/Painel1', subIds: preparados[0]!.subIds });
+      const [l] = await sql`select contexto->>'origem' as origem from links where id = ${link.id}`;
+      expect(l!.origem).toBe('painel');
+      expect((await prepararLinks(sql, cliente, { quando }))[0]!.linksExistentes).toBe(1);
+      await expect(registrarLinkManual(sql, {
+        cliente, ofertaId: preparados[1]!.ofertaId, link: 'https://s.shopee.com.br/Painel1', quando,
+      })).rejects.toThrow('já foi registrado');
+      await expect(registrarLinkManual(sql, { cliente, ofertaId: preparados[1]!.ofertaId, link: 'https://bit.ly/x', quando }))
+        .rejects.toThrow('Shopee');
     });
   });
 
