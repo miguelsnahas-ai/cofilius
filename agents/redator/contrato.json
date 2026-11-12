@@ -1,0 +1,6 @@
+{
+  "nome": "redator",
+  "modelo": "pequeno",
+  "ferramentas": [],
+  "observacao": "Sem ferramentas. Recebe os dados da oferta e devolve o texto com marcadores. Nunca recebe preço nem link."
+}

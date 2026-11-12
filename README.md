@@ -11,18 +11,25 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - **Links e rastreio**: gera o link de afiliado da Shopee com os sub_ids e grava em `links`;
 - um comando de linha para testar os dois com a conta real;
 - **modo manual**, para usar enquanto a Open API da Shopee não estiver liberada: ofertas por planilha e links gerados no painel;
+- **lista diária**: rascunho → validada → aprovada → enviada → medida, com os estados garantidos pelo banco, marcadores preenchidos pelo código e os validadores da arquitetura;
+- **vendas**: atribuição de cada venda à postagem (ou "não atribuída"), cliques e resumo do período com comissão pendente, validada e cancelada separadas;
+- **esteira e fila de tarefas**: etapas do dia com horário por cliente, novas tentativas e falha isolada;
+- **harness dos agentes**: contrato de cada agente (prompt versionado, esquemas, até 2 repetições, registro de custo e casos de teste), com o contrato do Redator como primeiro exemplo;
 - **extensão de Chrome (etapa 1: gravador para Mercado Livre, Shopee e Amazon)**: grava os dados que as páginas de afiliado carregam, para mapear o formato real. Instalação e uso em [extensao/LEIA-ME.md](extensao/LEIA-ME.md).
 
 ## Estrutura
 
 ```
-agents/      agentes de IA (ainda vazio)
+agents/      contratos dos agentes de IA (por enquanto, o Redator)
 services/
   etiquetas/ padrão de etiquetas de rastreio
   shopee/    cliente da Shopee Affiliate Open API (client.ts) e parser das respostas
-  ofertas/   Conector de ofertas · Shopee
-  links/     Links e rastreio · Shopee
-harness/     o que roda os serviços: config, log, timeout e novas tentativas, cifragem, banco, comando de teste
+  ofertas/   Conector de ofertas · Shopee (API e planilha)
+  links/     Links e rastreio · Shopee (API e painel)
+  lista/     lista diária: marcadores, validadores, aprovação, envio
+  vendas/    atribuição de vendas, cliques, resumo do período
+harness/     o que roda os serviços: config, log, novas tentativas, cifragem, banco, fila, esteira, agentes, comandos
+testes/      apoio aos testes com banco
 db/          migrations, seed, script de migração, acesso a clientes e credenciais
 extensao/   extensão de Chrome (gravador: Mercado Livre, Shopee e Amazon)
 docs/        arquitetura
@@ -184,15 +191,115 @@ Em `links.chave_rastreio` eles ficam unidos por hífen (`c1-wa-20261112-22912345
 Uma linha por cliente + produto + dia de coleta. Buscar de novo no mesmo dia atualiza preço, desconto e comissão.
 Em outro dia, entra uma linha nova, o que guarda o histórico de preço.
 
+## Lista do dia, vendas e esteira
+
+Funciona hoje com o modo manual (planilha e links do painel); nada aqui depende da Open API ou da extensão.
+
+### Montar a lista do dia
+
+Você (ou, depois, o agente Redator) escreve o texto com **marcadores**. O sistema preenche com os valores do banco:
+
+```bash
+npm run cli -- rascunho --cliente c1 --oferta <id> --texto "Achado! 😍 {{preco}} com {{desconto}} off 👉 {{link}}"
+```
+
+| Marcador | Vira |
+|---|---|
+| `{{preco}}` | preço atual da oferta (`R$ 29,90`) |
+| `{{desconto}}` | desconto da oferta (`25%`); só se a oferta tiver desconto |
+| `{{link}}` | link de afiliado registrado para a oferta (obrigatório) |
+
+O texto é recusado se trouxer preço, percentual, link ou número escrito à mão.
+Números grudados em letras (`4L`, `128GB`) podem ficar; "6 divisórias" precisa virar "seis divisórias".
+
+Depois:
+
+```bash
+npm run cli -- validar --cliente c1
+```
+
+```bash
+npm run cli -- lista --cliente c1
+```
+
+```bash
+npm run cli -- aprovar --cliente c1 --mensagem <id> --por Miguel
+```
+
+Depois de enviar a mensagem pelo WhatsApp, registre o envio:
+
+```bash
+npm run cli -- enviada --cliente c1 --mensagem <id>
+```
+
+**Validadores** (em `validar`): texto só com marcadores; link do cliente certo, da plataforma e do produto da oferta
+(na Shopee, o Sub_id1 tem de ser o código do cliente); preço igual ao da oferta; produto não enviado nos últimos 7 dias;
+limite de mensagens por dia do cliente (`clientes.limite_mensagens_dia`, padrão 10).
+
+**Antes do envio**, o sistema confere de novo:
+- se o preço foi conferido há mais de 30 minutos, a mensagem não sai; confirme o preço olhando a página e repita:
+  ```bash
+  npm run cli -- confirmar-preco --cliente c1 --oferta <id> --preco 29,90
+  ```
+- se o preço mudou, ou o produto foi enviado nos últimos 7 dias, a mensagem sai da lista (descartada, com o motivo).
+
+O banco garante a ordem dos estados: nada vira "enviada" sem ter sido "aprovada", e mexer no texto de uma mensagem
+validada ou aprovada a devolve para rascunho.
+
+### Vendas e resumo
+
+Enquanto não há importador para os relatórios de cada plataforma, as vendas entram pela planilha
+[`docs/modelos/vendas.csv`](docs/modelos/vendas.csv) (na Shopee, com as colunas `sub_id1` a `sub_id5`):
+
+```bash
+npm run cli -- importar-vendas --cliente c1 --arquivo vendas.csv
+```
+
+```bash
+npm run cli -- resumo --cliente c1 --de 2026-11-09 --ate 2026-11-15
+```
+
+- **Shopee:** a venda casa com a postagem pelos 5 Sub_ids. Se o comprador levou outro produto, continua atribuída e fica marcada.
+- **Mercado Livre e Amazon:** casa pela etiqueta (ou tracking ID) **e** pelo produto, com o link criado antes do pedido.
+- Sem par, a venda fica como **não atribuída** e aparece no resumo; nunca some.
+- Reimportar atualiza a situação (pendente → validada ou cancelada) e mostra o que mudou.
+- O resumo nunca soma comissão pendente com validada.
+
+### Esteira e fila
+
+```bash
+npm run cli -- agendar-dia
+```
+
+```bash
+npm run cli -- fila
+```
+
+```bash
+npm run cli -- fila-status
+```
+
+`agendar-dia` cria as tarefas do dia para cada cliente, no horário dele. Hoje são duas etapas:
+a coleta de ofertas, que só roda com a Open API da Shopee (sem ela, a etapa é pulada e avisada), e a validação da lista.
+Rodar de novo não duplica.
+`fila` executa as tarefas vencidas: uma etapa que falha tenta de novo com espera crescente (1, 2 e 4 minutos), até 3 vezes,
+sem segurar as outras. Para rodar sozinho, basta chamar `fila` a cada poucos minutos (cron do servidor ou do Supabase).
+
+### Agentes
+
+O harness (`harness/agentes.ts`) e o formato do contrato estão em [agents/LEIA-ME.md](agents/LEIA-ME.md).
+O contrato do Redator já existe, mas **nenhum agente roda ainda**: falta o cliente da API do Claude e a escolha dos modelos
+(`MODELO_IA_PEQUENO` e `MODELO_IA_FORTE` no `.env`).
+
 ## 6. Testes automatizados
 
 ```bash
 npm test
 ```
 
-Testa o módulo de etiquetas, o parser e o cliente da Shopee (com respostas de exemplo em `services/shopee/fixtures/`), as novas tentativas e a cifragem.
+Testa o módulo de etiquetas, o parser e o cliente da Shopee (com respostas de exemplo em `services/shopee/fixtures/`), as novas tentativas, a cifragem, os marcadores, as planilhas e o núcleo da extensão.
 
-Os testes dos serviços com banco de verdade rodam só com `TEST_DATABASE_URL` apontando para um Postgres **de teste**.
+Os testes com banco de verdade (serviços, lista, vendas, fila e agentes) rodam só com `TEST_DATABASE_URL` apontando para um Postgres **de teste**.
 O nome do banco precisa conter `teste`, porque o schema `public` dele é apagado a cada execução:
 
 ```bash
@@ -233,6 +340,10 @@ Se algo estiver diferente, o erro aparece no primeiro teste com a conta real: a 
 - Amazon: quantos tracking IDs são permitidos. A função de etiquetas usa um tracking ID já cadastrado para o par canal+nicho; se não houver, sugere o nome (`wa-casa`) e avisa que precisa criá-lo no painel.
 
 ### Decisões em aberto, para depois
+
+- **Aviso de falha:** etapa que falha de vez fica em `fila-status` e no log de erro. Falta mandar o aviso por WhatsApp quando o canal existir.
+- **Cliente da API do Claude:** falta, para os agentes rodarem. O harness já está pronto para recebê-lo.
+- **Casos de teste do Redator:** são 3 de exemplo; a meta é 15 a 20 reais.
 
 - **Link perdido se o banco falhar:** se a Shopee gerar o link e a gravação falhar depois das novas tentativas, o link não fica salvo. Ele é só registrado no log de erro. Basta pedir o link de novo.
 - **Paginação além do necessário:** se uma página da Shopee só trouxer produtos repetidos, a busca segue para a próxima, até 5 páginas por palavra-chave.
