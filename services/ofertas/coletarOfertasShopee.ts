@@ -130,7 +130,7 @@ export async function gravarOfertas(
         )
         on conflict (cliente_id, plataforma, produto_id, data_coleta) do update set
           -- Campo vazio na nova coleta (ex.: planilha sem imagem) mantém o valor anterior.
-          titulo = excluded.titulo, url_produto = excluded.url_produto, preco = excluded.preco,
+          titulo = excluded.titulo, url_produto = excluded.url_produto, preco = excluded.preco, preco_conferido_em = now(),
           loja_id = coalesce(excluded.loja_id, ofertas.loja_id),
           url_oferta = coalesce(excluded.url_oferta, ofertas.url_oferta),
           imagem_url = coalesce(excluded.imagem_url, ofertas.imagem_url),

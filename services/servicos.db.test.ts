@@ -5,9 +5,9 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { randomBytes } from 'node:crypto';
-import { conectar, type Sql } from '../harness/db.ts';
+import type { Sql } from '../harness/db.ts';
+import { BANCO_HABILITADO, bancoLimpo } from '../testes/banco.ts';
 import { importarChave } from '../harness/cripto.ts';
-import { migrar } from '../db/migrate.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { lerCredencialShopee, salvarCredencialShopee } from '../db/credenciais.ts';
 import { coletarOfertasShopee } from './ofertas/coletarOfertasShopee.ts';
@@ -17,8 +17,6 @@ import { prepararLinks, registrarLinkManual } from './links/linksManuaisShopee.t
 import type { BuscaOfertas } from './shopee/client.ts';
 import type { OfertaShopee, PaginaOfertas } from './shopee/parser.ts';
 
-const url = process.env.TEST_DATABASE_URL;
-const habilitado = !!url && /teste/.test(new URL(url).pathname);
 
 function oferta(id: string, preco = '10.00'): OfertaShopee {
   return {
@@ -47,15 +45,13 @@ function shopeeFalsa(catalogo: Record<string, string[][]>, preco = '10.00') {
   };
 }
 
-describe.skipIf(!habilitado)('serviços com banco', () => {
+describe.skipIf(!BANCO_HABILITADO)('serviços com banco', () => {
   let sql: Sql;
   let cliente: Cliente;
   const quando = new Date('2026-11-12T11:15:00Z'); // 08:15 em São Paulo
 
   beforeAll(async () => {
-    sql = conectar(url);
-    await sql.unsafe('drop schema if exists public cascade; drop schema if exists controle cascade; create schema public;');
-    await migrar(sql, { seed: true });
+    sql = await bancoLimpo();
     cliente = await buscarCliente(sql, 'c1');
   });
   afterAll(async () => { await sql?.end(); });
