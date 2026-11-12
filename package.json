@@ -12,7 +12,8 @@
     "db:seed": "tsx db/migrate.ts --seed",
     "gerar-chave": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "extensao:e2e": "node extensao/testar-e2e.mjs"
   },
   "dependencies": {
     "dotenv": "^18.0.10",

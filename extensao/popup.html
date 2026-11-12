@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Cofilius · Gravador</title>
+  <style>
+    :root { --borda: #ddd; --texto: #222; --suave: #666; --fundo: #fff; --destaque: #2d3277; --perigo: #c62828; }
+    @media (prefers-color-scheme: dark) { :root { --borda: #444; --texto: #eee; --suave: #aaa; --fundo: #1e1e1e; --destaque: #8f97ff; } }
+    body { font: 14px/1.4 system-ui, sans-serif; color: var(--texto); background: var(--fundo); width: 340px; margin: 0; padding: 14px; }
+    h1 { font-size: 15px; margin: 0 0 4px; }
+    p { margin: 6px 0; }
+    .suave { color: var(--suave); font-size: 12px; }
+    .estado { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-weight: 600; }
+    .ponto { width: 10px; height: 10px; border-radius: 50%; background: var(--suave); }
+    .ponto.ligado { background: var(--perigo); animation: pisca 1.2s infinite; }
+    @keyframes pisca { 50% { opacity: .3; } }
+    button { width: 100%; padding: 9px; margin: 4px 0; border-radius: 6px; border: 1px solid var(--borda); background: transparent; color: var(--texto); font: inherit; cursor: pointer; }
+    button.principal { background: var(--destaque); border-color: var(--destaque); color: #fff; font-weight: 600; }
+    button:disabled { opacity: .5; cursor: default; }
+    ul { list-style: none; padding: 0; margin: 6px 0; max-height: 150px; overflow: auto; font-size: 11px; color: var(--suave); }
+    li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--borda); padding: 2px 0; }
+    .aviso { color: var(--perigo); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Cofilius · Gravador</h1>
+  <p class="suave">Mercado Livre. Ligue, navegue pelas páginas de afiliado normalmente, depois baixe o arquivo e envie.</p>
+
+  <div class="estado"><span id="ponto" class="ponto"></span><span id="estado">Parado</span></div>
+  <p id="contagem" class="suave">Nada gravado.</p>
+  <p id="aviso" class="aviso" hidden></p>
+
+  <button id="alternar" class="principal">Começar a gravar</button>
+  <button id="pagina">Salvar esta página</button>
+  <button id="baixar">Baixar arquivo</button>
+  <button id="limpar">Limpar tudo</button>
+
+  <p class="suave">Últimas capturas:</p>
+  <ul id="lista"></ul>
+  <p class="suave">E-mails, CPF, telefone, endereço e senhas são mascarados antes de gravar. Nada é enviado pela internet: o arquivo fica no seu computador.</p>
+
+  <script src="nucleo.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
