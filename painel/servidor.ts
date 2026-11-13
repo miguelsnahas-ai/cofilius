@@ -396,6 +396,11 @@ if (executadoDiretamente(import.meta.url)) {
   carregarEnv({ path: ARQUIVO_ENV, quiet: true });
   const configurado = !!(process.env.DATABASE_URL && process.env.PAINEL_SENHA);
   const deps = configurado ? montarDepsDoAmbiente(conectar()) : null;
+  // Atualizações trazem tabelas novas: aplica as migrations pendentes ao abrir (as já aplicadas são puladas).
+  if (deps) {
+    try { await migrar(deps.sql); }
+    catch (erro) { console.error(`Não consegui atualizar as tabelas do banco: ${(erro as Error).message}. Confira a internet e abra de novo.`); }
+  }
   const servidor = criarAplicacao({
     deps, montarDeps: montarDepsDoAmbiente, criarEsteira: (d) => criarEsteiraAutomatica(d),
   });
