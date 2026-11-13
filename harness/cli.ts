@@ -48,6 +48,7 @@ import { aprovarDiretriz, descartarDiretriz, listarDiretrizes, proporDiretriz } 
 import { redigirSelecionadas } from '../services/lista/redator.ts';
 import { analisarPeriodo, contratoAnalista } from '../services/relatorios/analista.ts';
 import { montarFechamento } from '../services/relatorios/fechamento.ts';
+import { atualizarCliente, criarCliente, definirAtivo, listarCadastro, removerNicho, salvarNicho, type DadosCliente } from '../services/clientes/cadastro.ts';
 
 const AJUDA = `Uso:
   npm run cli -- credenciais-shopee --cliente c1
@@ -112,6 +113,14 @@ Vendas:
   npm run cli -- importar-vendas --cliente c1 --arquivo vendas.csv   (modelo: docs/modelos/vendas.csv)
   npm run cli -- resumo --cliente c1 --de AAAA-MM-DD --ate AAAA-MM-DD
 
+Clientes:
+  npm run cli -- clientes
+  npm run cli -- novo-cliente --codigo ana --nome "Ana" [--whatsapp 5511999998888] [--horario 08:00] [--limite 5] [--tom "..."]
+  npm run cli -- editar-cliente --cliente ana [--nome ...] [--whatsapp ...] [--horario ...] [--limite ...] [--tom ...]
+  npm run cli -- nicho --cliente ana --nome "Casa" --palavras "organizador, air fryer"
+  npm run cli -- remover-nicho --cliente ana --nicho casa
+  npm run cli -- pausar-cliente --cliente ana   |   ativar-cliente --cliente ana
+
 Esteira e fila (todos os clientes):
   npm run cli -- agendar-dia [--data AAAA-MM-DD]
   npm run cli -- fila [--limite 100]
@@ -144,6 +153,12 @@ const { values: op, positionals } = parseArgs({
     agente: { type: 'string' },
     quantidade: { type: 'string' },
     id: { type: 'string' },
+    codigo: { type: 'string' },
+    nome: { type: 'string' },
+    whatsapp: { type: 'string' },
+    horario: { type: 'string' },
+    tom: { type: 'string' },
+    palavras: { type: 'string' },
     ate: { type: 'string' },
     ajuda: { type: 'boolean', short: 'h' },
   },
@@ -218,8 +233,52 @@ async function shopeeDoCliente(sql: Sql, cliente: Cliente) {
 }
 
 /** Comandos que valem para todos os clientes. Devolve true se tratou o comando. */
+function dadosDoCadastro(): DadosCliente {
+  const d: DadosCliente = {};
+  if (op.nome !== undefined) d.nome = op.nome;
+  if (op.whatsapp !== undefined) d.whatsapp = op.whatsapp;
+  if (op.horario !== undefined) d.horarioEnvio = op.horario;
+  if (op.tom !== undefined) d.tomGrupo = op.tom;
+  if (op.limite !== undefined) d.limiteMensagensDia = Number(op.limite);
+  return d;
+}
+
 async function comandoSemCliente(sql: Sql, comando: string): Promise<boolean> {
   switch (comando) {
+    case 'clientes': {
+      for (const c of await listarCadastro(sql)) {
+        console.log(`\n${c.codigo} · ${c.nome}${c.ativo ? '' : ' · PAUSADO'}`);
+        console.log(`  WhatsApp: ${c.whatsapp ?? '-'} · envio: ${c.horarioEnvio ?? '08:00'} · até ${c.limiteMensagensDia} mensagens/dia · tom: ${c.tomGrupo ?? '-'}`);
+        for (const n of c.nichos) console.log(`  nicho ${n.slug} (${n.nome ?? n.slug}): ${(n.palavras_chave ?? []).join(', ')}`);
+      }
+      return true;
+    }
+    case 'novo-cliente': {
+      const c = await criarCliente(sql, exigir('codigo'), { ...dadosDoCadastro(), nome: exigir('nome') });
+      console.log(`Cliente ${c.codigo} criado. Próximo passo: npm run cli -- nicho --cliente ${c.codigo} --nome "Casa" --palavras "organizador, air fryer"`);
+      return true;
+    }
+    case 'editar-cliente': {
+      const c = await atualizarCliente(sql, exigir('cliente'), dadosDoCadastro());
+      console.log(`Cliente ${c.codigo} atualizado.`);
+      return true;
+    }
+    case 'pausar-cliente':
+    case 'ativar-cliente': {
+      await definirAtivo(sql, exigir('cliente'), comando === 'ativar-cliente');
+      console.log(comando === 'ativar-cliente' ? 'Cliente ativado.' : 'Cliente pausado: fica fora da esteira e do painel até ser ativado.');
+      return true;
+    }
+    case 'nicho': {
+      const nichos = await salvarNicho(sql, exigir('cliente'), { nome: exigir('nome'), palavrasChave: exigir('palavras').split(',') });
+      console.log(`Nichos: ${nichos.map((n) => n.slug).join(', ')}`);
+      return true;
+    }
+    case 'remover-nicho': {
+      const nichos = await removerNicho(sql, exigir('cliente'), exigir('nicho'));
+      console.log(`Nichos: ${nichos.map((n) => n.slug).join(', ') || '(nenhum)'}`);
+      return true;
+    }
     case 'agendar-dia': {
       const data = op.data ?? dataLocal(new Date(), 'America/Sao_Paulo');
       const r = await agendarDia(sql, data);
