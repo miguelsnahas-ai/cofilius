@@ -85,6 +85,11 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const propostas = (await listarDiretrizes(sql, cliente)).filter((d) => d.situacao === 'proposta');
   const pedidos = await pedidosAbertos(sql, cliente);
   const [cad] = await sql`select whatsapp from clientes where cliente_id = ${cliente.clienteId}`;
+  const [ext] = await sql`
+    select p.usado_em,
+           (select max(criado_em) from recebimentos_extensao r where r.cliente_id = p.cliente_id and r.erro is null) as ultimo,
+           (select erro from recebimentos_extensao r where r.cliente_id = p.cliente_id order by criado_em desc limit 1) as ultimo_erro
+    from pareamentos_extensao p where p.cliente_id = ${cliente.clienteId}`;
 
   return {
     cliente: { codigo: cliente.codigo, nome: cliente.nome },
@@ -93,6 +98,8 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
     candidatas: contagem!.candidatas,
     iaDisponivel: !!deps.modelo,
     whatsappDisponivel: !!deps.whatsapp && !!cad!.whatsapp,
+    /** Extensão pareada: quando os dados chegaram pela última vez (null = não pareada). */
+    extensao: ext ? { ultimoRecebimento: ext.ultimo ?? null, ultimoErro: ext.ultimo_erro ?? null } : null,
     selecionadas: selecionadas.map((s) => {
       const p = porOferta.get(s.ofertaId);
       return {

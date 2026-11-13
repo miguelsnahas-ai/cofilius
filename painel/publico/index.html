@@ -13,6 +13,7 @@
   <script src="clientes.js" defer></script>
   <script src="importar.js" defer></script>
   <script src="relatorios.js" defer></script>
+  <script src="resultados.js" defer></script>
   <script src="config.js" defer></script>
 </head>
 <body>
@@ -22,6 +23,7 @@
     </a>
     <nav class="abas" aria-label="Seções do painel">
       <button type="button" data-aba="dia">Dia</button>
+      <button type="button" data-aba="resultados">Resultados</button>
       <button type="button" data-aba="clientes">Clientes</button>
       <button type="button" data-aba="importar">Importar</button>
       <button type="button" data-aba="relatorios">Relatórios</button>
@@ -43,6 +45,7 @@
 
       <div id="proximo" class="proximo" aria-live="polite"></div>
       <ol id="andamento" class="andamento" aria-label="Andamento do dia"></ol>
+      <p id="aviso-extensao" class="aviso" hidden></p>
       <p id="aviso-ia" class="aviso" hidden>A IA está desligada. Coloque a chave da IA (Gemini, gratuita) na aba Configuração para o Curador e o Redator trabalharem.</p>
 
       <section id="secao-escolhidas">
@@ -81,6 +84,28 @@
         <p class="ajuda">Sugestões do Analista (ou suas). Só valem para o Curador depois que você aprovar.</p>
         <div id="propostas" class="cartoes"></div>
       </section>
+    </div>
+
+    <!-- ===================== RESULTADOS ===================== -->
+    <div data-painel="resultados" hidden>
+      <div class="cabecalho-pagina">
+        <div><span class="rotulo">Vendas e cliques</span><h1>Resultados</h1></div>
+      </div>
+      <div class="filtros" role="group" aria-label="Filtros">
+        <div class="segmentado" role="group" aria-label="Período">
+          <button type="button" data-periodo="7" aria-pressed="false">7 dias</button>
+          <button type="button" data-periodo="30" aria-pressed="true">30 dias</button>
+          <button type="button" data-periodo="90" aria-pressed="false">90 dias</button>
+        </div>
+        <label class="seletor">Plataforma
+          <select id="resultados-plataforma">
+            <option value="">Todas</option><option value="shopee">Shopee</option>
+            <option value="amazon">Amazon</option><option value="mercado_livre">Mercado Livre</option>
+          </select>
+        </label>
+      </div>
+      <p id="resultados-frescor" class="ajuda"></p>
+      <div id="resultados-conteudo"></div>
     </div>
 
     <!-- ===================== CLIENTES ===================== -->

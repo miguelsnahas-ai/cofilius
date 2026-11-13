@@ -39,6 +39,7 @@ import {
 import { criarEsteiraAutomatica, type EsteiraAutomatica } from './esteiraAutomatica.ts';
 import { clientePareado, gerarPareamento, receberCapturas, ultimosRecebimentos } from '../services/extensao/receber.ts';
 import { buscarCliente } from '../db/clientes.ts';
+import { resultadosPeriodo, type FiltroPlataforma } from '../services/relatorios/resultados.ts';
 import { canalWhatsapp } from '../services/disparador/disparador.ts';
 import { configWhatsappDoAmbiente } from '../services/disparador/whatsapp.ts';
 import { importarChave } from '../harness/cripto.ts';
@@ -316,6 +317,12 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
           case '/api/esteira': return responder(res, 200, esteira ? await esteira.status() : { ligada: false, rodando: false, ultima: null, tarefas: [] });
           case '/api/uso': return responder(res, 200, await uso(d, q.get('de'), q.get('ate')));
           case '/api/extensao': return responder(res, 200, await ultimosRecebimentos(d.sql, await buscarCliente(d.sql, q.get('cliente') ?? '')));
+          case '/api/resultados': {
+            const p = q.get('plataforma');
+            if (p && !['shopee', 'mercado_livre', 'amazon'].includes(p)) throw new ErroPedido('Plataforma desconhecida.');
+            const r = await resultadosPeriodo(d.sql, await buscarCliente(d.sql, q.get('cliente') ?? ''), q.get('de') ?? '', q.get('ate') ?? '', (p || null) as FiltroPlataforma);
+            return responder(res, 200, r);
+          }
           case '/api/diretrizes': return responder(res, 200, await diretrizesDoCliente(d, q.get('cliente') ?? ''));
           case '/api/dia': {
             const cliente = q.get('cliente');

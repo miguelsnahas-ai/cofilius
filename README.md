@@ -39,11 +39,12 @@ Do dia a dia em diante, tudo é pelo painel:
 
 | Aba | O que tem |
 |---|---|
-| **Dia** | escolhas do Curador, links, mensagens (validar, aprovar, enviar), pedidos da afiliada, propostas de diretriz |
+| **Dia** | escolhas do Curador, links, mensagens (validar, aprovar, enviar), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
+| **Resultados** | comissão validada e pendente (nunca somadas), pedidos, cliques e conversão; comissão e cliques por dia (com tabela), produtos que mais renderam, vendas recentes; 7, 30 ou 90 dias, por plataforma |
 | **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
-| **Importar** | planilha de ofertas e planilha de vendas (com modelos para baixar) |
+| **Importar** | planilha de ofertas, planilha de vendas (com modelos para baixar) e arquivo de gravação da extensão |
 | **Relatórios** | fechamento do período (com a leitura do Analista), uso por cliente, esteira automática |
-| **Configuração** | seu nome, senha, provedor de IA (Gemini gratuito ou Claude) e a chave dele, modelos, esteira ligada/desligada, testar os agentes |
+| **Configuração** | seu nome, senha, provedor de IA (Gemini gratuito ou Claude) e a chave dele, modelos, esteira ligada/desligada, pareamento da extensão do Chrome, testar os agentes |
 
 **Visual:** o painel segue o Design System Cofilius (cores, logo, fontes Gabarito, Onest e DM Mono, voz). As fontes e o logo
 ficam em `painel/publico/`; as cores estão no topo de `painel/publico/estilo.css`, com o tema escuro do próprio sistema.

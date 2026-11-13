@@ -159,20 +159,31 @@ function cartaoProposta(d) {
 // ---------------------------------------------------------------------------
 
 /** O que fazer agora, a partir do estado do dia. Um só botão de marca (goiaba) por tela: o deste bloco. */
+/** Extensão pareada mas parada há mais de um dia (login da Shopee vencido, Chrome fechado...). */
+function avisoExtensao(e) {
+  if (!e) return null;
+  if (!e.ultimoRecebimento) return 'A extensão está pareada mas ainda não mandou dados. No Chrome, clique no ícone do Cofilius e em Buscar agora.';
+  const horas = (Date.now() - new Date(e.ultimoRecebimento).getTime()) / 36e5;
+  if (horas < 24) return null;
+  const dias = Math.floor(horas / 24);
+  return `As vendas da Shopee não chegam há ${dias === 1 ? '1 dia' : `${dias} dias`}. Abra o Chrome, confira se está logada na Shopee Afiliados e clique em Buscar agora no ícone do Cofilius.`
+    + (e.ultimoErro ? ` Último erro: ${e.ultimoErro}` : '');
+}
+
 function proximoPasso(d, n) {
   const ir = (id) => () => document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (!d.candidatas) return { titulo: 'Comece pelas ofertas de hoje', texto: 'Importe a planilha de ofertas do dia.', botao: 'Importar ofertas', acao: () => window.Cofilius.mostrarAba('importar') };
   if (!d.selecionadas.length) {
     return d.iaDisponivel
       ? { titulo: `${d.candidatas} ofertas esperando o Curador`, texto: 'O Curador escolhe as melhores do dia, seguindo as diretrizes do nicho.', botao: 'Rodar Curador', acao: 'curar' }
-      : { titulo: 'Ligue a IA para o Curador escolher', texto: 'Coloque a chave da API do Claude na Configuração.', botao: 'Abrir Configuração', acao: () => window.Cofilius.mostrarAba('config') };
+      : { titulo: 'Ligue a IA para o Curador escolher', texto: 'Coloque a chave da IA (Gemini, gratuita) na Configuração.', botao: 'Abrir Configuração', acao: () => window.Cofilius.mostrarAba('config') };
   }
   if (n.semLink) return { titulo: `Gere ${n.semLink === 1 ? 'o link que falta' : `os ${n.semLink} links que faltam`}`, texto: 'Use os Sub_ids de cada oferta no painel da Shopee e cole o link aqui.', botao: 'Ver as ofertas sem link', acao: ir('secao-escolhidas') };
   if (n.paraRedigir && d.iaDisponivel) return { titulo: 'Hora das mensagens', texto: `${n.paraRedigir} ${n.paraRedigir === 1 ? 'oferta tem' : 'ofertas têm'} link e ainda não ${n.paraRedigir === 1 ? 'tem' : 'têm'} mensagem.`, botao: 'Redigir mensagens', acao: 'redigir' };
   if (n.rascunho) return { titulo: `Valide ${n.rascunho === 1 ? 'a mensagem' : `as ${n.rascunho} mensagens`}`, texto: 'O sistema confere link, preço, repetição e o limite do dia.', botao: 'Validar todas', acao: 'validar' };
   if (n.validada) return { titulo: `Revise e aprove ${n.validada === 1 ? 'a mensagem' : `as ${n.validada} mensagens`}`, texto: 'Leia cada uma como ela vai receber e aprove.', botao: 'Ver mensagens', acao: ir('secao-mensagens') };
   if (n.aprovada) return { titulo: 'Envie a lista para ela', texto: 'Confira o preço, copie cada mensagem para o WhatsApp e marque como enviada.', botao: 'Ver mensagens aprovadas', acao: ir('secao-mensagens') };
-  if (n.enviada) return { titulo: 'Lista de hoje enviada', texto: 'Agora é com ela. Os cliques e as vendas entram com a importação de vendas.', concluido: true };
+  if (n.enviada) return { titulo: 'Lista de hoje enviada', texto: 'Agora é com ela. Os cliques e as vendas aparecem na aba Resultados.', concluido: true };
   return { titulo: 'Tudo em dia', texto: 'Nada pendente para este dia.', concluido: true };
 }
 
@@ -222,6 +233,9 @@ function desenhar() {
     el('li', { classe: feito ? 'feito' : '' }, el('span', { classe: 'valor', texto: String(valor) }), el('span', { classe: 'rotulo', texto: rotulo }))));
 
   $('aviso-ia').hidden = d.iaDisponivel;
+  const aviso = avisoExtensao(d.extensao);
+  $('aviso-extensao').hidden = !aviso;
+  $('aviso-extensao').textContent = aviso || '';
   $('rodar-curador').disabled = !d.iaDisponivel || !d.candidatas;
   $('rodar-redator').disabled = !d.iaDisponivel || !n.paraRedigir;
   $('validar-todas').disabled = !n.rascunho;

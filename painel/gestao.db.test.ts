@@ -93,6 +93,11 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     const gr = await post('/api/importar/gravacao', { cliente: 'c1', json: JSON.stringify({ formato: 'cofilius-gravacao', capturas }) });
     expect(gr.json).toMatchObject({ ok: true, usados: 1 });
     expect((await post('/api/importar/gravacao', { cliente: 'c1', json: '{"x":1}' })).json.erro).toContain('gravação');
+    // O Dia sabe que a extensão mandou dados; Resultados responde pelo período e recusa plataforma inventada.
+    expect((await get('/api/dia?cliente=c1')).json.extensao.ultimoRecebimento).toBeTruthy();
+    const res = await get('/api/resultados?cliente=c1&de=2026-11-01&ate=2026-11-07&plataforma=shopee');
+    expect(res.json.dias).toHaveLength(7);
+    expect((await get('/api/resultados?cliente=c1&de=2026-11-01&ate=2026-11-07&plataforma=ebay')).json.erro).toContain('Plataforma');
   });
 
   it('fechamento, uso e esteira pela tela', async () => {
