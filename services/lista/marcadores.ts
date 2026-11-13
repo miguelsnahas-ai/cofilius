@@ -19,12 +19,12 @@ export type Marcador = (typeof MARCADORES)[number];
 const RE_MARCADOR = /\{\{\s*([a-zA-Z_]+)\s*\}\}/g;
 
 export interface ProblemaTexto {
-  tipo: 'marcador_desconhecido' | 'sem_link' | 'link_escrito' | 'dinheiro_escrito' | 'percentual_escrito' | 'numero_escrito' | 'vazio';
+  tipo: 'marcador_desconhecido' | 'sem_link' | 'link_proibido' | 'link_escrito' | 'dinheiro_escrito' | 'percentual_escrito' | 'numero_escrito' | 'vazio';
   trecho: string;
 }
 
 /** Confere o texto modelo. Lista vazia = texto aceito. */
-export function verificarTextoModelo(texto: string): ProblemaTexto[] {
+export function verificarTextoModelo(texto: string, opcoes: { exigirLink?: boolean; proibirLink?: boolean } = {}): ProblemaTexto[] {
   const problemas: ProblemaTexto[] = [];
   if (!texto.trim()) return [{ tipo: 'vazio', trecho: '' }];
 
@@ -34,7 +34,8 @@ export function verificarTextoModelo(texto: string): ProblemaTexto[] {
     if (!(MARCADORES as readonly string[]).includes(nome)) problemas.push({ tipo: 'marcador_desconhecido', trecho: m[0] });
     usados.add(nome);
   }
-  if (!usados.has('link')) problemas.push({ tipo: 'sem_link', trecho: '' });
+  if ((opcoes.exigirLink ?? true) && !usados.has('link')) problemas.push({ tipo: 'sem_link', trecho: '' });
+  if (opcoes.proibirLink && usados.has('link')) problemas.push({ tipo: 'link_proibido', trecho: '{{link}}' });
 
   const semMarcadores = texto.replace(RE_MARCADOR, ' ');
   const regras: [ProblemaTexto['tipo'], RegExp][] = [
@@ -58,6 +59,7 @@ export function descreverProblema(p: ProblemaTexto): string {
   switch (p.tipo) {
     case 'vazio': return 'texto vazio';
     case 'sem_link': return 'falta o marcador {{link}}';
+    case 'link_proibido': return 'não use {{link}} aqui (no Instagram o link vai no sticker ou na bio, o sistema cuida disso)';
     case 'marcador_desconhecido': return `marcador desconhecido: ${p.trecho} (use {{preco}}, {{desconto}} ou {{link}})`;
     case 'link_escrito': return `link escrito no texto: "${p.trecho}" (use {{link}})`;
     case 'dinheiro_escrito': return `valor em dinheiro escrito no texto: "${p.trecho}" (use {{preco}})`;
@@ -89,8 +91,10 @@ export function formatarDesconto(desconto: string): string {
 }
 
 /** Preenche os marcadores. Lança erro se o texto não passar na conferência ou faltar valor. */
-export function preencherMensagem(textoModelo: string, valores: ValoresMensagem): string {
-  const problemas = verificarTextoModelo(textoModelo);
+export function preencherMensagem(
+  textoModelo: string, valores: ValoresMensagem, opcoes: { exigirLink?: boolean; proibirLink?: boolean } = {},
+): string {
+  const problemas = verificarTextoModelo(textoModelo, opcoes);
   if (problemas.length) throw new Error(`Texto recusado: ${problemas.map(descreverProblema).join('; ')}`);
   return textoModelo.replace(RE_MARCADOR, (_t, nome: string) => {
     switch (nome.toLowerCase() as Marcador) {

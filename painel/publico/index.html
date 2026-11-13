@@ -14,6 +14,7 @@
   <script src="importar.js" defer></script>
   <script src="relatorios.js" defer></script>
   <script src="resultados.js" defer></script>
+  <script src="criativos.js" defer></script>
   <script src="config.js" defer></script>
 </head>
 <body>
@@ -23,6 +24,7 @@
     </a>
     <nav class="abas" aria-label="Seções do painel">
       <button type="button" data-aba="dia">Dia</button>
+      <button type="button" data-aba="criativos">Criativos</button>
       <button type="button" data-aba="resultados">Resultados</button>
       <button type="button" data-aba="clientes">Clientes</button>
       <button type="button" data-aba="importar">Importar</button>
@@ -86,6 +88,44 @@
         <h2>Propostas de diretriz</h2>
         <p class="ajuda">Sugestões do Analista (ou suas). Só valem para o Curador depois que você aprovar.</p>
         <div id="propostas" class="cartoes"></div>
+      </section>
+    </div>
+
+    <!-- ===================== CRIATIVOS ===================== -->
+    <div data-painel="criativos" hidden>
+      <div class="cabecalho-pagina">
+        <div><span class="rotulo">Instagram</span><h1>Criativos</h1></div>
+        <label class="seletor">Dia <input id="criativo-data" type="date"></label>
+      </div>
+      <section class="cartao">
+        <h2>Novo criativo</h2>
+        <p class="ajuda">A IA escreve o roteiro; o preço e o desconto entram pelo sistema, com o valor atual. As imagens e o vídeo são montados aqui no navegador.</p>
+        <form id="form-criativo" class="grade-form">
+          <label class="largo">Oferta <select id="criativo-oferta" name="oferta" required></select><small>★ = escolhida pelo Curador hoje.</small></label>
+          <fieldset class="largo formatos">
+            <legend>Formato</legend>
+            <label><input type="radio" name="formato" value="carrossel" checked> Carrossel <small>seis imagens 4:5</small></label>
+            <label><input type="radio" name="formato" value="stories"> Stories <small>quatro telas 9:16, com espaço para o sticker do link</small></label>
+            <label><input type="radio" name="formato" value="reels"> Reels <small>vídeo de uns quinze segundos, 9:16</small></label>
+          </fieldset>
+          <div class="largo"><button type="submit" class="primario">Criar com a IA</button></div>
+        </form>
+        <p id="criativo-aviso" class="aviso" hidden></p>
+      </section>
+      <section class="cartao">
+        <h2>Estilo</h2>
+        <p class="ajuda">Vale para todos os criativos deste cliente, neste computador.</p>
+        <form id="form-estilo" class="grade-form">
+          <label>Tema
+            <select name="tema"><option value="claro">Claro</option><option value="escuro">Escuro</option><option value="cor">Cor de fundo</option></select>
+          </label>
+          <label>Cor de destaque <input name="cor" type="color" value="#e8476c"></label>
+          <label class="largo">@ do perfil (aparece no rodapé) <input name="perfil" placeholder="@achadinhosdasil" autocomplete="off"></label>
+        </form>
+      </section>
+      <section>
+        <h2>Criativos do dia</h2>
+        <div id="lista-criativos" class="cartoes"></div>
       </section>
     </div>
 
@@ -255,6 +295,7 @@
           <select name="agente" aria-label="Agente">
             <option value="curador">Curador</option><option value="redator">Redator</option>
             <option value="analista">Analista</option><option value="atendente">Atendente</option>
+            <option value="criativo">Criativo</option>
           </select>
           <button type="submit" class="secundario">Testar</button>
         </form>

@@ -40,6 +40,8 @@ import { criarEsteiraAutomatica, type EsteiraAutomatica } from './esteiraAutomat
 import { clientePareado, gerarPareamento, receberCapturas, ultimosRecebimentos } from '../services/extensao/receber.ts';
 import { buscarCliente } from '../db/clientes.ts';
 import { resultadosPeriodo, type FiltroPlataforma } from '../services/relatorios/resultados.ts';
+import { acaoCriativo, novoCriativo, telaCriativos } from './apiCriativos.ts';
+import { buscarImagem } from '../services/criativos/imagem.ts';
 import { canalWhatsapp } from '../services/disparador/disparador.ts';
 import { configWhatsappDoAmbiente } from '../services/disparador/whatsapp.ts';
 import { importarChave } from '../harness/cripto.ts';
@@ -98,7 +100,7 @@ async function servirArquivo(res: ServerResponse, arquivo: string): Promise<void
     'Content-Type': TIPOS[extname(arquivo)] ?? 'application/octet-stream',
     // Fontes e logo mudam pouco: cache de 1 dia. Páginas e scripts: sempre frescos.
     'Cache-Control': /\.(woff2|svg|png)$/.test(arquivo) ? 'public, max-age=86400' : 'no-store',
-    'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:",
+    'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:",
     'X-Frame-Options': 'DENY',
   });
   res.end(conteudo);
@@ -170,6 +172,8 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     [/^\/api\/mensagens\/([0-9a-f-]{36})\/(validar|aprovar|descartar|enviada|whatsapp)$/, (m, c, d) => acaoMensagem(d, m[1]!, m[2]!, c)],
     [/^\/api\/ofertas\/([0-9a-f-]{36})\/preco$/, (m, c, d) => confirmarPrecoOferta(d, m[1]!, c)],
     [/^\/api\/ofertas\/([0-9a-f-]{36})\/link$/, (m, c, d) => registrarLinkOferta(d, m[1]!, c)],
+    [/^\/api\/criativos$/, (_m, c, d) => novoCriativo(d, c)],
+    [/^\/api\/criativos\/([0-9a-f-]{36})\/(aprovar|publicado|descartar)$/, (m, c, d) => acaoCriativo(d, m[1]!, m[2]!, c)],
     [/^\/api\/cancelamentos\/vistos$/, (_m, c, d) => verCancelamentos(d, c)],
     [/^\/api\/fechamentos\/([0-9a-f-]{36})\/(enviado|whatsapp)$/, (m, c, d) => acaoFechamento(d, m[1]!, m[2]!, c)],
     [/^\/api\/diretrizes\/([0-9a-f-]{36})\/(aprovar|descartar)$/, (m, c, d) => acaoDiretriz(d, m[1]!, m[2]!, c)],
@@ -319,6 +323,13 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
           case '/api/esteira': return responder(res, 200, esteira ? await esteira.status() : { ligada: false, rodando: false, ultima: null, tarefas: [] });
           case '/api/uso': return responder(res, 200, await uso(d, q.get('de'), q.get('ate')));
           case '/api/extensao': return responder(res, 200, await ultimosRecebimentos(d.sql, await buscarCliente(d.sql, q.get('cliente') ?? '')));
+          case '/api/criativos': return responder(res, 200, await telaCriativos(d, q.get('cliente') ?? '', q.get('data')));
+          case '/api/imagem': {
+            const img = await buscarImagem(q.get('url') ?? '');
+            res.writeHead(200, { 'Content-Type': img.tipo, 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+            res.end(img.dados);
+            return;
+          }
           case '/api/resultados': {
             const p = q.get('plataforma');
             if (p && !['shopee', 'mercado_livre', 'amazon'].includes(p)) throw new ErroPedido('Plataforma desconhecida.');

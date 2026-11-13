@@ -15,6 +15,7 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - **vendas**: atribuição de cada venda à postagem (ou "não atribuída"), cliques e resumo do período com comissão pendente, validada e cancelada separadas;
 - **esteira e fila de tarefas**: etapas do dia com horário por cliente, novas tentativas e falha isolada;
 - **harness dos agentes**: contrato de cada agente (prompt versionado, esquemas, até 2 repetições, registro de custo e casos de teste), ligado à API do Claude (modelo padrão: Claude Haiku 5.5);
+- **Criativo**: escreve o roteiro de carrossel, stories ou reels de uma oferta (gancho, telas, chamada e legenda), com marcadores no lugar de preço e desconto, sem link (no Instagram o link vai no sticker ou na bio);
 - **Curador**: escolhe as ofertas do dia só entre as candidatas, seguindo as **diretrizes de nicho** aprovadas e aprendendo com o **desempenho das postagens** das últimas 4 semanas (cliques, pedidos e comissão por nicho e faixa de preço, o que mais vendeu e o que não vendeu, tudo calculado pelo sistema);
 - **Redator**: escreve as mensagens com marcadores; preço e link são preenchidos pelo sistema;
 - **cadastro de clientes e nichos** e **registro de uso** (minutos do operador e custo de IA por cliente);
@@ -40,6 +41,7 @@ Do dia a dia em diante, tudo é pelo painel:
 | Aba | O que tem |
 |---|---|
 | **Dia** | avisos de vendas canceladas (o que caiu, de qual postagem, quanto de comissão), fechamento da semana pronto para a afiliada (copiar, enviar pelo WhatsApp, marcar como enviado), escolhas do Curador (com "o que o Curador está aprendendo"), links, mensagens (validar, aprovar, enviar) e o resultado de cada mensagem enviada (cliques, pedidos, comissão), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
+| **Criativos** | carrossel (seis imagens 4:5), stories (quatro telas 9:16 com espaço para o sticker do link) e reels (vídeo de uns quinze segundos, 9:16) de uma oferta: a IA escreve o roteiro e a legenda, o sistema põe preço e desconto do banco, o navegador desenha as imagens (PNG) e grava o vídeo (MP4); tema, cor e @ do perfil; foto da loja ou enviada por você |
 | **Resultados** | comissão validada e pendente (nunca somadas), pedidos, cliques e conversão; comissão e cliques por dia (com tabela), produtos que mais renderam, vendas recentes; 7, 30 ou 90 dias, por plataforma |
 | **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
 | **Importar** | planilha de ofertas, planilha de vendas (com modelos para baixar) e arquivo de gravação da extensão |

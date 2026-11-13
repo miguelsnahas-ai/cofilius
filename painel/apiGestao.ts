@@ -23,6 +23,7 @@ import { listarDiretrizes, proporDiretriz } from '../services/curadoria/diretriz
 import { contratoCurador } from '../services/curadoria/curador.ts';
 import { contratoRedator } from '../services/lista/redator.ts';
 import { contratoAtendente } from '../services/atendimento/atendente.ts';
+import { contratoCriativo } from '../services/criativos/criativos.ts';
 import { ErroPedido, type DepsApi } from './api.ts';
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -172,7 +173,7 @@ export async function novaDiretriz(deps: DepsApi, corpo: Record<string, unknown>
 }
 
 const CONTRATOS: Record<string, () => Promise<any>> = {
-  curador: contratoCurador, redator: contratoRedator, analista: contratoAnalista, atendente: contratoAtendente,
+  curador: contratoCurador, redator: contratoRedator, analista: contratoAnalista, atendente: contratoAtendente, criativo: contratoCriativo,
 };
 
 export async function testarAgente(deps: DepsApi, corpo: Record<string, unknown>) {

@@ -22,7 +22,14 @@ const COLUNAS: Record<string, string[]> = {
   comissao: ['comissao', 'comissaopct', 'taxadecomissao'],
   comissaoValor: ['comissaovalor', 'comissaor', 'comissaoemreais'],
   nicho: ['nicho'],
+  imagem: ['imagem', 'imagemurl', 'foto', 'urldaimagem', 'image', 'imageurl'],
 };
+
+/** Endereço da foto do produto (para os criativos). Só https; o resto é ignorado. */
+function imagemValida(v: string | undefined): string | null {
+  if (!v) return null;
+  try { return new URL(v).protocol === 'https:' ? v : null; } catch { return null; }
+}
 
 export interface ErroLinha {
   linha: number;
@@ -105,7 +112,7 @@ export function lerPlanilhaOfertas(
           titulo,
           urlProduto: `https://shopee.com.br/product/${ids.lojaId}/${ids.produtoId}`,
           urlOferta: null,
-          imagemUrl: null,
+          imagemUrl: imagemValida(col('imagem')),
           lojaNome: null,
           preco: dinheiro(col('preco'), 'preço', true)!,
           precoMaximo: null,

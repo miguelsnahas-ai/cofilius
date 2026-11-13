@@ -116,6 +116,13 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     expect((await get('/api/dia?cliente=c1&data=2030-12-31')).json.cancelamentos).toMatchObject([{ pedidoId: 'P1', comissao: '2.50' }]);
     expect((await post('/api/cancelamentos/vistos', { cliente: 'c1' })).json).toEqual({ ok: true, vistos: 1 });
     expect((await get('/api/dia?cliente=c1&data=2030-12-31')).json.cancelamentos).toEqual([]);
+    // Criativos: tela abre, criar sem IA explica, foto de outro site é recusada.
+    const cr = (await get('/api/criativos?cliente=c1&data=2026-03-10')).json;
+    expect(cr).toMatchObject({ data: '2026-03-10', iaDisponivel: false, criativos: [] });
+    expect((await post('/api/criativos', { cliente: 'c1', formato: 'reels', ofertaId: '00000000-0000-0000-0000-000000000000' })).json.erro).toContain('chave da IA');
+    const img = await get('/api/imagem?url=' + encodeURIComponent('https://exemplo.com/x.jpg'));
+    expect(img.status).toBe(400);
+    expect(img.json.erro).toContain('não permitido');
     expect((await post('/api/fechamento', { cliente: 'c1', de: '2026-01-01', ate: '2026-01-31', comAnalise: true })).json.erro).toContain('IA');
     expect((await post('/api/fechamento', { cliente: 'c1', de: '2026-02-01', ate: '2026-01-01' })).json.erro).toContain('depois');
     const u = await get('/api/uso?de=2026-01-01&ate=2030-12-31');
