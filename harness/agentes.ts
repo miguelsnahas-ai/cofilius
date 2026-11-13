@@ -24,6 +24,7 @@ import AjvModulo from 'ajv';
 import type { Sql } from './db.ts';
 import { sha256Hex } from './cripto.ts';
 import { log } from './log.ts';
+import { MODELOS_PADRAO, PRECOS_PADRAO, provedorAtual } from './modelosPadrao.ts';
 
 // ajv é publicado como CommonJS; em ESM o construtor pode vir em .default
 const Ajv = ((AjvModulo as unknown as { default?: typeof AjvModulo }).default ?? AjvModulo) as unknown as new (o?: object) => {
@@ -185,21 +186,18 @@ export interface CasoTeste {
   espera?: unknown;
 }
 
-/**
- * Modelo padrão de todos os agentes enquanto o operador não escolher outro (decisão de 13/nov/2026).
- * Preço por milhão de tokens em US$, para registrar o custo.
- */
-export const MODELO_PADRAO = 'claude-haiku-5-5';
-export const PRECO_MODELO_PADRAO: PrecoModelo = { entradaPorMilhao: 0.1, saidaPorMilhao: 0.5 };
+/** Modelo padrão do Claude (mantido para quem usa o provedor Claude). */
+export const MODELO_PADRAO = MODELOS_PADRAO.claude.pequeno;
+export const PRECO_MODELO_PADRAO: PrecoModelo = PRECOS_PADRAO[MODELO_PADRAO]!;
 
 /**
  * O contrato diz só o porte do modelo ("pequeno" ou "forte"). O identificador vem do ambiente
- * (MODELO_IA_PEQUENO, MODELO_IA_FORTE) e, sem configuração, é o MODELO_PADRAO.
+ * (MODELO_IA_PEQUENO, MODELO_IA_FORTE) e, sem configuração, é o padrão do provedor (IA_PROVEDOR; padrão: Gemini).
  */
 export function resolverModelo(porte: string, ambiente: Record<string, string | undefined> = process.env): string {
   const variavel = porte === 'pequeno' ? 'MODELO_IA_PEQUENO' : porte === 'forte' ? 'MODELO_IA_FORTE' : null;
   if (!variavel) return porte;
-  return ambiente[variavel]?.trim() || MODELO_PADRAO;
+  return ambiente[variavel]?.trim() || MODELOS_PADRAO[provedorAtual(ambiente)][porte as 'pequeno' | 'forte'];
 }
 
 /** Contrato pronto para executar: lido da pasta, com o modelo resolvido pelo ambiente e as regras do agente. */

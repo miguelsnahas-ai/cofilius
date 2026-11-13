@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const r = await fetch('/api/configurar', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Cofilius': '1' },
-        body: JSON.stringify({ databaseUrl: d.databaseUrl, senha: d.senha, operador: d.operador, anthropicKey: d.anthropicKey }),
+        body: JSON.stringify({ databaseUrl: d.databaseUrl, senha: d.senha, operador: d.operador, geminiKey: d.geminiKey }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.erro || `Erro ${r.status}`);

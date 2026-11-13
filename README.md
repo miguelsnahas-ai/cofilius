@@ -43,7 +43,7 @@ Do dia a dia em diante, tudo é pelo painel:
 | **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
 | **Importar** | planilha de ofertas e planilha de vendas (com modelos para baixar) |
 | **Relatórios** | fechamento do período (com a leitura do Analista), uso por cliente, esteira automática |
-| **Configuração** | seu nome, senha, chave da API do Claude, modelos, esteira ligada/desligada, testar os agentes |
+| **Configuração** | seu nome, senha, provedor de IA (Gemini gratuito ou Claude) e a chave dele, modelos, esteira ligada/desligada, testar os agentes |
 
 **Visual:** o painel segue o Design System Cofilius (cores, logo, fontes Gabarito, Onest e DM Mono, voz). As fontes e o logo
 ficam em `painel/publico/`; as cores estão no topo de `painel/publico/estilo.css`, com o tema escuro do próprio sistema.
@@ -450,7 +450,14 @@ sem segurar as outras. Para rodar sozinho, basta chamar `fila` a cada poucos min
 
 ### Agentes (IA)
 
-Todos usam a API do Claude pelo mesmo harness. **Modelo padrão: Claude Haiku 5.5** (barato e rápido).
+Todos usam o mesmo harness, com o provedor escolhido na aba Configuração:
+
+- **Gemini (padrão, gratuito):** chave em aistudio.google.com ("Get API key"). Modelos padrão: `gemini-3.5-flash-lite`
+  (Redator e Atendente) e `gemini-4-hydrogen` (Curador e Analista), ambos com nível gratuito. Há limite de chamadas
+  por minuto e por dia (veja no AI Studio), e no nível gratuito o Google pode usar o conteúdo enviado para melhorar os produtos dele.
+- **Claude (pago):** chave em platform.claude.com. Modelo padrão: Claude Haiku 5.5.
+
+As regras são as mesmas nos dois: saída em JSON conferida pelo harness, repetição com o motivo e registro de cada chamada.
 Para trocar, defina no `.env` `MODELO_IA_PEQUENO` (Redator) e/ou `MODELO_IA_FORTE` (Curador e Analista),
 com `MODELO_IA_..._PRECO` para registrar o custo. A chave vai em `ANTHROPIC_API_KEY`.
 

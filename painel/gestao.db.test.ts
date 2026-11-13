@@ -80,7 +80,7 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     const u = await get('/api/uso?de=2026-01-01&ate=2030-12-31');
     expect(u.json.find((x: any) => x.codigo === 'c1').acoes).toBeGreaterThan(0);
     expect((await get('/api/esteira')).json).toMatchObject({ ligada: false, tarefas: [] });
-    expect((await post('/api/agentes/testar', { cliente: 'c1', agente: 'redator' })).json.erro).toContain('chave da API');
+    expect((await post('/api/agentes/testar', { cliente: 'c1', agente: 'redator' })).json.erro).toContain('chave da IA');
   });
 
   it('configuração: troca nome, senha e liga a IA sem reiniciar; nunca devolve a chave', async () => {
@@ -90,16 +90,21 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     const app = criarAplicacao({ deps: d, arquivoEnv, criarEsteira: (x) => criarEsteiraAutomatica(x, { intervaloMs: 3_600_000 }) });
     const url = await ouvir(app);
     const enviar = (corpo: object, s = SENHA) => fetch(`${url}/api/config`, { method: 'POST', headers: { ...auth(s), 'Content-Type': 'application/json', 'X-Cofilius': '1' }, body: JSON.stringify(corpo) }).then((r) => r.json() as any);
-    expect(await enviar({ operador: 'Miguel', anthropicKey: 'sk-ant-teste', esteiraLigada: false, novaSenha: 'nova-senha' })).toEqual({ ok: true, senhaAlterada: true });
+    expect(await enviar({ operador: 'Miguel', geminiKey: 'chave-gemini-teste', esteiraLigada: false, novaSenha: 'nova-senha' })).toEqual({ ok: true, senhaAlterada: true });
     expect((await fetch(`${url}/api/config`, { headers: auth() })).status).toBe(401);
     const cfg = await (await fetch(`${url}/api/config`, { headers: auth('nova-senha') })).json() as any;
-    expect(cfg).toMatchObject({ operador: 'Miguel', ia: true, esteiraLigada: false, modeloPequeno: 'claude-haiku-5-5' });
-    expect(JSON.stringify(cfg)).not.toContain('sk-ant');
+    expect(cfg).toMatchObject({ operador: 'Miguel', ia: true, provedor: 'gemini', chaveGemini: true, esteiraLigada: false, modeloPequeno: 'gemini-3.5-flash-lite', modeloForte: 'gemini-4-hydrogen' });
+    expect(JSON.stringify(cfg)).not.toContain('chave-gemini-teste');
     const env = parse(await readFile(arquivoEnv, 'utf8'));
-    expect(env).toMatchObject({ PAINEL_OPERADOR: 'Miguel', ANTHROPIC_API_KEY: 'sk-ant-teste', PAINEL_SENHA: 'nova-senha', PAINEL_ESTEIRA: 'desligada' });
+    expect(env).toMatchObject({ PAINEL_OPERADOR: 'Miguel', GEMINI_API_KEY: 'chave-gemini-teste', PAINEL_SENHA: 'nova-senha', PAINEL_ESTEIRA: 'desligada' });
+    // trocar para o Claude sem a chave dele desliga a IA, e os modelos voltam ao padrão do Claude
+    expect(await enviar({ provedor: 'claude', modeloPequeno: 'gemini-3.5-flash-lite' }, 'nova-senha')).toMatchObject({ ok: true });
+    const cfg2 = await (await fetch(`${url}/api/config`, { headers: auth('nova-senha') })).json() as any;
+    expect(cfg2).toMatchObject({ provedor: 'claude', ia: false, modeloPequeno: 'claude-haiku-5-5' });
+    expect(await enviar({ provedor: 'openai' }, 'nova-senha')).toMatchObject({ erro: expect.stringContaining('desconhecido') });
     expect(await enviar({ novaSenha: '123' }, 'nova-senha')).toMatchObject({ erro: expect.stringContaining('6 caracteres') });
     app.close();
-    for (const k of ['ANTHROPIC_API_KEY', 'PAINEL_SENHA', 'PAINEL_OPERADOR', 'PAINEL_ESTEIRA']) delete process.env[k];
+    for (const k of ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'IA_PROVEDOR', 'MODELO_IA_PEQUENO', 'MODELO_IA_FORTE', 'PAINEL_SENHA', 'PAINEL_OPERADOR', 'PAINEL_ESTEIRA']) delete process.env[k];
   });
 
   it('modo configuração: só a tela inicial; configurar conecta, grava o .env e entra no modo normal', async () => {

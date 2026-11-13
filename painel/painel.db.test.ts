@@ -162,7 +162,7 @@ describe.skipIf(!BANCO_HABILITADO)('painel do operador', () => {
     const url = `http://127.0.0.1:${(semIa.address() as AddressInfo).port}`;
     const r = await fetch(`${url}/api/curar`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json', 'X-Cofilius': '1' }, body: '{"cliente":"c1"}' });
     expect(r.status).toBe(400);
-    expect(((await r.json()) as { erro: string }).erro).toContain('ANTHROPIC_API_KEY');
+    expect(((await r.json()) as { erro: string }).erro).toContain('chave da IA');
     semIa.close();
   });
 

@@ -164,7 +164,7 @@ export async function registrarLinkOferta(deps: DepsApi, ofertaId: string, corpo
 }
 
 function exigirModelo(deps: DepsApi): ModeloIA {
-  if (!deps.modelo) throw new ErroPedido('IA não configurada: defina ANTHROPIC_API_KEY no .env e reinicie o painel.');
+  if (!deps.modelo) throw new ErroPedido('IA não configurada: coloque a chave da IA na aba Configuração.');
   return deps.modelo();
 }
 

@@ -169,7 +169,7 @@ const CONTRATOS: Record<string, () => Promise<any>> = {
 };
 
 export async function testarAgente(deps: DepsApi, corpo: Record<string, unknown>) {
-  if (!deps.modelo) throw new ErroPedido('Configure a chave da API do Claude em Configuração.');
+  if (!deps.modelo) throw new ErroPedido('Configure a chave da IA na aba Configuração.');
   const nome = texto(corpo, 'agente')!;
   if (!CONTRATOS[nome]) throw new ErroPedido(`Agente desconhecido: ${nome}`);
   const cliente = await buscarCliente(deps.sql, texto(corpo, 'cliente')!);

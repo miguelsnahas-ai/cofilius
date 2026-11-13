@@ -43,7 +43,7 @@
 
       <div id="proximo" class="proximo" aria-live="polite"></div>
       <ol id="andamento" class="andamento" aria-label="Andamento do dia"></ol>
-      <p id="aviso-ia" class="aviso" hidden>A IA está desligada. Coloque a chave da API do Claude na aba Configuração para o Curador e o Redator trabalharem.</p>
+      <p id="aviso-ia" class="aviso" hidden>A IA está desligada. Coloque a chave da IA (Gemini, gratuita) na aba Configuração para o Curador e o Redator trabalharem.</p>
 
       <section id="secao-escolhidas">
         <div class="secao-topo">
@@ -146,7 +146,7 @@
         <form id="form-fechamento" class="grade-form">
           <label>De <input name="de" type="date" required></label>
           <label>Até <input name="ate" type="date" required></label>
-          <label class="check largo"><input name="comAnalise" type="checkbox"> Incluir a leitura do Analista (usa IA, custo de centavos)</label>
+          <label class="check largo"><input name="comAnalise" type="checkbox"> Incluir a leitura do Analista (usa a IA)</label>
           <div class="largo"><button type="submit" class="primario">Gerar fechamento</button></div>
         </form>
         <div id="resultado-fechamento"></div>
@@ -182,7 +182,16 @@
         <form id="form-config" class="grade-form">
           <label>Seu nome <input name="operador"><small>Fica gravado em cada aprovação.</small></label>
           <label>Nova senha do painel <input name="novaSenha" type="password" autocomplete="new-password" placeholder="Deixe vazio para manter"></label>
-          <label class="largo">Chave da API do Claude <input name="anthropicKey" type="password" autocomplete="off" placeholder="sk-ant-..."><small id="estado-chave"></small></label>
+          <label>Provedor de IA
+            <select name="provedor">
+              <option value="gemini">Gemini (Google) · nível gratuito</option>
+              <option value="claude">Claude (Anthropic) · pago</option>
+            </select>
+            <small>No nível gratuito, o Google pode usar o que é enviado para melhorar os produtos dele.</small>
+          </label>
+          <span></span>
+          <label class="largo" data-provedor="gemini">Chave do Gemini <input name="geminiKey" type="password" autocomplete="off" placeholder="Cole a chave do Google AI Studio"><small id="estado-chave-gemini"></small></label>
+          <label class="largo" data-provedor="claude">Chave da API do Claude <input name="anthropicKey" type="password" autocomplete="off" placeholder="sk-ant-..."><small id="estado-chave-claude"></small></label>
           <label>Modelo dos agentes simples <input name="modeloPequeno"><small>Redator e Atendente</small></label>
           <label>Modelo dos agentes de decisão <input name="modeloForte"><small>Curador e Analista</small></label>
           <label class="check largo"><input name="esteiraLigada" type="checkbox"> Esteira automática ligada</label>
@@ -192,7 +201,7 @@
       </section>
       <section class="cartao">
         <h2>Testar agentes de IA</h2>
-        <p class="ajuda">Roda os casos de teste do agente com o modelo de verdade e mostra o resultado e o custo.</p>
+        <p class="ajuda">Roda os casos de teste do agente com a IA configurada e mostra o resultado e o custo (zero no Gemini gratuito).</p>
         <form id="form-testar" class="linha-form">
           <select name="agente" aria-label="Agente">
             <option value="curador">Curador</option><option value="redator">Redator</option>

@@ -32,7 +32,10 @@
         <span></span>
         <label>Senha do painel <input name="senha" type="password" required minlength="6" autocomplete="new-password"><small>O navegador pede esta senha para abrir o painel.</small></label>
         <label>Repita a senha <input name="senha2" type="password" required minlength="6" autocomplete="new-password"></label>
-        <label class="largo">Chave da API do Claude <input name="anthropicKey" type="password" placeholder="sk-ant-... (opcional, dá para colocar depois)" autocomplete="off"></label>
+        <label class="largo">Chave do Gemini (gratuita, opcional agora)
+          <input name="geminiKey" type="password" placeholder="Cole a chave do Google AI Studio" autocomplete="off">
+          <small>Em aistudio.google.com, entre com sua conta Google e clique em "Get API key". Liga o Curador e o Redator.</small>
+        </label>
         <div class="largo"><button type="submit" class="primario">Conectar e criar as tabelas</button></div>
       </form>
       <p id="mensagem" class="aviso" role="status" aria-live="polite" hidden></p>

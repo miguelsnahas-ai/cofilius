@@ -79,7 +79,7 @@ export function criarExecutores(deps: DepsEsteira): Record<string, Executor> {
     },
     'curadoria.curar': async (t) => {
       const cliente = await buscarCliente(sql, t.clienteId);
-      if (!deps.modelo) return { pulada: 'IA não configurada (coloque a chave da API na Configuração)' };
+      if (!deps.modelo) return { pulada: 'IA não configurada (coloque a chave da IA na Configuração)' };
       const r = await curarDia(sql, { cliente, data: String(t.entrada.dataLista), modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id });
       return { candidatas: r.candidatas, escolhidas: r.escolhas.length };
     },
@@ -97,14 +97,14 @@ export function criarExecutores(deps: DepsEsteira): Record<string, Executor> {
     },
     'redacao.redigir': async (t) => {
       const cliente = await buscarCliente(sql, t.clienteId);
-      if (!deps.modelo) return { pulada: 'IA não configurada (coloque a chave da API na Configuração)' };
+      if (!deps.modelo) return { pulada: 'IA não configurada (coloque a chave da IA na Configuração)' };
       const r = await redigirSelecionadas(sql, { cliente, data: String(t.entrada.dataLista), modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id });
       if (r.falhas.length && !r.redigidas.length) throw new Error(`nenhuma mensagem redigida: ${r.falhas.map((f) => f.erro).join('; ')}`);
       return { redigidas: r.redigidas.length, semLink: r.semLink.length, jaTinhamMensagem: r.jaTinhamMensagem, falhas: r.falhas };
     },
     'analise.semanal': async (t) => {
       const cliente = await buscarCliente(sql, t.clienteId);
-      if (!deps.modelo) return { pulada: 'IA não configurada (coloque a chave da API na Configuração)' };
+      if (!deps.modelo) return { pulada: 'IA não configurada (coloque a chave da IA na Configuração)' };
       const { inicio, fim } = semanaAte(String(t.entrada.dataLista));
       const analise = await analisarPeriodo(sql, { cliente, inicio, fim, modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id });
       const resumo = await resumoPeriodo(sql, cliente, inicio, fim);

@@ -46,8 +46,10 @@ describe('utilitários', () => {
   });
   it('resolverModelo usa o ambiente', () => {
     expect(resolverModelo('pequeno', { MODELO_IA_PEQUENO: 'm-p' })).toBe('m-p');
-    expect(resolverModelo('forte', {})).toBe('claude-haiku-5-5');
-    expect(resolverModelo('pequeno', { MODELO_IA_PEQUENO: '  ' })).toBe('claude-haiku-5-5');
+    // Sem configuração: os modelos gratuitos do Gemini (provedor padrão)
+    expect(resolverModelo('forte', {})).toBe('gemini-4-hydrogen');
+    expect(resolverModelo('pequeno', { MODELO_IA_PEQUENO: '  ' })).toBe('gemini-3.5-flash-lite');
+    expect(resolverModelo('pequeno', { IA_PROVEDOR: 'claude' })).toBe('claude-haiku-5-5');
   });
 });
 

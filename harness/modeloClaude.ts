@@ -14,7 +14,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
 import { log } from './log.ts';
-import { MODELO_PADRAO, PRECO_MODELO_PADRAO, type ModeloIA, type PedidoModelo, type PrecoModelo, type RespostaModelo } from './agentes.ts';
+import type { ModeloIA, PedidoModelo, PrecoModelo, RespostaModelo } from './agentes.ts';
+import { PRECOS_PADRAO } from './modelosPadrao.ts';
 
 export type Esforco = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -108,10 +109,10 @@ export function criarModeloClaude(opcoes: OpcoesModeloClaude = {}): ModeloIA {
  * Preços por milhão de tokens (US$) lidos do ambiente, para registrar o custo de cada execução:
  *   MODELO_IA_PEQUENO_PRECO="entrada,saida"   (ex.: "1.00,5.00")
  *   MODELO_IA_FORTE_PRECO="entrada,saida"
- * O modelo padrão já vem com preço. Outro modelo sem preço configurado fica sem custo (tokens continuam registrados).
+ * Os modelos padrão (Gemini gratuito e Claude Haiku) já vêm com preço. Outro modelo sem preço configurado fica sem custo (tokens continuam registrados).
  */
 export function precosDoAmbiente(ambiente: Record<string, string | undefined> = process.env): Record<string, PrecoModelo> {
-  const precos: Record<string, PrecoModelo> = { [MODELO_PADRAO]: PRECO_MODELO_PADRAO };
+  const precos: Record<string, PrecoModelo> = { ...PRECOS_PADRAO };
   for (const porte of ['PEQUENO', 'FORTE']) {
     const modelo = ambiente[`MODELO_IA_${porte}`];
     const texto = ambiente[`MODELO_IA_${porte}_PRECO`];

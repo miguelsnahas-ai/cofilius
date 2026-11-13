@@ -13,7 +13,8 @@ import { createServer, type Server } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { conectar, type Sql } from './db.ts';
 import { log } from './log.ts';
-import { criarModeloClaude, precosDoAmbiente } from './modeloClaude.ts';
+import { precosDoAmbiente } from './modeloClaude.ts';
+import { criarModeloDoAmbiente, iaConfigurada } from './provedores.ts';
 import type { ModeloIA, PrecoModelo } from './agentes.ts';
 import { assinaturaValida, configWhatsappDoAmbiente, lerAviso, verificarWebhook, type ConfigWhatsapp } from '../services/disparador/whatsapp.ts';
 import { canalWhatsapp, registrarStatus, type Canal } from '../services/disparador/disparador.ts';
@@ -93,9 +94,9 @@ if (executadoDiretamente(import.meta.url)) {
     console.error('Configure WHATSAPP_TOKEN, WHATSAPP_NUMERO_ID, WHATSAPP_VERSAO_API, WHATSAPP_SEGREDO_APP e WHATSAPP_TOKEN_VERIFICACAO no .env.');
     process.exit(1);
   }
-  const temIa = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+  const temIa = iaConfigurada();
   const servidor = criarServidorWebhook({
-    sql: conectar(), cfg, modelo: temIa ? () => criarModeloClaude() : undefined, precos: precosDoAmbiente(),
+    sql: conectar(), cfg, modelo: temIa ? () => criarModeloDoAmbiente() : undefined, precos: precosDoAmbiente(),
   });
   const porta = Number(process.env.WEBHOOK_PORTA || 8787);
   servidor.listen(porta, () => console.log(`Webhook do WhatsApp na porta ${porta} (IA ${temIa ? 'ligada' : 'desligada'})`));

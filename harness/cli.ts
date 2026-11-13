@@ -41,7 +41,8 @@ import { lerPlanilhaVendas } from '../services/vendas/planilhaVendas.ts';
 import { processarFila, statusFila } from './fila.ts';
 import { agendarDia, criarExecutores } from './esteira.ts';
 import { numeroBr } from './csv.ts';
-import { criarModeloClaude, precosDoAmbiente } from './modeloClaude.ts';
+import { precosDoAmbiente } from './modeloClaude.ts';
+import { criarModeloDoAmbiente } from './provedores.ts';
 import { contratoRedator, redigirMensagem } from '../services/lista/redator.ts';
 import { carregarAgente, rodarCasos } from './agentes.ts';
 import { contratoCurador, curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
@@ -308,7 +309,7 @@ async function comandoSemCliente(sql: Sql, comando: string): Promise<boolean> {
     }
     case 'fila': {
       const executores = criarExecutores({
-        sql, shopeeDoCliente: (c) => shopeeDoCliente(sql, c), modelo: () => criarModeloClaude(), precos: precosDoAmbiente(),
+        sql, shopeeDoCliente: (c) => shopeeDoCliente(sql, c), modelo: () => criarModeloDoAmbiente(), precos: precosDoAmbiente(),
       });
       const limite = op.limite ? Number(op.limite) : undefined;
       const r = await processarFila(sql, executores, { limite });
@@ -506,7 +507,7 @@ async function principal(): Promise<void> {
       case 'redigir': {
         const ofertas = op.oferta ?? [];
         if (!ofertas.length) throw new Error('Falta --oferta.');
-        const modelo = criarModeloClaude();
+        const modelo = criarModeloDoAmbiente();
         const contrato = await contratoRedator();
         const precos = precosDoAmbiente();
         let falhas = 0;
@@ -531,7 +532,7 @@ async function principal(): Promise<void> {
         if (!contratos[nome]) throw new Error(`Agente sem casos de teste: ${nome} (use ${Object.keys(contratos).join(' ou ')})`);
         const { casos } = await carregarAgente(fileURLToPath(new URL(`../agents/${nome}`, import.meta.url)));
         const r = await rodarCasos(sql, {
-          contrato: await contratos[nome]!(), casos, modelo: criarModeloClaude(), clienteId: cliente.clienteId, precos: precosDoAmbiente(),
+          contrato: await contratos[nome]!(), casos, modelo: criarModeloDoAmbiente(), clienteId: cliente.clienteId, precos: precosDoAmbiente(),
         });
         for (const c of r) console.log(`${c.ok ? '✔' : '✘'} ${c.caso}: ${c.detalhe}`);
         const [custo] = await sql`
@@ -544,7 +545,7 @@ async function principal(): Promise<void> {
 
       case 'curar': {
         const q = op.quantidade ? Number(op.quantidade) : undefined;
-        const r = await curarDia(sql, { cliente, data: dataLista(), modelo: criarModeloClaude(), precos: precosDoAmbiente(), quantidade: q });
+        const r = await curarDia(sql, { cliente, data: dataLista(), modelo: criarModeloDoAmbiente(), precos: precosDoAmbiente(), quantidade: q });
         if (!r.escolhas.length) { console.log('Nenhuma candidata no dia. Importe ofertas primeiro (importar-ofertas).'); break; }
         console.log(`Curadoria de ${r.data}: ${r.escolhas.length} escolhidas entre ${r.candidatas} candidatas\n`);
         for (const e of r.escolhas) console.log(`  ${e.posicao}. ${e.titulo}\n     ${e.motivo}`);
@@ -563,7 +564,7 @@ async function principal(): Promise<void> {
       }
 
       case 'redigir-dia': {
-        const r = await redigirSelecionadas(sql, { cliente, data: dataLista(), modelo: criarModeloClaude(), precos: precosDoAmbiente() });
+        const r = await redigirSelecionadas(sql, { cliente, data: dataLista(), modelo: criarModeloDoAmbiente(), precos: precosDoAmbiente() });
         console.log(`Redigidas: ${r.redigidas.length} · já tinham mensagem: ${r.jaTinhamMensagem} · sem link: ${r.semLink.length} · falhas: ${r.falhas.length}`);
         for (const x of r.semLink) console.log(`  sem link: ${x.titulo} (${x.ofertaId})`);
         for (const x of r.falhas) console.log(`  falha: ${x.ofertaId}: ${x.erro}`);
@@ -579,7 +580,7 @@ async function principal(): Promise<void> {
         const resumo = await resumoPeriodo(sql, cliente, inicio, fim);
         const analise = op['sem-analise']
           ? null
-          : await analisarPeriodo(sql, { cliente, inicio, fim, modelo: criarModeloClaude(), precos: precosDoAmbiente() });
+          : await analisarPeriodo(sql, { cliente, inicio, fim, modelo: criarModeloDoAmbiente(), precos: precosDoAmbiente() });
         console.log(montarFechamento(cliente.nome, resumo, analise));
         if (analise?.propostas.length) {
           console.log('\n--- Para o operador: propostas de diretriz do Analista (só valem se aprovadas) ---');

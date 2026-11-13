@@ -24,8 +24,8 @@ import { executadoDiretamente } from '../harness/execucao.ts';
 import { ARQUIVO_ENV, salvarNoEnv } from '../harness/configLocal.ts';
 import { conectar, erroDeConexao, type Sql } from '../harness/db.ts';
 import { log } from '../harness/log.ts';
-import { criarModeloClaude, precosDoAmbiente } from '../harness/modeloClaude.ts';
-import { MODELO_PADRAO } from '../harness/agentes.ts';
+import { precosDoAmbiente } from '../harness/modeloClaude.ts';
+import { criarModeloDoAmbiente, iaConfigurada, modeloDoPorte, provedorAtual } from '../harness/provedores.ts';
 import { migrar } from '../db/migrate.ts';
 import { registrarAcao } from '../services/relatorios/uso.ts';
 import {
@@ -107,7 +107,7 @@ export function montarDepsDoAmbiente(sql: Sql): DepsPainel {
     sql,
     senha: process.env.PAINEL_SENHA ?? '',
     operador: process.env.PAINEL_OPERADOR || 'operador',
-    modelo: process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN ? () => criarModeloClaude() : undefined,
+    modelo: iaConfigurada() ? () => criarModeloDoAmbiente() : undefined,
     precos: precosDoAmbiente(),
     whatsapp: configWhatsappDoAmbiente() ? canalWhatsapp(configWhatsappDoAmbiente()!) : undefined,
     // Com a Open API da Shopee do cliente: coleta, links e Atendente gerando link na hora.
@@ -202,8 +202,21 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     }
     if (str('anthropicKey')) valores.ANTHROPIC_API_KEY = str('anthropicKey')!;
     if (c.removerAnthropicKey === true) valores.ANTHROPIC_API_KEY = null;
-    for (const [campo, chave] of [['modeloPequeno', 'MODELO_IA_PEQUENO'], ['modeloForte', 'MODELO_IA_FORTE']] as const) {
-      if (str(campo) !== undefined) valores[chave] = str(campo) || null;
+    if (str('geminiKey')) valores.GEMINI_API_KEY = str('geminiKey')!;
+    if (str('provedor') !== undefined) {
+      if (!['gemini', 'claude'].includes(str('provedor')!)) throw new ErroPedido('Provedor de IA desconhecido.');
+      // Ao trocar de provedor, volta aos modelos padrão dele (os nomes de modelo não servem no outro).
+      if (str('provedor') !== provedorAtual()) { valores.MODELO_IA_PEQUENO = null; valores.MODELO_IA_FORTE = null; }
+      valores.IA_PROVEDOR = str('provedor')!;
+    }
+    // Modelos: só grava o que difere do padrão do provedor (assim, trocar de provedor não deixa modelo do outro).
+    const provedorFinal = (valores.IA_PROVEDOR as 'gemini' | 'claude' | undefined) ?? provedorAtual();
+    if (str('provedor') === undefined || str('provedor') === provedorAtual()) {
+      for (const [campo, chave, porte] of [['modeloPequeno', 'MODELO_IA_PEQUENO', 'pequeno'], ['modeloForte', 'MODELO_IA_FORTE', 'forte']] as const) {
+        const v = str(campo);
+        if (v === undefined) continue;
+        valores[chave] = v && v !== modeloDoPorte(porte, { IA_PROVEDOR: provedorFinal }) ? v : null;
+      }
     }
     if (typeof c.esteiraLigada === 'boolean') valores.PAINEL_ESTEIRA = c.esteiraLigada ? 'ligada' : 'desligada';
     if (!Object.keys(valores).length) throw new ErroPedido('Nada para salvar.');
@@ -211,7 +224,7 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     // Vale na hora, sem reiniciar.
     d.operador = process.env.PAINEL_OPERADOR || 'operador';
     d.senha = process.env.PAINEL_SENHA ?? d.senha;
-    d.modelo = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN ? () => criarModeloClaude() : undefined;
+    d.modelo = iaConfigurada() ? () => criarModeloDoAmbiente() : undefined;
     d.precos = precosDoAmbiente();
     if (typeof c.esteiraLigada === 'boolean') esteira?.definirLigada(c.esteiraLigada);
     return { ok: true, senhaAlterada: 'PAINEL_SENHA' in valores };
@@ -221,8 +234,11 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     return {
       operador: d.operador,
       ia: !!d.modelo,
-      modeloPequeno: process.env.MODELO_IA_PEQUENO || MODELO_PADRAO,
-      modeloForte: process.env.MODELO_IA_FORTE || MODELO_PADRAO,
+      provedor: provedorAtual(),
+      chaveGemini: !!process.env.GEMINI_API_KEY,
+      chaveClaude: !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
+      modeloPequeno: modeloDoPorte('pequeno'),
+      modeloForte: modeloDoPorte('forte'),
       whatsapp: !!d.whatsapp,
       esteiraLigada: esteira?.estado.ligada ?? false,
       chaveCredenciais: !!process.env.CREDENCIAIS_CHAVE,
@@ -243,6 +259,7 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     };
     if (!process.env.CREDENCIAIS_CHAVE) valores.CREDENCIAIS_CHAVE = randomBytes(32).toString('base64');
     if (typeof c.anthropicKey === 'string' && c.anthropicKey.trim()) valores.ANTHROPIC_API_KEY = c.anthropicKey.trim();
+    if (typeof c.geminiKey === 'string' && c.geminiKey.trim()) { valores.GEMINI_API_KEY = c.geminiKey.trim(); valores.IA_PROVEDOR = 'gemini'; }
     await salvarNoEnv(valores, arquivoEnv);
     deps = (op.montarDeps ?? montarDepsDoAmbiente)(sql);
     esteira = op.criarEsteira ? op.criarEsteira(deps) : null;
@@ -356,7 +373,7 @@ if (executadoDiretamente(import.meta.url)) {
   servidor.listen(porta, host, () => {
     const endereco = `http://127.0.0.1:${porta}`;
     console.log(configurado
-      ? `Painel do Cofilius em ${endereco} (IA ${deps!.modelo ? 'ligada' : 'desligada'}). Deixe esta janela aberta enquanto usa.`
+      ? `Painel do Cofilius em ${endereco} (IA ${deps!.modelo ? `ligada: ${provedorAtual()}` : 'desligada'}). Deixe esta janela aberta enquanto usa.`
       : `Painel do Cofilius em ${endereco}: abra no navegador para a configuração inicial. Deixe esta janela aberta.`);
     if (process.env.PAINEL_ABRIR_NAVEGADOR !== '0') abrirNavegador(endereco);
   });

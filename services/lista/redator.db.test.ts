@@ -43,9 +43,10 @@ describe.skipIf(!BANCO_HABILITADO)('Redator', () => {
     await registrarLinkManual(sql, { cliente, ofertaId, link: 'https://s.shopee.com.br/R501', quando });
   });
 
-  it('o modelo vem do ambiente (porte "pequeno"); sem configurar, o padrão (Haiku 5.5)', async () => {
+  it('o modelo vem do ambiente (porte "pequeno"); sem configurar, o padrão do provedor (Gemini gratuito)', async () => {
     expect((await contratoRedator(ambiente)).modelo).toBe('modelo-pequeno-teste');
-    expect((await contratoRedator({})).modelo).toBe('claude-haiku-5-5');
+    expect((await contratoRedator({})).modelo).toBe('gemini-3.5-flash-lite');
+    expect((await contratoRedator({ IA_PROVEDOR: 'claude' })).modelo).toBe('claude-haiku-5-5');
   });
 
   it('entrada do agente não leva preço nem link', async () => {

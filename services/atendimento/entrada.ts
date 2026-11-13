@@ -65,7 +65,7 @@ export async function receberMensagem(
     return { tipo: 'lista', envios, resposta };
   }
 
-  if (!deps.modelo) throw new Error('IA não configurada: o Atendente precisa de ANTHROPIC_API_KEY.');
+  if (!deps.modelo) throw new Error('IA não configurada: o Atendente precisa da chave da IA (aba Configuração).');
   try {
     const resultado = await atender(sql, {
       cliente: m.cliente, mensagem: m.texto, modelo: deps.modelo(), precos: deps.precos, agora,
