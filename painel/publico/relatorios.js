@@ -86,8 +86,8 @@ window.Cofilius.registrar('relatorios', {
       try {
         const r = await api('/api/fechamento', { de: ff.elements.de.value, ate: ff.elements.ate.value, comAnalise: ff.elements.comAnalise.checked });
         const copiar = el('button', { classe: 'secundario', texto: 'Copiar texto para o WhatsApp', attrs: { type: 'button' } });
-        copiar.addEventListener('click', () => navigator.clipboard.writeText(r.texto).then(() => avisar('Fechamento copiado. Cole no WhatsApp dela.')));
-        const texto = el('details', { classe: 'texto-fechamento' }, el('summary', { texto: 'Ver o texto que vai para ela' }),
+        copiar.addEventListener('click', () => navigator.clipboard.writeText(r.texto).then(() => avisar('Fechamento copiado. Cole no WhatsApp dela e marque como enviado na aba Dia.')));
+        const texto = el('details', { classe: 'texto-fechamento' }, el('summary', { texto: r.situacao === 'enviado' ? 'Ver o texto (já enviado)' : 'Ver o texto que vai para ela (fica pronto também na aba Dia)' }),
           el('div', { classe: 'conversa' }, el('div', { classe: 'balao', texto: r.texto })));
         const partes = [...cartaoFechamento(r), texto, el('div', { classe: 'acoes' }, copiar)];
         if (r.propostas.length) partes.push(el('p', { classe: 'aviso', texto: `O Analista propôs ${r.propostas.length} ${r.propostas.length === 1 ? 'nova diretriz' : 'novas diretrizes'}: aprove ou descarte na aba Dia.` }));

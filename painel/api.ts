@@ -7,6 +7,7 @@ import type { ModeloIA, PrecoModelo } from '../harness/agentes.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import { desempenhoParaCurador, desempenhoPostagens } from '../services/relatorios/desempenho.ts';
+import { enviarFechamento, fechamentoPronto } from '../services/relatorios/fechamentoAfiliada.ts';
 import {
   aprovar, confirmarPreco, dataLocal, descartar, listarDia, validarDia, validarMensagem,
 } from '../services/lista/lista.ts';
@@ -82,6 +83,7 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const extra = new Map(extras.map((e) => [e.id, e]));
   const desempenho = new Map((await desempenhoPostagens(sql, cliente, { ids: mensagens.map((m) => m.id) })).map((d) => [d.mensagemId, d]));
   const aprendizado = await desempenhoParaCurador(sql, cliente, dia);
+  const fechamento = await fechamentoPronto(sql, cliente, dia);
 
   const [contagem] = await sql`
     select count(*)::int as candidatas from ofertas where cliente_id = ${cliente.clienteId} and data_coleta = ${dia}`;
@@ -105,6 +107,8 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
     extensao: ext ? { ultimoRecebimento: ext.ultimo ?? null, ultimoErro: ext.ultimo_erro ?? null } : null,
     /** O mesmo resumo de desempenho que o Curador recebe (null sem postagens medidas). */
     aprendizado,
+    /** Fechamento semanal pronto para mandar (null se não há ou já foi enviado). */
+    fechamento,
     selecionadas: selecionadas.map((s) => {
       const p = porOferta.get(s.ofertaId);
       return {
@@ -231,4 +235,17 @@ export async function validarDiaInteiro(deps: DepsApi, corpo: Record<string, unk
   const cliente = await buscarCliente(deps.sql, texto(corpo, 'cliente'));
   const r = await validarDia(deps.sql, cliente, data(corpo.data, cliente));
   return { ok: true, validadas: r.filter((x) => x.ok).length, barradas: r.filter((x) => !x.ok).length };
+}
+
+/** Fechamento semanal: "enviado" (o operador mandou à mão) ou "whatsapp" (o sistema manda pela Cloud API). */
+export async function acaoFechamento(deps: DepsApi, id: string, acao: string, corpo: Record<string, unknown>) {
+  const cliente = await buscarCliente(deps.sql, texto(corpo, 'cliente'));
+  const canal = acao === 'whatsapp' ? deps.whatsapp : canalManual;
+  if (!canal) throw new ErroPedido('WhatsApp não configurado.');
+  try {
+    const f = await enviarFechamento(deps.sql, cliente, id, canal);
+    return { ok: true, situacao: f.situacao };
+  } catch (erro) {
+    throw new ErroPedido((erro as Error).message);
+  }
 }

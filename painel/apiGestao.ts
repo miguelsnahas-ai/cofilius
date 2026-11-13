@@ -17,6 +17,7 @@ import { lerPlanilhaVendas } from '../services/vendas/planilhaVendas.ts';
 import { importarVendas, resumoPeriodo } from '../services/vendas/atribuicao.ts';
 import { analisarPeriodo, contratoAnalista } from '../services/relatorios/analista.ts';
 import { montarFechamento } from '../services/relatorios/fechamento.ts';
+import { prepararFechamento } from '../services/relatorios/fechamentoAfiliada.ts';
 import { usoPorCliente } from '../services/relatorios/uso.ts';
 import { listarDiretrizes, proporDiretriz } from '../services/curadoria/diretrizes.ts';
 import { contratoCurador } from '../services/curadoria/curador.ts';
@@ -133,11 +134,17 @@ export async function fechamento(deps: DepsApi, corpo: Record<string, unknown>) 
     if (!deps.modelo) throw new ErroPedido('Leitura do Analista precisa da IA: configure a chave da API em Configuração.');
     analise = await analisarPeriodo(deps.sql, { cliente, inicio, fim, modelo: deps.modelo(), precos: deps.precos });
   }
+  const paraEla = await prepararFechamento(deps.sql, cliente, inicio, fim, (analise?.leituras ?? []).map((l) => l.texto));
   return {
     ok: true,
     resumo,
     leituras: (analise?.leituras ?? []).map((l) => ({ texto: l.texto, evidencias: l.evidencias })),
-    texto: montarFechamento(cliente.nome, resumo, analise),
+    /** Texto para mandar à afiliada (gravado como fechamento "pronto"). */
+    texto: paraEla.texto,
+    fechamentoId: paraEla.id,
+    situacao: paraEla.situacao,
+    /** Versão do operador, com as evidências das leituras. */
+    textoOperador: montarFechamento(cliente.nome, resumo, analise),
     propostas: (analise?.propostas ?? []).map((d) => ({ id: d.id, nicho: d.nicho, versao: d.versao, texto: d.texto })),
   };
 }

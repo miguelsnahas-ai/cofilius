@@ -100,6 +100,37 @@ function desenharAprendizado(a) {
     el('p', { classe: 'ajuda', texto: 'Calculado pelo sistema a partir das vendas e cliques de cada link. As diretrizes que você aprova valem mais do que isto.' }));
 }
 
+/** Fechamento semanal pronto: prévia como ela vai receber, copiar, enviar e marcar como enviado. */
+function desenharFechamento(d) {
+  const caixa = $('fechamento-semana');
+  const f = d.fechamento;
+  caixa.hidden = !f;
+  if (!f) { caixa.replaceChildren(); return; }
+  const dataCurta = (x) => x.split('-').reverse().slice(0, 2).join('/');
+  const primeiro = (d.cliente.nome || '').split(' ')[0];
+  const acoes = el('div', { classe: 'acoes' });
+  const copiar = el('button', { texto: 'Copiar para o WhatsApp', attrs: { type: 'button' } });
+  copiar.addEventListener('click', () => navigator.clipboard.writeText(f.texto)
+    .then(() => avisar(`Copiado. Cole na conversa com ${primeiro} e depois marque como enviado.`))
+    .catch(() => avisar('Não consegui copiar: selecione o texto e use Ctrl+C.', true)));
+  acoes.append(copiar);
+  if (d.whatsappDisponivel) {
+    const zap = el('button', { classe: 'secundario', texto: 'Enviar pelo WhatsApp', attrs: { type: 'button' } });
+    zap.addEventListener('click', () => agir(zap, () => api(`/api/fechamentos/${f.id}/whatsapp`, {}), 'Fechamento enviado pelo WhatsApp'));
+    acoes.append(zap);
+  }
+  const enviado = el('button', { classe: 'secundario', texto: 'Marcar como enviado', attrs: { type: 'button' } });
+  enviado.addEventListener('click', () => agir(enviado, () => api(`/api/fechamentos/${f.id}/enviado`, {}), 'Fechamento marcado como enviado'));
+  acoes.append(enviado);
+  caixa.replaceChildren(
+    el('div', { classe: 'secao-topo' },
+      el('div', {}, el('span', { classe: 'rotulo', texto: `Fechamento · ${dataCurta(f.inicio)} a ${dataCurta(f.fim)}` }),
+        el('h2', { texto: `Resumo da semana pronto para ${primeiro}` }))),
+    el('p', { classe: 'ajuda', texto: 'Montado pelo sistema com os números das vendas e cliques. Confira e mande.' }),
+    el('div', { classe: 'conversa' }, el('div', { classe: 'balao', texto: f.texto })),
+    acoes);
+}
+
 function cartaoMensagem(m) {
   const [rotulo, cor] = ESTADOS[m.estado] || [m.estado, ''];
   const cartao = el('article', { classe: 'cartao' },
@@ -274,6 +305,7 @@ function desenhar() {
 
   $('aviso-ia').hidden = d.iaDisponivel;
   desenharAprendizado(d.aprendizado);
+  desenharFechamento(d);
   const aviso = avisoExtensao(d.extensao);
   $('aviso-extensao').hidden = !aviso;
   $('aviso-extensao').textContent = aviso || '';

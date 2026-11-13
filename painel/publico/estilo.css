@@ -296,3 +296,8 @@ details.cartao[open] > summary { border-bottom: 1px solid var(--linha); border-r
 .aprendizado ul { margin: 0; padding-left: var(--space-4); }
 .aprendizado li { margin-bottom: var(--space-2); white-space: normal; }
 .aprendizado li .detalhe { display: block; font-size: 13px; color: var(--tinta-suave); }
+
+/* ---------- Fechamento semanal no Dia ---------- */
+.fechamento-semana { margin: var(--space-4) 0; }
+.fechamento-semana h2 { margin: var(--space-1) 0 0; }
+.fechamento-semana .balao { white-space: pre-wrap; max-width: 520px; }

@@ -16,6 +16,7 @@ import { redigirSelecionadas } from '../services/lista/redator.ts';
 import { curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
 import { analisarPeriodo } from '../services/relatorios/analista.ts';
 import { montarFechamento } from '../services/relatorios/fechamento.ts';
+import { prepararFechamento } from '../services/relatorios/fechamentoAfiliada.ts';
 import { resumoPeriodo } from '../services/vendas/atribuicao.ts';
 import { marcarMedidas } from '../services/lista/medicao.ts';
 import { gerarLinkShopee } from '../services/links/gerarLinkShopee.ts';
@@ -104,14 +105,17 @@ export function criarExecutores(deps: DepsEsteira): Record<string, Executor> {
     },
     'analise.semanal': async (t) => {
       const cliente = await buscarCliente(sql, t.clienteId);
-      if (!deps.modelo) return { pulada: 'IA não configurada (coloque a chave da IA na Configuração)' };
       const { inicio, fim } = semanaAte(String(t.entrada.dataLista));
-      const analise = await analisarPeriodo(sql, { cliente, inicio, fim, modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id });
+      // O fechamento para a afiliada sai sempre (números do banco); a leitura do Analista só com a IA.
+      const analise = deps.modelo
+        ? await analisarPeriodo(sql, { cliente, inicio, fim, modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id })
+        : null;
+      const paraEla = await prepararFechamento(sql, cliente, inicio, fim, (analise?.leituras ?? []).map((l) => l.texto));
       const resumo = await resumoPeriodo(sql, cliente, inicio, fim);
-      // O texto fica no resultado da tarefa até existir o Disparador (WhatsApp).
       return {
-        inicio, fim, semDados: analise.semDados,
-        propostas: analise.propostas.map((d) => ({ id: d.id, nicho: d.nicho, versao: d.versao })),
+        inicio, fim, semDados: analise?.semDados ?? null, analista: analise ? 'feito' : 'IA não configurada',
+        propostas: (analise?.propostas ?? []).map((d) => ({ id: d.id, nicho: d.nicho, versao: d.versao })),
+        fechamentoId: paraEla.id,
         fechamento: montarFechamento(cliente.nome, resumo, analise),
       };
     },

@@ -102,7 +102,15 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
 
   it('fechamento, uso e esteira pela tela', async () => {
     const f = await post('/api/fechamento', { cliente: 'c1', de: '2026-01-01', ate: '2030-12-31' });
-    expect(f.json.texto).toContain('Comissão pendente: R$ 2,50');
+    expect(f.json.texto).toContain('⏳ R$ 2,50 pendente');
+    expect(f.json.textoOperador).toContain('Comissão pendente: R$ 2,50');
+    // Fica pronto no Dia e é marcado como enviado por lá.
+    const dia = (await get('/api/dia?cliente=c1&data=2030-12-31')).json;
+    expect(dia.fechamento).toMatchObject({ id: f.json.fechamentoId, situacao: 'pronto' });
+    expect((await post(`/api/fechamentos/${f.json.fechamentoId}/whatsapp`, { cliente: 'c1' })).json.erro).toContain('não configurado');
+    expect((await post(`/api/fechamentos/${f.json.fechamentoId}/enviado`, { cliente: 'c1' })).json).toEqual({ ok: true, situacao: 'enviado' });
+    expect((await post(`/api/fechamentos/${f.json.fechamentoId}/enviado`, { cliente: 'c1' })).json.erro).toContain('já foi enviado');
+    expect((await get('/api/dia?cliente=c1&data=2030-12-31')).json.fechamento).toBeNull();
     expect((await post('/api/fechamento', { cliente: 'c1', de: '2026-01-01', ate: '2026-01-31', comAnalise: true })).json.erro).toContain('IA');
     expect((await post('/api/fechamento', { cliente: 'c1', de: '2026-02-01', ate: '2026-01-01' })).json.erro).toContain('depois');
     const u = await get('/api/uso?de=2026-01-01&ate=2030-12-31');

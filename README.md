@@ -39,11 +39,11 @@ Do dia a dia em diante, tudo é pelo painel:
 
 | Aba | O que tem |
 |---|---|
-| **Dia** | escolhas do Curador (com "o que o Curador está aprendendo"), links, mensagens (validar, aprovar, enviar) e o resultado de cada mensagem enviada (cliques, pedidos, comissão), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
+| **Dia** | fechamento da semana pronto para a afiliada (copiar, enviar pelo WhatsApp, marcar como enviado), escolhas do Curador (com "o que o Curador está aprendendo"), links, mensagens (validar, aprovar, enviar) e o resultado de cada mensagem enviada (cliques, pedidos, comissão), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
 | **Resultados** | comissão validada e pendente (nunca somadas), pedidos, cliques e conversão; comissão e cliques por dia (com tabela), produtos que mais renderam, vendas recentes; 7, 30 ou 90 dias, por plataforma |
 | **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
 | **Importar** | planilha de ofertas, planilha de vendas (com modelos para baixar) e arquivo de gravação da extensão |
-| **Relatórios** | fechamento do período (com a leitura do Analista), uso por cliente, esteira automática |
+| **Relatórios** | fechamento de qualquer período (com a leitura do Analista e o texto para a afiliada), uso por cliente, esteira automática |
 | **Configuração** | seu nome, senha, provedor de IA (Gemini gratuito ou Claude) e a chave dele, modelos, esteira ligada/desligada, pareamento da extensão do Chrome, testar os agentes |
 
 **Visual:** o painel segue o Design System Cofilius (cores, logo, fontes Gabarito, Onest e DM Mono, voz). As fontes e o logo
@@ -51,7 +51,7 @@ ficam em `painel/publico/`; as cores estão no topo de `painel/publico/estilo.cs
 Na aba Dia, o bloco **Próximo passo** diz o que fazer agora, e a linha de andamento mostra onde o dia está.
 
 **Esteira automática:** enquanto o painel estiver aberto, a cada 5 minutos ele roda as etapas do dia sozinho
-(Curador às 6h, Redator às 6h30, validação às 6h45, fechamento aos domingos às 20h). Sem a chave da IA, essas etapas
+(Curador às 6h, Redator às 6h30, validação às 6h45, fechamento aos domingos às 20h: o resumo da semana para a afiliada fica pronto no Dia, mesmo sem IA; com IA, entra também a leitura do Analista). Sem a chave da IA, essas etapas
 aparecem como "puladas".
 
 **Atualizar o Cofilius:** baixe o ZIP de novo, descompacte numa pasta nova e **copie o arquivo `.env`** da pasta antiga
