@@ -1,0 +1,14 @@
+{
+  "entrada": {
+    "mensagem": "quanto eu ganhei essa semana??",
+    "links_na_mensagem": [],
+    "nichos_do_cliente": [
+      "casa",
+      "beleza"
+    ]
+  },
+  "espera": {
+    "intencao": "quanto_ganhei",
+    "periodo": "semana"
+  }
+}

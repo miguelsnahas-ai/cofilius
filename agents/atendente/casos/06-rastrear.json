@@ -1,0 +1,15 @@
+{
+  "entrada": {
+    "mensagem": "fica de olho nessa air fryer pra mim, quando baixar coloca na lista https://produto.mercadolivre.com.br/MLB-123456-air-fryer",
+    "links_na_mensagem": [
+      "https://produto.mercadolivre.com.br/MLB-123456-air-fryer"
+    ],
+    "nichos_do_cliente": [
+      "casa",
+      "beleza"
+    ]
+  },
+  "espera": {
+    "intencao": "rastrear_produto"
+  }
+}

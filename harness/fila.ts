@@ -7,6 +7,8 @@
  *   de NOVAS tentativas depois da primeira; esgotadas, a tarefa fica "falhou" com o erro gravado.
  * - Uma tarefa que falha não segura as outras: cada cliente e cada etapa seguem independentes.
  * - Tarefa presa em "executando" (processo caiu) volta para a fila depois de um tempo.
+ * - Tarefas "operador.*" são trabalho humano (ex.: gerar um link no painel a pedido do afiliado): a fila
+ *   automática não as pega; o operador as conclui no painel ou no terminal.
  */
 import type { Sql } from './db.ts';
 import { log } from './log.ts';
@@ -59,7 +61,7 @@ export async function pegarProxima(sql: Sql, agora = new Date()): Promise<Tarefa
     update tarefas set estado = 'executando', tentativas = tentativas + 1, iniciada_em = ${agora}, erro = null
     where id = (
       select id from tarefas
-      where estado = 'pendente' and agendada_para <= ${agora}
+      where estado = 'pendente' and agendada_para <= ${agora} and tipo not like 'operador.%'
       order by agendada_para, criado_em
       for update skip locked
       limit 1

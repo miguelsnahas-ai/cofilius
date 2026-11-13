@@ -1,0 +1,16 @@
+{
+  "entrada": {
+    "mensagem": "Me manda o link desse aqui? https://shopee.com.br/Organizador-i.334455667.22912345678",
+    "links_na_mensagem": [
+      "https://shopee.com.br/Organizador-i.334455667.22912345678"
+    ],
+    "nichos_do_cliente": [
+      "casa",
+      "beleza"
+    ]
+  },
+  "espera": {
+    "intencao": "transformar_link",
+    "url": "https://shopee.com.br/Organizador-i.334455667.22912345678"
+  }
+}

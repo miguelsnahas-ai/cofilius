@@ -1,0 +1,6 @@
+{
+  "nome": "atendente",
+  "modelo": "pequeno",
+  "ferramentas": [],
+  "observacao": "Classifica o pedido do afiliado e extrai os dados. Não escreve resposta: as respostas são modelos fixos preenchidos pelo sistema."
+}
