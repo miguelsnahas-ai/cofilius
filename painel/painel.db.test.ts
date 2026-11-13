@@ -51,7 +51,7 @@ describe.skipIf(!BANCO_HABILITADO)('painel do operador', () => {
   });
   afterAll(async () => { servidor?.close(); await sql?.end(); });
   beforeEach(async () => {
-    await sql`truncate mensagens, execucoes_agente, links, ofertas, diretrizes_nicho cascade`;
+    await sql`truncate mensagens, execucoes_agente, links, ofertas, diretrizes_nicho, acoes_operador cascade`;
     await importarPlanilhaShopee(sql, cliente, PLANILHA, { quando: new Date('2026-11-12T09:00:00Z') });
   });
 
@@ -97,6 +97,10 @@ describe.skipIf(!BANCO_HABILITADO)('painel do operador', () => {
     expect((await post(`/api/mensagens/${m.id}/enviada`, {})).json).toEqual({ ok: true });
     dia = await (await get(`/api/dia?cliente=c1&data=${DIA}`)).json() as Record<string, any>;
     expect(dia.mensagens[0].estado).toBe('enviada');
+    // registro de uso: aberturas do dia e ações bem-sucedidas, com o operador
+    const acoes = await sql`select acao, operador from acoes_operador order by em`;
+    expect(acoes.map((a) => a.acao)).toEqual(expect.arrayContaining(['abrir_dia', 'curar', 'ofertas/link', 'redigir', 'mensagens/validar', 'mensagens/aprovar', 'mensagens/enviada']));
+    expect(acoes.every((a) => a.operador === 'Miguel')).toBe(true);
   });
 
   it('preço desatualizado barra o envio; confirmar preço libera; preço mudado descarta', async () => {

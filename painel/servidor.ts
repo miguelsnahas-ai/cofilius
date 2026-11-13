@@ -18,6 +18,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { conectar, erroDeConexao } from '../harness/db.ts';
 import { log } from '../harness/log.ts';
 import { criarModeloClaude, precosDoAmbiente } from '../harness/modeloClaude.ts';
+import { registrarAcao } from '../services/relatorios/uso.ts';
 import {
   acaoDiretriz, acaoMensagem, confirmarPrecoOferta, ErroPedido, listarClientes, painelDoDia, registrarLinkOferta,
   rodarCurador, rodarRedator, type DepsApi,
@@ -70,6 +71,13 @@ export function criarServidorPainel(deps: DepsApi & { senha: string }): Server {
     [/^\/api\/redigir$/, (_m, c) => rodarRedator(deps, c)],
   ];
 
+  /** Registro de uso: cada ação (e cada abertura do dia) conta para os minutos do operador naquele cliente. */
+  const registrar = async (codigo: unknown, acao: string) => {
+    if (typeof codigo !== 'string') return;
+    const [c] = await deps.sql`select cliente_id from clientes where codigo = ${codigo}`;
+    if (c) await registrarAcao(deps.sql, c.cliente_id, acao, 'painel', deps.operador);
+  };
+
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://painel');
     try {
@@ -82,7 +90,9 @@ export function criarServidorPainel(deps: DepsApi & { senha: string }): Server {
       if (req.method === 'GET' && url.pathname === '/api/dia') {
         const cliente = url.searchParams.get('cliente');
         if (!cliente) throw new ErroPedido('Falta "cliente".');
-        return responder(res, 200, await painelDoDia(deps, cliente, url.searchParams.get('data') ?? undefined));
+        const dia = await painelDoDia(deps, cliente, url.searchParams.get('data') ?? undefined);
+        await registrar(cliente, 'abrir_dia');
+        return responder(res, 200, dia);
       }
       if (req.method === 'POST' && url.pathname.startsWith('/api/')) {
         if (req.headers['x-cofilius'] !== '1' || !(req.headers['content-type'] ?? '').startsWith('application/json')) {
@@ -94,6 +104,7 @@ export function criarServidorPainel(deps: DepsApi & { senha: string }): Server {
           if (m) {
             const r = await fn(m, corpo);
             log.info('painel.acao', { rota: url.pathname });
+            await registrar(corpo.cliente, url.pathname.replace(/[0-9a-f-]{36}\//, '').replace(/^\/api\//, ''));
             return responder(res, 200, r);
           }
         }

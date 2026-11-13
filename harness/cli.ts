@@ -48,6 +48,7 @@ import { aprovarDiretriz, descartarDiretriz, listarDiretrizes, proporDiretriz } 
 import { redigirSelecionadas } from '../services/lista/redator.ts';
 import { analisarPeriodo, contratoAnalista } from '../services/relatorios/analista.ts';
 import { montarFechamento } from '../services/relatorios/fechamento.ts';
+import { registrarAcao, usoPorCliente } from '../services/relatorios/uso.ts';
 import { atualizarCliente, criarCliente, definirAtivo, listarCadastro, removerNicho, salvarNicho, type DadosCliente } from '../services/clientes/cadastro.ts';
 
 const AJUDA = `Uso:
@@ -112,6 +113,9 @@ Diretrizes de nicho (o Curador só usa as aprovadas):
 Vendas:
   npm run cli -- importar-vendas --cliente c1 --arquivo vendas.csv   (modelo: docs/modelos/vendas.csv)
   npm run cli -- resumo --cliente c1 --de AAAA-MM-DD --ate AAAA-MM-DD
+
+Uso (minutos do operador e custo de IA por cliente):
+  npm run cli -- uso --de AAAA-MM-DD --ate AAAA-MM-DD
 
 Clientes:
   npm run cli -- clientes
@@ -245,6 +249,17 @@ function dadosDoCadastro(): DadosCliente {
 
 async function comandoSemCliente(sql: Sql, comando: string): Promise<boolean> {
   switch (comando) {
+    case 'uso': {
+      const de = exigir('de');
+      const ate = exigir('ate');
+      const linhas = await usoPorCliente(sql, de, ate);
+      console.log(`Uso de ${de} a ${ate} (minutos estimados pelas ações no painel e no terminal):`);
+      console.table(linhas.map((u) => ({
+        cliente: u.codigo, enviadas: u.mensagensEnviadas, 'minutos (total)': u.minutosOperador, 'dias com ação': u.diasComAcao,
+        'minutos/dia': u.minutosPorDia, 'chamadas IA': u.chamadasIa, 'custo IA (US$)': u.custoIaUsd,
+      })));
+      return true;
+    }
     case 'clientes': {
       for (const c of await listarCadastro(sql)) {
         console.log(`\n${c.codigo} · ${c.nome}${c.ativo ? '' : ' · PAUSADO'}`);
@@ -634,6 +649,10 @@ async function principal(): Promise<void> {
       default:
         throw new Error(`Comando desconhecido: ${comando}\n\n${AJUDA}`);
     }
+    // Registro de uso: comandos de trabalho do operador contam para os minutos daquele cliente.
+    const ACOES_OPERADOR = new Set(['importar-ofertas', 'registrar-link', 'rascunho', 'validar', 'aprovar', 'descartar', 'confirmar-preco',
+      'enviada', 'curar', 'redigir', 'redigir-dia', 'importar-vendas', 'fechamento', 'propor-diretriz', 'aprovar-diretriz', 'descartar-diretriz', 'preparar-links']);
+    if (ACOES_OPERADOR.has(comando)) await registrarAcao(sql, cliente.clienteId, comando, 'cli', process.env.PAINEL_OPERADOR || undefined);
   } finally {
     await sql.end();
   }

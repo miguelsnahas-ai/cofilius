@@ -17,6 +17,7 @@ import { curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
 import { analisarPeriodo } from '../services/relatorios/analista.ts';
 import { montarFechamento } from '../services/relatorios/fechamento.ts';
 import { resumoPeriodo } from '../services/vendas/atribuicao.ts';
+import { marcarMedidas } from '../services/lista/medicao.ts';
 import { gerarLinkShopee } from '../services/links/gerarLinkShopee.ts';
 import type { ClienteShopee } from '../services/shopee/client.ts';
 import type { ModeloIA, PrecoModelo } from './agentes.ts';
@@ -35,6 +36,7 @@ export interface Etapa {
 }
 
 export const ETAPAS: Etapa[] = [
+  { tipo: 'lista.medir', horario: '05:00', descricao: 'Marca como medidas as mensagens enviadas há mais de 7 dias' },
   { tipo: 'ofertas.shopee.coletar', horario: '05:30', porNicho: true, precisa: 'shopee_open_api', descricao: 'Conector de ofertas (Shopee, via Open API)' },
   { tipo: 'curadoria.curar', horario: '06:00', descricao: 'Curador escolhe as ofertas do dia' },
   { tipo: 'links.shopee.gerar', horario: '06:15', precisa: 'shopee_open_api', descricao: 'Links com rastreio das escolhidas (Shopee, via Open API)' },
@@ -113,6 +115,7 @@ export function criarExecutores(deps: DepsEsteira): Record<string, Executor> {
         fechamento: montarFechamento(cliente.nome, resumo, analise),
       };
     },
+    'lista.medir': async (t) => ({ medidas: await marcarMedidas(sql, t.clienteId) }),
     'lista.validar': async (t) => {
       const cliente = await buscarCliente(sql, t.clienteId);
       const r = await validarDia(sql, cliente, String(t.entrada.dataLista));

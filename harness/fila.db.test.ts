@@ -87,14 +87,14 @@ describe.skipIf(!BANCO_HABILITADO)('fila de tarefas', () => {
   it('agendarDia: pula as etapas da Open API sem credencial, agenda as outras e não duplica', async () => {
     const a = await agendarDia(sql, '2026-11-12');
     expect(a.map((x) => [x.tipo, x.situacao])).toEqual([
-      ['ofertas.shopee.coletar', 'pulada'], ['curadoria.curar', 'agendada'], ['links.shopee.gerar', 'pulada'],
+      ['lista.medir', 'agendada'], ['ofertas.shopee.coletar', 'pulada'], ['curadoria.curar', 'agendada'], ['links.shopee.gerar', 'pulada'],
       ['redacao.redigir', 'agendada'], ['lista.validar', 'agendada'],
     ]);
-    expect(a[4]!.horario.toISOString()).toBe('2026-11-12T09:45:00.000Z'); // 06:45 em São Paulo
+    expect(a[5]!.horario.toISOString()).toBe('2026-11-12T09:45:00.000Z'); // 06:45 em São Paulo
     await sql`insert into credenciais (cliente_id, plataforma, nome, valor_cifrado) values (${cliente.clienteId}, 'shopee', 'open_api', 'v1:x:y')`;
     const b = await agendarDia(sql, '2026-11-12');
     expect(b.map((x) => [x.tipo, x.nicho ?? null, x.situacao])).toEqual([
-      ['ofertas.shopee.coletar', 'casa', 'agendada'], ['ofertas.shopee.coletar', 'beleza', 'agendada'],
+      ['lista.medir', null, 'ja_existia'], ['ofertas.shopee.coletar', 'casa', 'agendada'], ['ofertas.shopee.coletar', 'beleza', 'agendada'],
       ['curadoria.curar', null, 'ja_existia'], ['links.shopee.gerar', null, 'agendada'],
       ['redacao.redigir', null, 'ja_existia'], ['lista.validar', null, 'ja_existia'],
     ]);
@@ -138,7 +138,7 @@ describe.skipIf(!BANCO_HABILITADO)('fila de tarefas', () => {
     };
     const executores = criarExecutores({ sql, shopeeDoCliente: async () => shopee, modelo: () => modelo });
     const r = await processarFila(sql, executores, { agora: () => new Date('2026-11-12T10:00:00Z') });
-    expect(r).toEqual({ executadas: 6, concluidas: 6, novasTentativas: 0, falharam: 0 });
+    expect(r).toEqual({ executadas: 7, concluidas: 7, novasTentativas: 0, falharam: 0 });
     const linhas = await sql`select tipo, resultado from tarefas order by agendada_para, tipo`;
     const res = Object.fromEntries(linhas.map((l) => [l.tipo, l.resultado]));
     // palavras-chave do seed geram 3 produtos distintos (o simulador usa o tamanho da palavra como ID)
