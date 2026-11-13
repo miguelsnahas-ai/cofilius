@@ -39,7 +39,7 @@ Do dia a dia em diante, tudo é pelo painel:
 
 | Aba | O que tem |
 |---|---|
-| **Dia** | fechamento da semana pronto para a afiliada (copiar, enviar pelo WhatsApp, marcar como enviado), escolhas do Curador (com "o que o Curador está aprendendo"), links, mensagens (validar, aprovar, enviar) e o resultado de cada mensagem enviada (cliques, pedidos, comissão), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
+| **Dia** | avisos de vendas canceladas (o que caiu, de qual postagem, quanto de comissão), fechamento da semana pronto para a afiliada (copiar, enviar pelo WhatsApp, marcar como enviado), escolhas do Curador (com "o que o Curador está aprendendo"), links, mensagens (validar, aprovar, enviar) e o resultado de cada mensagem enviada (cliques, pedidos, comissão), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
 | **Resultados** | comissão validada e pendente (nunca somadas), pedidos, cliques e conversão; comissão e cliques por dia (com tabela), produtos que mais renderam, vendas recentes; 7, 30 ou 90 dias, por plataforma |
 | **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
 | **Importar** | planilha de ofertas, planilha de vendas (com modelos para baixar) e arquivo de gravação da extensão |
@@ -423,6 +423,7 @@ npm run cli -- resumo --cliente c1 --de 2026-11-09 --ate 2026-11-15
 - **Mercado Livre e Amazon:** casa pela etiqueta (ou tracking ID) **e** pelo produto, com o link criado antes do pedido.
 - Sem par, a venda fica como **não atribuída** e aparece no resumo; nunca some.
 - Reimportar atualiza a situação (pendente → validada ou cancelada) e mostra o que mudou.
+- Venda já conhecida que passa a **cancelada** vira aviso no Dia até você clicar em **Entendi**; o fechamento da semana conta também os pedidos de semanas anteriores que caíram.
 - O resumo nunca soma comissão pendente com validada.
 
 ### Esteira e fila

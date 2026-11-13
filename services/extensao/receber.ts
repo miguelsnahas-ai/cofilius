@@ -104,8 +104,9 @@ export async function receberCaptura(sql: Sql, cliente: Cliente, c: Captura): Pr
       const { vendas, pagina, ignorados } = conversoesShopee(json);
       const imp = vendas.length ? await importarVendas(sql, cliente, vendas) : null;
       r = {
-        detalhe: `${vendas.length} vendas (${imp?.novas ?? 0} novas, ${imp?.atualizadas ?? 0} atualizadas, ${imp?.atribuidas ?? 0} atribuídas a postagens)`,
-        resultado: { vendas: vendas.length, novas: imp?.novas ?? 0, atualizadas: imp?.atualizadas ?? 0, atribuidas: imp?.atribuidas ?? 0, ignorados },
+        detalhe: `${vendas.length} vendas (${imp?.novas ?? 0} novas, ${imp?.atualizadas ?? 0} atualizadas, ${imp?.atribuidas ?? 0} atribuídas a postagens)`
+          + (imp?.canceladas ? ` · ${imp.canceladas} cancelada(s) agora` : ''),
+        resultado: { vendas: vendas.length, canceladas: imp?.canceladas ?? 0, novas: imp?.novas ?? 0, atualizadas: imp?.atualizadas ?? 0, atribuidas: imp?.atribuidas ?? 0, ignorados },
         pagina,
       };
     } else if (tipo === 'shopee.cliques') {

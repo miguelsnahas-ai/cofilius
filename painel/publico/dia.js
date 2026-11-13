@@ -100,6 +100,34 @@ function desenharAprendizado(a) {
     el('p', { classe: 'ajuda', texto: 'Calculado pelo sistema a partir das vendas e cliques de cada link. As diretrizes que você aprova valem mais do que isto.' }));
 }
 
+const NOMES_PLATAFORMA = { shopee: 'Shopee', mercado_livre: 'Mercado Livre', amazon: 'Amazon' };
+
+/** Vendas que caíram desde a última vez: o que era pendente ou validado e a plataforma cancelou. */
+function desenharCancelamentos(lista) {
+  const caixa = $('cancelamentos');
+  caixa.hidden = !lista.length;
+  if (!lista.length) { caixa.replaceChildren(); return; }
+  const total = lista.reduce((s, c) => s + Number(c.comissao || 0), 0);
+  const dataCurta = (iso) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const entendi = el('button', { classe: 'secundario', texto: 'Entendi', attrs: { type: 'button' } });
+  entendi.addEventListener('click', () => agir(entendi, () => api('/api/cancelamentos/vistos', { ids: lista.map((c) => c.id) }), 'Avisos de cancelamento arquivados'));
+  caixa.replaceChildren(
+    el('div', { classe: 'secao-topo' },
+      el('h2', {}, el('span', { classe: 'icone-queda', texto: '↓ ', attrs: { 'aria-hidden': 'true' } }),
+        `${lista.length === 1 ? '1 venda cancelada' : `${lista.length} vendas canceladas`}${total > 0 ? ` · ${reais(total)} de comissão que não vem mais` : ''}`),
+      entendi),
+    el('ul', { classe: 'lista-cancelamentos' }, ...lista.map((c) => el('li', {},
+      el('strong', { texto: c.produtoNome || (c.postagem && c.postagem.titulo) || `Pedido ${c.pedidoId}` }),
+      el('span', { classe: 'detalhe', texto: [
+        NOMES_PLATAFORMA[c.plataforma] || c.plataforma,
+        c.dataPedido ? `pedido de ${dataCurta(c.dataPedido)}` : null,
+        c.comissao ? `${reais(c.comissao)} ${c.de === 'validada' ? 'que já estava confirmada' : 'que estava pendente'}` : null,
+        c.postagem ? (c.postagem.enviadaEm ? `da postagem de ${dataCurta(c.postagem.enviadaEm)}` : 'de uma postagem da lista') : 'sem postagem identificada',
+        `cancelada em ${dataCurta(c.canceladaEm)}`,
+      ].filter(Boolean).join(' · ') })))),
+    el('p', { classe: 'ajuda', texto: 'Cancelamento é normal (desistência, devolução). Se um produto cancela muito, vale evitar.' }));
+}
+
 /** Fechamento semanal pronto: prévia como ela vai receber, copiar, enviar e marcar como enviado. */
 function desenharFechamento(d) {
   const caixa = $('fechamento-semana');
@@ -306,6 +334,7 @@ function desenhar() {
   $('aviso-ia').hidden = d.iaDisponivel;
   desenharAprendizado(d.aprendizado);
   desenharFechamento(d);
+  desenharCancelamentos(d.cancelamentos || []);
   const aviso = avisoExtensao(d.extensao);
   $('aviso-extensao').hidden = !aviso;
   $('aviso-extensao').textContent = aviso || '';

@@ -111,6 +111,11 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     expect((await post(`/api/fechamentos/${f.json.fechamentoId}/enviado`, { cliente: 'c1' })).json).toEqual({ ok: true, situacao: 'enviado' });
     expect((await post(`/api/fechamentos/${f.json.fechamentoId}/enviado`, { cliente: 'c1' })).json.erro).toContain('já foi enviado');
     expect((await get('/api/dia?cliente=c1&data=2030-12-31')).json.fechamento).toBeNull();
+    // Avisos de cancelamento: a venda P1 (pendente) cai e aparece no Dia até o operador dar ciência.
+    await post('/api/importar/vendas', { cliente: 'c1', csv: 'plataforma;pedido;produto;comissao;situacao;data\nshopee;P1;1;2,50;cancelada;10/03/2026' });
+    expect((await get('/api/dia?cliente=c1&data=2030-12-31')).json.cancelamentos).toMatchObject([{ pedidoId: 'P1', comissao: '2.50' }]);
+    expect((await post('/api/cancelamentos/vistos', { cliente: 'c1' })).json).toEqual({ ok: true, vistos: 1 });
+    expect((await get('/api/dia?cliente=c1&data=2030-12-31')).json.cancelamentos).toEqual([]);
     expect((await post('/api/fechamento', { cliente: 'c1', de: '2026-01-01', ate: '2026-01-31', comAnalise: true })).json.erro).toContain('IA');
     expect((await post('/api/fechamento', { cliente: 'c1', de: '2026-02-01', ate: '2026-01-01' })).json.erro).toContain('depois');
     const u = await get('/api/uso?de=2026-01-01&ate=2030-12-31');

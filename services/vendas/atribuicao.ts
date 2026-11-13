@@ -79,6 +79,8 @@ export interface ResultadoImportacaoVendas {
   atribuidas: number;
   naoAtribuidas: number;
   mudancasSituacao: { pedidoId: string; produtoId: string; de: Situacao; para: Situacao }[];
+  /** Vendas já conhecidas que passaram a canceladas nesta importação (viram aviso no painel). */
+  canceladas: number;
 }
 
 function validarVenda(v: VendaNormalizada): void {
@@ -91,13 +93,13 @@ function validarVenda(v: VendaNormalizada): void {
 
 export async function importarVendas(sql: Sql, cliente: Cliente, vendas: VendaNormalizada[]): Promise<ResultadoImportacaoVendas> {
   vendas.forEach(validarVenda);
-  const r: ResultadoImportacaoVendas = { total: vendas.length, novas: 0, atualizadas: 0, atribuidas: 0, naoAtribuidas: 0, mudancasSituacao: [] };
+  const r: ResultadoImportacaoVendas = { total: vendas.length, novas: 0, atualizadas: 0, atribuidas: 0, naoAtribuidas: 0, mudancasSituacao: [], canceladas: 0 };
   await conectarTransacao(sql, 'vendas.importar', async (tx) => {
-    Object.assign(r, { novas: 0, atualizadas: 0, atribuidas: 0, naoAtribuidas: 0, mudancasSituacao: [] });
+    Object.assign(r, { novas: 0, atualizadas: 0, atribuidas: 0, naoAtribuidas: 0, mudancasSituacao: [], canceladas: 0 });
     for (const v of vendas) {
       const a = await acharLink(tx as unknown as Sql, cliente.clienteId, v);
       const [antes] = await tx`
-        select situacao from vendas
+        select situacao, comissao from vendas
         where cliente_id = ${cliente.clienteId} and plataforma = ${v.plataforma} and pedido_id = ${v.pedidoId} and produto_id = ${v.produtoId}`;
       await tx`
         insert into vendas (cliente_id, plataforma, pedido_id, produto_id, produto_nome, quantidade, valor, comissao, situacao,
@@ -123,7 +125,19 @@ export async function importarVendas(sql: Sql, cliente: Cliente, vendas: VendaNo
         where cliente_id = ${cliente.clienteId} and plataforma = ${v.plataforma} and pedido_id = ${v.pedidoId} and produto_id = ${v.produtoId}`;
       if (antes) {
         r.atualizadas++;
-        if (antes.situacao !== v.situacao) r.mudancasSituacao.push({ pedidoId: v.pedidoId, produtoId: v.produtoId, de: antes.situacao, para: v.situacao });
+        if (antes.situacao !== v.situacao) {
+          r.mudancasSituacao.push({ pedidoId: v.pedidoId, produtoId: v.produtoId, de: antes.situacao, para: v.situacao });
+          // Venda que caiu: vira aviso no painel (comissão que se esperava e não vem mais).
+          if (v.situacao === 'cancelada') {
+            await tx`
+              insert into eventos_vendas (cliente_id, plataforma, pedido_id, produto_id, produto_nome, de, para, comissao, link_id, data_pedido)
+              select cliente_id, plataforma, pedido_id, produto_id, produto_nome, ${antes.situacao}, 'cancelada',
+                     ${antes.comissao}, link_id, data_pedido
+              from vendas where cliente_id = ${cliente.clienteId} and plataforma = ${v.plataforma}
+                and pedido_id = ${v.pedidoId} and produto_id = ${v.produtoId}`;
+            r.canceladas++;
+          }
+        }
       } else r.novas++;
       if (depois!.link_id) r.atribuidas++;
       else r.naoAtribuidas++;

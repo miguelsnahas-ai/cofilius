@@ -29,7 +29,7 @@ import { criarModeloDoAmbiente, iaConfigurada, modeloDoPorte, provedorAtual } fr
 import { migrar } from '../db/migrate.ts';
 import { registrarAcao } from '../services/relatorios/uso.ts';
 import {
-  acaoDiretriz, acaoFechamento, acaoMensagem, confirmarPrecoOferta, ErroPedido, listarClientes, painelDoDia, registrarLinkOferta,
+  acaoDiretriz, acaoFechamento, acaoMensagem, verCancelamentos, confirmarPrecoOferta, ErroPedido, listarClientes, painelDoDia, registrarLinkOferta,
   rodarCurador, rodarRedator, simularRecebida, concluirPedidoAfiliado, validarDiaInteiro, type DepsApi,
 } from './api.ts';
 import {
@@ -170,6 +170,7 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     [/^\/api\/mensagens\/([0-9a-f-]{36})\/(validar|aprovar|descartar|enviada|whatsapp)$/, (m, c, d) => acaoMensagem(d, m[1]!, m[2]!, c)],
     [/^\/api\/ofertas\/([0-9a-f-]{36})\/preco$/, (m, c, d) => confirmarPrecoOferta(d, m[1]!, c)],
     [/^\/api\/ofertas\/([0-9a-f-]{36})\/link$/, (m, c, d) => registrarLinkOferta(d, m[1]!, c)],
+    [/^\/api\/cancelamentos\/vistos$/, (_m, c, d) => verCancelamentos(d, c)],
     [/^\/api\/fechamentos\/([0-9a-f-]{36})\/(enviado|whatsapp)$/, (m, c, d) => acaoFechamento(d, m[1]!, m[2]!, c)],
     [/^\/api\/diretrizes\/([0-9a-f-]{36})\/(aprovar|descartar)$/, (m, c, d) => acaoDiretriz(d, m[1]!, m[2]!, c)],
     [/^\/api\/diretrizes$/, (_m, c, d) => novaDiretriz(d, c)],

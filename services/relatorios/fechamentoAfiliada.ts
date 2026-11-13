@@ -11,6 +11,7 @@ import type { Cliente } from '../../db/clientes.ts';
 import { formatarPreco } from '../lista/marcadores.ts';
 import { resultadosPeriodo } from './resultados.ts';
 import { desempenhoPostagens } from './desempenho.ts';
+import { canceladosDePedidosAnteriores } from '../vendas/avisos.ts';
 import { ErroForaDaJanela, type Canal } from '../disparador/disparador.ts';
 import { ErroWhatsapp, ERRO_FORA_DA_JANELA } from '../disparador/whatsapp.ts';
 
@@ -28,6 +29,8 @@ export interface DadosFechamento {
   porPlataforma: { plataforma: string; comissao: number }[];
   maisVendidos: { nome: string; pedidos: number; comissao: number }[];
   nichoDestaque: { nicho: string; pedidos: number; comissao: number } | null;
+  /** Pedidos de semanas anteriores que foram cancelados nesta semana (saem do pendente). */
+  canceladosAnteriores?: { pedidos: number; comissao: number };
 }
 
 const NOMES_PLATAFORMA: Record<string, string> = { shopee: 'Shopee', mercado_livre: 'Mercado Livre', amazon: 'Amazon' };
@@ -73,8 +76,16 @@ export async function dadosFechamento(sql: Sql, cliente: Cliente, inicio: string
     anterior: arred(Number(ant.totais.comissaoValidada) + Number(ant.totais.comissaoPendente)),
     porPlataforma: porPlataforma.map((p) => ({ plataforma: p.plataforma, comissao: arred(p.comissao) })),
     maisVendidos: r.produtos.slice(0, 3).map((p) => ({ nome: (p.nome ?? `Produto ${p.produtoId}`).slice(0, 60), pedidos: p.pedidos, comissao: Number(p.comissao) })),
+    canceladosAnteriores: await canceladosDePedidosAnteriores(sql, cliente, inicio, fim),
     nichoDestaque: melhorNicho ? { nicho: nomeNicho.get(melhorNicho[0]) ?? melhorNicho[0], pedidos: melhorNicho[1].pedidos, comissao: arred(melhorNicho[1].comissao) } : null,
   };
+}
+
+function linhaCanceladosAnteriores(d: DadosFechamento): string | null {
+  const ant = d.canceladosAnteriores;
+  if (!ant || ant.pedidos === 0) return null;
+  const quem = ant.pedidos === 1 ? '1 pedido de semanas anteriores foi cancelado' : `${ant.pedidos} pedidos de semanas anteriores foram cancelados`;
+  return `↩️ ${quem}${ant.comissao > 0 ? ` (${reais(ant.comissao)} saem do pendente)` : ''}`;
 }
 
 /** Texto do WhatsApp, curto e no tom de quem acompanha o grupo dela. Função pura. */
@@ -88,6 +99,8 @@ export function textoFechamentoAfiliada(nome: string, d: DadosFechamento, leitur
   if (total === 0 && d.pedidos === 0) {
     l.push('Essa semana ainda não entrou nenhuma venda pelo grupo.');
     if (d.cliques > 0) l.push(`Mas teve ${plural(d.cliques, 'clique', 'cliques')} nos links: o pessoal está olhando! 👀`);
+    const linha = linhaCanceladosAnteriores(d);
+    if (linha) l.push('', linha);
     l.push('', 'Seguimos ajustando as ofertas para o gosto do grupo. Até a próxima semana! 💜');
     return l.join('\n');
   }
@@ -114,9 +127,12 @@ export function textoFechamentoAfiliada(nome: string, d: DadosFechamento, leitur
   if (d.nichoDestaque) {
     l.push('', `✨ O que mais funcionou: *${d.nichoDestaque.nicho}* (${plural(d.nichoDestaque.pedidos, 'pedido', 'pedidos')}, ${reais(d.nichoDestaque.comissao)})`);
   }
+  const ant = d.canceladosAnteriores;
+  if (d.cancelados > 0 || (ant && ant.pedidos > 0)) l.push('');
   if (d.cancelados > 0) {
-    l.push('', `❌ ${plural(d.cancelados, 'pedido cancelado', 'pedidos cancelados')}${d.comissaoCancelada > 0 ? ` (${reais(d.comissaoCancelada)} que não entram)` : ''}`);
+    l.push(`❌ ${plural(d.cancelados, 'pedido cancelado', 'pedidos cancelados')}${d.comissaoCancelada > 0 ? ` (${reais(d.comissaoCancelada)} que não entram)` : ''}`);
   }
+  if (ant && ant.pedidos > 0) l.push(linhaCanceladosAnteriores(d)!);
   const dicas = leituras.map((x) => x.trim()).filter(Boolean).slice(0, 2);
   if (dicas.length) {
     l.push('', '💡 *Para a próxima semana*');

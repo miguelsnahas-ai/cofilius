@@ -8,6 +8,7 @@ import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import { desempenhoParaCurador, desempenhoPostagens } from '../services/relatorios/desempenho.ts';
 import { enviarFechamento, fechamentoPronto } from '../services/relatorios/fechamentoAfiliada.ts';
+import { avisosCancelamento, marcarAvisosVistos } from '../services/vendas/avisos.ts';
 import {
   aprovar, confirmarPreco, dataLocal, descartar, listarDia, validarDia, validarMensagem,
 } from '../services/lista/lista.ts';
@@ -84,6 +85,7 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const desempenho = new Map((await desempenhoPostagens(sql, cliente, { ids: mensagens.map((m) => m.id) })).map((d) => [d.mensagemId, d]));
   const aprendizado = await desempenhoParaCurador(sql, cliente, dia);
   const fechamento = await fechamentoPronto(sql, cliente, dia);
+  const cancelamentos = await avisosCancelamento(sql, cliente);
 
   const [contagem] = await sql`
     select count(*)::int as candidatas from ofertas where cliente_id = ${cliente.clienteId} and data_coleta = ${dia}`;
@@ -109,6 +111,8 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
     aprendizado,
     /** Fechamento semanal pronto para mandar (null se não há ou já foi enviado). */
     fechamento,
+    /** Vendas que caíram (pendente/validada → cancelada) e o operador ainda não viu. */
+    cancelamentos,
     selecionadas: selecionadas.map((s) => {
       const p = porOferta.get(s.ofertaId);
       return {
@@ -248,4 +252,11 @@ export async function acaoFechamento(deps: DepsApi, id: string, acao: string, co
   } catch (erro) {
     throw new ErroPedido((erro as Error).message);
   }
+}
+
+/** Ciência dos avisos de cancelamento (todos, ou os ids enviados). */
+export async function verCancelamentos(deps: DepsApi, corpo: Record<string, unknown>) {
+  const cliente = await buscarCliente(deps.sql, texto(corpo, 'cliente'));
+  const ids = Array.isArray(corpo.ids) ? corpo.ids.filter((x): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/.test(x)) : undefined;
+  return { ok: true, vistos: await marcarAvisosVistos(deps.sql, cliente, ids) };
 }

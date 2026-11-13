@@ -301,3 +301,12 @@ details.cartao[open] > summary { border-bottom: 1px solid var(--linha); border-r
 .fechamento-semana { margin: var(--space-4) 0; }
 .fechamento-semana h2 { margin: var(--space-1) 0 0; }
 .fechamento-semana .balao { white-space: pre-wrap; max-width: 520px; }
+
+/* ---------- Avisos de cancelamento ---------- */
+.cancelamentos { margin: var(--space-4) 0; border-color: var(--queda); }
+.cancelamentos h2 { margin: 0; }
+.cancelamentos .icone-queda { color: var(--queda); }
+.lista-cancelamentos { list-style: none; padding: 0; margin: var(--space-3) 0 0; }
+.lista-cancelamentos li { padding: var(--space-2) 0; border-bottom: 1px solid var(--linha); }
+.lista-cancelamentos li:last-child { border-bottom: 0; }
+.lista-cancelamentos .detalhe { display: block; font-size: 13px; color: var(--tinta-suave); }
