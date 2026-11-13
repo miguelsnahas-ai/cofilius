@@ -7,13 +7,17 @@ import type { ModeloIA, PrecoModelo } from '../harness/agentes.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import {
-  aprovar, confirmarPreco, dataLocal, descartar, listarDia, registrarEnvio, validarMensagem,
+  aprovar, confirmarPreco, dataLocal, descartar, listarDia, validarMensagem,
 } from '../services/lista/lista.ts';
 import { prepararLinks, registrarLinkManual } from '../services/links/linksManuaisShopee.ts';
 import { curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
 import { redigirSelecionadas } from '../services/lista/redator.ts';
 import { aprovarDiretriz, descartarDiretriz, listarDiretrizes } from '../services/curadoria/diretrizes.ts';
 import { numeroBr } from '../harness/csv.ts';
+import { canalManual, enviarMensagem, type Canal } from '../services/disparador/disparador.ts';
+import { concluirPedido, pedidosAbertos } from '../services/atendimento/atendente.ts';
+import { receberMensagem } from '../services/atendimento/entrada.ts';
+import type { ClienteShopee } from '../services/shopee/client.ts';
 
 export interface DepsApi {
   sql: Sql;
@@ -21,6 +25,9 @@ export interface DepsApi {
   operador: string;
   modelo?: () => ModeloIA;
   precos?: Record<string, PrecoModelo>;
+  /** Canal do WhatsApp, quando configurado (sem ele, o envio é manual). */
+  whatsapp?: Canal;
+  shopeeDoCliente?: (cliente: Cliente) => Promise<Pick<ClienteShopee, 'gerarLinkCurto'> | null>;
 }
 
 /** Erro de uso (vira HTTP 400 com a mensagem para a tela). */
@@ -76,6 +83,8 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const [contagem] = await sql`
     select count(*)::int as candidatas from ofertas where cliente_id = ${cliente.clienteId} and data_coleta = ${dia}`;
   const propostas = (await listarDiretrizes(sql, cliente)).filter((d) => d.situacao === 'proposta');
+  const pedidos = await pedidosAbertos(sql, cliente);
+  const [cad] = await sql`select whatsapp from clientes where cliente_id = ${cliente.clienteId}`;
 
   return {
     cliente: { codigo: cliente.codigo, nome: cliente.nome },
@@ -83,6 +92,7 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
     horarioEnvio: envio.texto,
     candidatas: contagem!.candidatas,
     iaDisponivel: !!deps.modelo,
+    whatsappDisponivel: !!deps.whatsapp && !!cad!.whatsapp,
     selecionadas: selecionadas.map((s) => {
       const p = porOferta.get(s.ofertaId);
       return {
@@ -100,6 +110,10 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
         precoConferidoEm: e?.preco_conferido_em ?? null,
       };
     }),
+    pedidos: pedidos.map((p) => ({
+      id: p.pedidoId, recebidoEm: p.recebidoEm, mensagem: p.mensagem, intencao: p.intencao, resumo: p.resumo,
+      respostaEnviada: p.respostaEnviada, tipoTarefa: p.tipoTarefa,
+    })),
     propostas: propostas.map((d) => ({ id: d.id, nicho: d.nicho, versao: d.versao, texto: d.texto, propostaPor: d.propostaPor })),
   };
 }
@@ -120,8 +134,14 @@ export async function acaoMensagem(deps: DepsApi, id: string, acao: string, corp
       await descartar(deps.sql, cliente, id, texto(corpo, 'motivo'));
       return { ok: true };
     case 'enviada':
-      await registrarEnvio(deps.sql, cliente, id);
+    case 'whatsapp': {
+      // "enviada": o operador enviou à mão; "whatsapp": o sistema envia pela Cloud API.
+      const canal = acao === 'whatsapp' ? deps.whatsapp : canalManual;
+      if (!canal) throw new ErroPedido('WhatsApp não configurado.');
+      const r = await enviarMensagem(deps.sql, cliente, id, canal);
+      if (!r.enviada) throw new ErroPedido(`Não enviada: ${r.motivo}`);
       return { ok: true };
+    }
     default:
       throw new ErroPedido(`Ação desconhecida: ${acao}`);
   }
@@ -165,5 +185,26 @@ export async function acaoDiretriz(deps: DepsApi, id: string, acao: string, corp
   if (acao === 'aprovar') await aprovarDiretriz(deps.sql, cliente, id);
   else if (acao === 'descartar') await descartarDiretriz(deps.sql, cliente, id);
   else throw new ErroPedido(`Ação desconhecida: ${acao}`);
+  return { ok: true };
+}
+
+/** Mensagem do afiliado colada no painel (até o WhatsApp existir): passa pelo mesmo caminho do WhatsApp. */
+export async function simularRecebida(deps: DepsApi, corpo: Record<string, unknown>) {
+  const cliente = await buscarCliente(deps.sql, texto(corpo, 'cliente'));
+  const respostas: string[] = [];
+  // As respostas ao afiliado aparecem na tela (canal manual); com WhatsApp, saem por ele.
+  const canal: Canal = deps.whatsapp ?? { nome: 'manual', async enviar(_p, t) { respostas.push(t); return null; } };
+  const r = await receberMensagem(
+    { sql: deps.sql, canal, modelo: deps.modelo, precos: deps.precos, shopeeDoCliente: deps.shopeeDoCliente },
+    { cliente, texto: texto(corpo, 'texto'), canalEntrada: 'painel' },
+  );
+  if (r.tipo === 'lista') return { ok: true, tipo: 'lista', enviadas: r.envios.filter((e) => e.enviada).length, respostas };
+  if (r.tipo === 'atendimento') return { ok: true, tipo: 'atendimento', intencao: r.resultado.intencao, situacao: r.resultado.situacao, respostas };
+  return { ok: true, tipo: r.tipo, respostas };
+}
+
+export async function concluirPedidoAfiliado(deps: DepsApi, pedidoId: string, corpo: Record<string, unknown>) {
+  const cliente = await buscarCliente(deps.sql, texto(corpo, 'cliente'));
+  await concluirPedido(deps.sql, cliente, pedidoId, typeof corpo.resposta === 'string' ? corpo.resposta : '');
   return { ok: true };
 }

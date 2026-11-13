@@ -49,6 +49,7 @@ import { redigirSelecionadas } from '../services/lista/redator.ts';
 import { analisarPeriodo, contratoAnalista } from '../services/relatorios/analista.ts';
 import { montarFechamento } from '../services/relatorios/fechamento.ts';
 import { registrarAcao, usoPorCliente } from '../services/relatorios/uso.ts';
+import { contratoAtendente } from '../services/atendimento/atendente.ts';
 import { atualizarCliente, criarCliente, definirAtivo, listarCadastro, removerNicho, salvarNicho, type DadosCliente } from '../services/clientes/cadastro.ts';
 
 const AJUDA = `Uso:
@@ -89,7 +90,7 @@ Lista do dia (texto com marcadores; o sistema preenche preço, desconto e link):
 Redator (IA; usa a API do Claude e gera custo):
   npm run cli -- redigir --cliente c1 --oferta <id> [--oferta <id2> ...] [--data AAAA-MM-DD]
       Escreve a mensagem de cada oferta e cria o rascunho (preço e link preenchidos pelo sistema).
-  npm run cli -- testar-agente --cliente c1 --agente redator|curador|analista
+  npm run cli -- testar-agente --cliente c1 --agente redator|curador|analista|atendente
       Roda os casos de teste do agente (agents/<nome>/casos) com o modelo de verdade.
 
 Curadoria (IA):
@@ -525,7 +526,7 @@ async function principal(): Promise<void> {
       case 'testar-redator':
       case 'testar-agente': {
         const nome = comando === 'testar-redator' ? 'redator' : exigir('agente');
-        const contratos = { redator: contratoRedator, curador: contratoCurador, analista: contratoAnalista } as Record<string, () => Promise<any>>;
+        const contratos = { redator: contratoRedator, curador: contratoCurador, analista: contratoAnalista, atendente: contratoAtendente } as Record<string, () => Promise<any>>;
         if (!contratos[nome]) throw new Error(`Agente sem casos de teste: ${nome} (use ${Object.keys(contratos).join(' ou ')})`);
         const { casos } = await carregarAgente(new URL(`../agents/${nome}`, import.meta.url).pathname);
         const r = await rodarCasos(sql, {

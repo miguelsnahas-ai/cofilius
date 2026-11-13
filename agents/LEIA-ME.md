@@ -17,7 +17,7 @@ Situação (modelo padrão de todos: Claude Haiku 5.5, trocável no `.env`):
 | **curador** | forte | `services/curadoria/curador.ts` · comando `curar` · esteira 06:00 | 3 de exemplo |
 | **redator** | pequeno | `services/lista/redator.ts` · comandos `redigir`, `redigir-dia` · esteira 06:30 | 3 de exemplo |
 | **analista** | forte | `services/relatorios/analista.ts` · comando `fechamento` · esteira domingo 20:00 | 2 de exemplo |
-| atendente | pequeno | ainda não existe (depende do WhatsApp) | - |
+| **atendente** | pequeno | `services/atendimento/atendente.ts` · painel "Processar mensagem" · webhook do WhatsApp | 6 de exemplo |
 
 Os prompts são **rascunhos**: nenhum foi rodado ainda com o modelo de verdade.
 TODO: trocar os casos de exemplo por 15 a 20 casos reais por agente e rodar `testar-agente` a cada mudança de prompt.

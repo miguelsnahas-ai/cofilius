@@ -153,8 +153,11 @@ function cartaoMensagem(m) {
     botao('Aprovar', '', (b) => agir(b, () => api(`/api/mensagens/${m.id}/aprovar`, {}), 'Aprovada'));
     descartar();
   } else if (m.estado === 'aprovada') {
+    if (dados.whatsappDisponivel) {
+      botao('Enviar pelo WhatsApp', '', (b) => agir(b, () => api(`/api/mensagens/${m.id}/whatsapp`, {}), 'Enviada pelo WhatsApp'));
+    }
     botao('Copiar texto', 'secundario', () => navigator.clipboard.writeText(m.textoFinal).then(() => avisar('Texto copiado. Cole no WhatsApp.')));
-    botao('Marcar como enviada', '', (b) => agir(b, () => api(`/api/mensagens/${m.id}/enviada`, {}), 'Registrada como enviada'));
+    botao('Marcar como enviada', dados.whatsappDisponivel ? 'secundario' : '', (b) => agir(b, () => api(`/api/mensagens/${m.id}/enviada`, {}), 'Registrada como enviada'));
     descartar();
   }
   if (acoes.childElementCount) cartao.append(acoes);
@@ -170,7 +173,31 @@ function cartaoMensagem(m) {
 }
 
 // ---------------------------------------------------------------------------
-// Seção 3: propostas de diretriz
+// Seção 3: pedidos da afiliada
+// ---------------------------------------------------------------------------
+
+const INTENCOES = {
+  transformar_link: 'Quer um link', rastrear_produto: 'Acompanhar produto', mudar_nicho: 'Mudar nicho',
+  pausar: 'Pausar', desconhecida: 'Não reconhecido', quanto_ganhei: 'Ganhos',
+};
+
+function cartaoPedido(p) {
+  const campo = el('textarea', { attrs: { rows: '2', placeholder: 'O que você respondeu (opcional)', 'aria-label': 'Resposta dada' } });
+  const concluir = el('button', { texto: 'Concluir', attrs: { type: 'button' } });
+  concluir.addEventListener('click', () => agir(concluir, () => api(`/api/pedidos/${p.id}/concluir`, { resposta: campo.value }), 'Pedido concluído'));
+  const cartao = el('article', { classe: 'cartao' },
+    el('div', { classe: 'cartao-topo' },
+      el('span', { classe: 'titulo', texto: INTENCOES[p.intencao] || p.intencao || 'Pedido' }),
+      el('span', { classe: 'chip', texto: new Date(p.recebidoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) })),
+    el('div', { classe: 'balao recebido', texto: p.mensagem }));
+  if (p.resumo) cartao.append(el('p', { classe: 'motivo', texto: `Resumo: ${p.resumo}` }));
+  if (p.respostaEnviada) cartao.append(el('p', { classe: 'motivo', texto: `Já respondido automaticamente: "${p.respostaEnviada}"` }));
+  cartao.append(el('div', { classe: 'linha-form' }, campo, concluir));
+  return cartao;
+}
+
+// ---------------------------------------------------------------------------
+// Seção 4: propostas de diretriz
 // ---------------------------------------------------------------------------
 
 function cartaoProposta(d) {
@@ -212,6 +239,9 @@ function desenhar() {
     ? mensagens.map(cartaoMensagem)
     : [el('p', { classe: 'vazio', texto: 'Nenhuma mensagem neste dia.' })]));
 
+  $('pedidos').replaceChildren(...(d.pedidos.length
+    ? d.pedidos.map(cartaoPedido)
+    : [el('p', { classe: 'vazio', texto: 'Nenhum pedido esperando você.' })]));
   $('secao-propostas').hidden = !d.propostas.length;
   $('propostas').replaceChildren(...d.propostas.map(cartaoProposta));
 }
@@ -246,6 +276,18 @@ async function iniciar() {
     (r) => `Curador escolheu ${r.escolhidas} de ${r.candidatas} candidatas`));
   $('rodar-redator').addEventListener('click', (ev) => agir(ev.currentTarget, () => api('/api/redigir', { data: estado.data }),
     (r) => `${r.redigidas} mensagens redigidas${r.falhas.length ? `, ${r.falhas.length} falharam` : ''}`));
+  $('simular').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const campo = $('simular-texto');
+    const botao = ev.currentTarget.querySelector('button');
+    agir(botao, () => api('/api/receber', { texto: campo.value }), (r) => {
+      campo.value = '';
+      const resp = r.respostas && r.respostas.length ? ` Resposta para ela: "${r.respostas.join(' / ')}"` : '';
+      if (r.tipo === 'lista') return `Pedido da lista: ${r.enviadas} enviadas.${resp}`;
+      if (r.tipo === 'atendimento') return `${INTENCOES[r.intencao] || r.intencao}: ${r.situacao === 'resolvido' ? 'resolvido' : 'ficou para você'}.${resp}`;
+      return 'Mensagem processada.';
+    });
+  });
   await carregar();
 }
 

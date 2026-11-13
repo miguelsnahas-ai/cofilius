@@ -23,6 +23,11 @@ import { resumoPeriodo } from '../vendas/atribuicao.ts';
 import { gerarLinkShopee, validarUrlShopee } from '../links/gerarLinkShopee.ts';
 import type { ClienteShopee } from '../shopee/client.ts';
 
+/** O mesmo aviso chegou de novo (o canal reenvia quando não recebe resposta a tempo). */
+export class ErroPedidoRepetido extends Error {
+  constructor() { super('mensagem já recebida'); this.name = 'ErroPedidoRepetido'; }
+}
+
 const PASTA = join(dirname(fileURLToPath(import.meta.url)), '../../agents/atendente');
 
 export function contratoAtendente(ambiente: Record<string, string | undefined> = process.env) {
@@ -76,15 +81,21 @@ export async function atender(
     /** Cliente da Open API da Shopee do afiliado, se houver (gera link na hora). */
     shopee?: Pick<ClienteShopee, 'gerarLinkCurto'> | null;
     agora?: Date;
+    /** Por onde a mensagem chegou e o id dela lá (evita processar duas vezes o mesmo aviso). */
+    canal?: 'painel' | 'whatsapp';
+    idExterno?: string;
   },
 ): Promise<ResultadoAtendimento> {
   const mensagem = p.mensagem.trim().slice(0, 2000);
   if (!mensagem) throw new Error('Mensagem vazia.');
   const agora = p.agora ?? new Date();
   const [pedido] = await sql`
-    insert into pedidos_afiliado (cliente_id, mensagem_original, situacao, recebido_em)
-    values (${p.cliente.clienteId}, ${mensagem}, 'em_andamento', ${agora}) returning id`;
-  const pedidoId = pedido!.id as string;
+    insert into pedidos_afiliado (cliente_id, mensagem_original, situacao, recebido_em, canal, id_externo)
+    values (${p.cliente.clienteId}, ${mensagem}, 'em_andamento', ${agora}, ${p.canal ?? 'painel'}, ${p.idExterno ?? null})
+    on conflict (canal, id_externo) where id_externo is not null do nothing
+    returning id`;
+  if (!pedido) throw new ErroPedidoRepetido();
+  const pedidoId = pedido.id as string;
 
   const entrada: EntradaAtendente = {
     mensagem, links_na_mensagem: extrairLinks(mensagem), nichos_do_cliente: p.cliente.nichos.map((n) => n.slug),
@@ -164,7 +175,7 @@ export async function pedidosAbertos(sql: Sql, cliente: Cliente): Promise<Pedido
     select p.id, p.tarefa_id, p.recebido_em, p.mensagem_original, p.intencao, p.resposta, t.tipo, t.entrada ->> 'resumo' as resumo
     from pedidos_afiliado p left join tarefas t on t.cliente_id = p.cliente_id and t.id = p.tarefa_id
     where p.cliente_id = ${cliente.clienteId} and p.situacao in ('aberto', 'em_andamento', 'encaminhado_operador')
-    order by p.recebido_em`;
+    order by p.recebido_em, p.criado_em`;
   return r.map((x) => ({
     pedidoId: x.id, tarefaId: x.tarefa_id, recebidoEm: x.recebido_em, mensagem: x.mensagem_original, intencao: x.intencao,
     resumo: x.resumo, respostaEnviada: x.resposta, tipoTarefa: x.tipo,

@@ -14,7 +14,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "extensao:e2e": "node extensao/testar-e2e.mjs",
-    "painel": "tsx painel/servidor.ts"
+    "painel": "tsx painel/servidor.ts",
+    "webhook": "tsx harness/webhook.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

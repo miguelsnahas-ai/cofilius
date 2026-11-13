@@ -3,7 +3,7 @@
 Serviço de operação para afiliados de Shopee, Mercado Livre e Amazon que divulgam ofertas em grupos de WhatsApp.
 Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 
-**Estado atual:** Fase 0 completa; Fase 1 com Shopee (API e modo manual), os 3 agentes de decisão (Curador, Redator, Analista) e o fechamento semanal. Faltam WhatsApp (Disparador e Atendente) e importadores dos relatórios reais.
+**Estado atual:** Fases 0 a 3 construídas em código: Shopee (API e modo manual), os 4 agentes (Curador, Redator, Analista, Atendente), lista do dia com painel de aprovação, vendas, fechamento semanal, cadastro de clientes, registro de uso e o Disparador com WhatsApp **ainda não conferido** na documentação da Meta. Faltam os importadores dos relatórios reais e a primeira rodada da IA com a chave da API.
 
 - banco com as 11 tabelas do modelo de dados, todas com `cliente_id`;
 - padrão de etiquetas de rastreio (sub_ids da Shopee, etiqueta do Mercado Livre, tracking ID da Amazon);
@@ -17,6 +17,9 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - **harness dos agentes**: contrato de cada agente (prompt versionado, esquemas, até 2 repetições, registro de custo e casos de teste), ligado à API do Claude (modelo padrão: Claude Haiku 5.5);
 - **Curador**: escolhe as ofertas do dia só entre as candidatas, seguindo as **diretrizes de nicho** aprovadas;
 - **Redator**: escreve as mensagens com marcadores; preço e link são preenchidos pelo sistema;
+- **cadastro de clientes e nichos** e **registro de uso** (minutos do operador e custo de IA por cliente);
+- **Atendente**: entende o pedido da afiliada, responde com números do banco ou passa para você;
+- **Disparador**: envio manual (hoje) ou pela WhatsApp Cloud API, com recebimento de mensagens e avisos de entrega/leitura;
 - **painel do operador**: tela web local para aprovar a lista do dia (escolhas do Curador, links, mensagens, propostas de diretriz);
 - **Analista e fechamento semanal**: indicadores calculados em código, 3 leituras ligadas aos dados e propostas de diretriz que só valem com aprovação;
 - **extensão de Chrome (etapa 1: gravador para Mercado Livre, Shopee e Amazon)**: grava os dados que as páginas de afiliado carregam, para mapear o formato real. Instalação e uso em [extensao/LEIA-ME.md](extensao/LEIA-ME.md).
@@ -33,7 +36,10 @@ services/
   lista/     lista diária: marcadores, validadores, aprovação, envio
   vendas/    atribuição de vendas, cliques, resumo do período
   curadoria/ Curador e diretrizes de nicho
-  relatorios/ indicadores, Analista, fechamento semanal
+  relatorios/ indicadores, Analista, fechamento semanal, registro de uso
+  clientes/  cadastro de clientes e nichos
+  atendimento/ Atendente e entrada de mensagens
+  disparador/ envio (manual e WhatsApp) e cliente da WhatsApp Cloud API
 painel/      tela de aprovação do operador (servidor local + página)
 harness/     o que roda os serviços: config, log, novas tentativas, cifragem, banco, fila, esteira, agentes, comandos
 testes/      apoio aos testes com banco
@@ -225,6 +231,69 @@ Segurança: o painel só aceita conexões do próprio computador (para abrir na 
 e só aceita ações vindas da própria página (outro site aberto no navegador não consegue aprovar nada).
 Rodar o Curador e o Redator pela tela exige `ANTHROPIC_API_KEY`; sem ela, o resto funciona e os botões ficam desligados.
 
+## Clientes, uso, Atendente e WhatsApp
+
+### Cadastro de clientes
+
+```bash
+npm run cli -- novo-cliente --codigo ana --nome "Ana" --whatsapp 5511999998888 --horario 08:00 --limite 5
+```
+
+```bash
+npm run cli -- nicho --cliente ana --nome "Casa" --palavras "organizador, air fryer, potes"
+```
+
+```bash
+npm run cli -- clientes
+```
+
+O código (`ana`) vai nos links de rastreio e não muda depois. Também há `editar-cliente`, `remover-nicho`,
+`pausar-cliente` (sai da esteira e do painel) e `ativar-cliente`.
+
+### Registro de uso
+
+Cada ação sua no painel ou no terminal fica registrada por cliente. Ações com até 10 minutos de intervalo formam uma sessão;
+a soma das sessões estima os minutos que cada cliente consome. Junto vem o custo da IA:
+
+```bash
+npm run cli -- uso --de 2026-11-01 --ate 2026-11-30
+```
+
+É uma estimativa: tempo olhando a tela sem clicar não aparece.
+
+### Atendente (pedidos da afiliada)
+
+Cada mensagem dela vira um pedido. O Atendente só classifica e extrai dados; as respostas são textos fixos do sistema:
+
+| Pedido | O que acontece |
+|---|---|
+| "quanto ganhei?" | responde na hora, com comissão validada e pendente do banco |
+| "me manda o link disso" | com a Open API da Shopee, gera o link na hora; senão, fica para você e ela recebe "já te mando" |
+| "fica de olho nesse", "quero pets também", "pausa até dia 20" | fica para você; ela recebe uma confirmação de que você vai ver |
+| "mandar a lista de hoje" | sem IA: envia as mensagens aprovadas do dia, em ordem |
+| qualquer outra coisa | fica para você, com a mensagem original, sem resposta automática |
+
+Nada muda sozinho: pausar, mudar nicho e acompanhar produto sempre passam por você.
+Os pedidos aparecem no painel (seção "Pedidos da afiliada"), onde você conclui cada um.
+Enquanto o WhatsApp não existe, cole a mensagem dela no campo "Processar mensagem" do painel.
+
+### Disparador e WhatsApp
+
+Hoje o envio é **manual**: copie o texto no painel, envie pelo WhatsApp Business e clique em "Marcar como enviada".
+Antes de registrar, o sistema confere preço (até 30 minutos), repetição e aprovação.
+
+Quando o número for aprovado na Cloud API da Meta:
+1. Preencha as variáveis `WHATSAPP_*` no `.env` (veja `.env.example`).
+2. Rode o receptor de avisos (precisa de HTTPS público; ex.: atrás de um proxy, ou depois como Edge Function):
+   ```bash
+   npm run webhook
+   ```
+3. Cadastre o endereço e o texto de verificação no painel da Meta.
+
+Daí em diante, o painel mostra "Enviar pelo WhatsApp". Pela regra da janela de 24 horas, a lista sai quando ela
+pede ("Mandar a lista de hoje"); fora da janela, o envio é recusado com explicação. Entrega e leitura ficam
+registradas em cada mensagem.
+
 ## Lista do dia, vendas e esteira
 
 Funciona hoje com o modo manual (planilha e links do painel); nada aqui depende da Open API ou da extensão.
@@ -317,6 +386,7 @@ npm run cli -- fila-status
 
 | Horário | Etapa | Observação |
 |---|---|---|
+| 05:00 | medição | mensagens enviadas há mais de 7 dias passam a "medida" |
 | 05:30 | coleta de ofertas | só com a Open API da Shopee; sem ela, a etapa é pulada (ofertas entram pela planilha) |
 | 06:00 | Curador escolhe as ofertas do dia | |
 | 06:15 | links das escolhidas | só com a Open API; sem ela, `preparar-links` mostra as escolhidas sem link |
@@ -428,6 +498,17 @@ Se algo estiver diferente, o erro aparece no primeiro teste com a conta real: a 
 8. **Códigos de erro**: a suposição é 10020 para assinatura inválida e 10030 para limite de chamadas. 10000 e 10030 geram nova tentativa; os outros não.
 9. **Limite de chamadas** por minuto ou por dia da conta.
 
+### Para conferir na documentação do WhatsApp Cloud API
+
+Tudo isolado em `services/disparador/whatsapp.ts`, marcado com `TODO(whatsapp-doc)`. Nada foi testado contra a API real.
+
+1. Endpoint de envio `POST https://graph.facebook.com/{versao}/{numeroId}/messages`, cabeçalho `Authorization: Bearer`, e o corpo de texto (`messaging_product`, `to`, `type: "text"`, `text.body`, `text.preview_url`).
+2. A versão atual da Graph API (vai em `WHATSAPP_VERSAO_API`).
+3. Código de erro de mensagem fora da janela de 24 horas (suposto: 131047).
+4. Verificação do webhook (`hub.mode`, `hub.verify_token`, `hub.challenge`) e assinatura `X-Hub-Signature-256` (`sha256=` + HMAC do corpo com o segredo do app).
+5. Formato dos avisos: mensagens (`entry[].changes[].value.messages[]`, texto em `text.body`, botões em `button.text` ou `interactive.button_reply.title`) e status (`statuses[]` com `delivered` e `read`).
+6. Como criar o botão "Mandar a lista de hoje" (modelo aprovado com botão de resposta rápida) e se a categoria dele é utilidade.
+
 ### Relatórios recebidos em 12/nov (para o Sincronizador de ganhos)
 
 - **Shopee, `AffiliateDashboardReport`**: só totais por dia (cliques, pedidos, comissão). Não tem Sub_id nem produto, então não serve para ligar venda a postagem. Falta o **relatório de conversões**, com uma linha por pedido e as colunas de Sub_id.
@@ -445,7 +526,8 @@ Se algo estiver diferente, o erro aparece no primeiro teste com a conta real: a 
 - **Aviso de falha:** etapa que falha de vez fica em `fila-status` e no log de erro. Falta mandar o aviso por WhatsApp quando o canal existir.
 - **Casos de teste dos agentes:** são 2 a 3 de exemplo por agente; a meta é 15 a 20 reais. Nenhum foi rodado ainda com o modelo de verdade.
 - **Modelo:** todos no Claude Haiku 5.5 por enquanto. Se a curadoria ou a análise ficarem fracas, o primeiro teste é subir o porte "forte" (`MODELO_IA_FORTE`).
-- **WhatsApp:** Disparador e Atendente dependem da aprovação do número na Cloud API da Meta. Até lá, o envio é manual e o fechamento fica no resultado da tarefa (`fila-status`) e no comando `fechamento`.
+- **WhatsApp:** o código existe, mas os formatos não foram conferidos (lista acima). Até a aprovação do número, o envio é manual e o fechamento fica no resultado da tarefa (`fila-status`) e no comando `fechamento`.
+- **Mensagem automática do fechamento e aviso de falha:** saem pelo WhatsApp quando ele estiver ligado; falta o modelo aprovado pela Meta para mensagens fora da janela de 24 horas.
 
 - **Link perdido se o banco falhar:** se a Shopee gerar o link e a gravação falhar depois das novas tentativas, o link não fica salvo. Ele é só registrado no log de erro. Basta pedir o link de novo.
 - **Paginação além do necessário:** se uma página da Shopee só trouxer produtos repetidos, a busca segue para a próxima, até 5 páginas por palavra-chave.

@@ -18,6 +18,11 @@ const PLANILHA = [
 
 const modelo: ModeloIA = {
   async gerar(p) {
+    if (p.sistema.includes('porta de entrada')) {
+      const e = JSON.parse(p.entrada) as { mensagem: string };
+      const intencao = e.mensagem.includes('ganhei') ? 'quanto_ganhei' : 'desconhecida';
+      return { texto: JSON.stringify({ intencao, url: null, periodo: intencao === 'quanto_ganhei' ? 'hoje' : null, nicho: null, resumo: 'pedido' }), tokensEntrada: 1, tokensSaida: 1 };
+    }
     if (p.sistema.includes('curador')) {
       const e = JSON.parse(p.entrada) as { candidatas: { id: string }[]; quantidade: number };
       return { texto: JSON.stringify({ escolhas: e.candidatas.slice(0, 2).map((c) => ({ oferta_id: c.id, motivo: 'bom desconto' })) }), tokensEntrada: 1, tokensSaida: 1 };
@@ -51,7 +56,7 @@ describe.skipIf(!BANCO_HABILITADO)('painel do operador', () => {
   });
   afterAll(async () => { servidor?.close(); await sql?.end(); });
   beforeEach(async () => {
-    await sql`truncate mensagens, execucoes_agente, links, ofertas, diretrizes_nicho, acoes_operador cascade`;
+    await sql`truncate mensagens, execucoes_agente, links, ofertas, diretrizes_nicho, acoes_operador, pedidos_afiliado, tarefas cascade`;
     await importarPlanilhaShopee(sql, cliente, PLANILHA, { quando: new Date('2026-11-12T09:00:00Z') });
   });
 
@@ -132,6 +137,23 @@ describe.skipIf(!BANCO_HABILITADO)('painel do operador', () => {
     expect(d!.situacao).toBe('aprovada');
     expect((await post('/api/mensagens/00000000-0000-4000-8000-000000000000/descartar', { motivo: 'x' })).status).toBe(400);
     expect((await post('/api/curar', { cliente: 'zz' })).json.erro).toContain('não encontrado');
+  });
+
+  it('pedidos da afiliada: processar mensagem colada, ver pendência e concluir', async () => {
+    await sql`truncate pedidos_afiliado, tarefas cascade`;
+    const ganhos = await post('/api/receber', { texto: 'quanto ganhei hoje?' });
+    expect(ganhos.json).toMatchObject({ tipo: 'atendimento', intencao: 'quanto_ganhei', situacao: 'resolvido' });
+    expect(ganhos.json.respostas[0]).toContain('Comissão validada');
+    const oi = await post('/api/receber', { texto: 'oi, tudo bem?' });
+    expect(oi.json).toMatchObject({ intencao: 'desconhecida', situacao: 'encaminhado_operador', respostas: [] });
+    const lista = await post('/api/receber', { texto: 'Mandar a lista de hoje' });
+    expect(lista.json).toMatchObject({ tipo: 'lista', enviadas: 0 });
+    const dia = await (await get(`/api/dia?cliente=c1&data=${DIA}`)).json() as Record<string, any>;
+    expect(dia.pedidos.map((p: any) => p.mensagem)).toEqual(['oi, tudo bem?']);
+    expect(dia.whatsappDisponivel).toBe(false);
+    expect((await post(`/api/pedidos/${dia.pedidos[0].id}/concluir`, { resposta: 'Tudo ótimo!' })).json).toEqual({ ok: true });
+    expect(((await (await get(`/api/dia?cliente=c1&data=${DIA}`)).json()) as any).pedidos).toEqual([]);
+    expect((await post('/api/mensagens/00000000-0000-4000-8000-000000000000/whatsapp', {})).json.erro).toContain('WhatsApp não configurado');
   });
 
   it('sem IA configurada, Curador e Redator respondem com orientação', async () => {

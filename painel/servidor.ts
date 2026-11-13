@@ -21,8 +21,13 @@ import { criarModeloClaude, precosDoAmbiente } from '../harness/modeloClaude.ts'
 import { registrarAcao } from '../services/relatorios/uso.ts';
 import {
   acaoDiretriz, acaoMensagem, confirmarPrecoOferta, ErroPedido, listarClientes, painelDoDia, registrarLinkOferta,
-  rodarCurador, rodarRedator, type DepsApi,
+  rodarCurador, rodarRedator, simularRecebida, concluirPedidoAfiliado, type DepsApi,
 } from './api.ts';
+import { canalWhatsapp } from '../services/disparador/disparador.ts';
+import { configWhatsappDoAmbiente } from '../services/disparador/whatsapp.ts';
+import { importarChave } from '../harness/cripto.ts';
+import { lerCredencialShopee } from '../db/credenciais.ts';
+import { criarClienteShopee, ENDPOINT_BRASIL } from '../services/shopee/client.ts';
 
 const PUBLICO = join(dirname(fileURLToPath(import.meta.url)), 'publico');
 const TIPOS: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -63,11 +68,13 @@ async function lerCorpo(req: IncomingMessage): Promise<Record<string, unknown>> 
 export function criarServidorPainel(deps: DepsApi & { senha: string }): Server {
   if (!deps.senha) throw new Error('Defina PAINEL_SENHA no .env para usar o painel.');
   const rotasPost: [RegExp, (m: RegExpMatchArray, corpo: Record<string, unknown>) => Promise<unknown>][] = [
-    [/^\/api\/mensagens\/([0-9a-f-]{36})\/(validar|aprovar|descartar|enviada)$/, (m, c) => acaoMensagem(deps, m[1]!, m[2]!, c)],
+    [/^\/api\/mensagens\/([0-9a-f-]{36})\/(validar|aprovar|descartar|enviada|whatsapp)$/, (m, c) => acaoMensagem(deps, m[1]!, m[2]!, c)],
     [/^\/api\/ofertas\/([0-9a-f-]{36})\/preco$/, (m, c) => confirmarPrecoOferta(deps, m[1]!, c)],
     [/^\/api\/ofertas\/([0-9a-f-]{36})\/link$/, (m, c) => registrarLinkOferta(deps, m[1]!, c)],
     [/^\/api\/diretrizes\/([0-9a-f-]{36})\/(aprovar|descartar)$/, (m, c) => acaoDiretriz(deps, m[1]!, m[2]!, c)],
     [/^\/api\/curar$/, (_m, c) => rodarCurador(deps, c)],
+    [/^\/api\/receber$/, (_m, c) => simularRecebida(deps, c)],
+    [/^\/api\/pedidos\/([0-9a-f-]{36})\/concluir$/, (m, c) => concluirPedidoAfiliado(deps, m[1]!, c)],
     [/^\/api\/redigir$/, (_m, c) => rodarRedator(deps, c)],
   ];
 
@@ -146,6 +153,16 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     operador: process.env.PAINEL_OPERADOR || 'operador',
     modelo: temIa ? () => criarModeloClaude() : undefined,
     precos: precosDoAmbiente(),
+    whatsapp: configWhatsappDoAmbiente() ? canalWhatsapp(configWhatsappDoAmbiente()!) : undefined,
+    // Com a Open API da Shopee do cliente, o Atendente gera o link na hora; sem ela, vira tarefa sua.
+    shopeeDoCliente: async (c) => {
+      try {
+        const chave = await importarChave(process.env.CREDENCIAIS_CHAVE);
+        return criarClienteShopee(await lerCredencialShopee(sql, chave, c.clienteId), { endpoint: process.env.SHOPEE_ENDPOINT || ENDPOINT_BRASIL });
+      } catch {
+        return null;
+      }
+    },
   });
   const porta = Number(process.env.PAINEL_PORTA || 3000);
   const host = process.env.PAINEL_HOST || '127.0.0.1';
