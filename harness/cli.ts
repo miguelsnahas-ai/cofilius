@@ -43,6 +43,9 @@ import { numeroBr } from './csv.ts';
 import { criarModeloClaude, precosDoAmbiente } from './modeloClaude.ts';
 import { contratoRedator, redigirMensagem } from '../services/lista/redator.ts';
 import { carregarAgente, rodarCasos } from './agentes.ts';
+import { contratoCurador, curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
+import { aprovarDiretriz, descartarDiretriz, listarDiretrizes, proporDiretriz } from '../services/curadoria/diretrizes.ts';
+import { redigirSelecionadas } from '../services/lista/redator.ts';
 
 const AJUDA = `Uso:
   npm run cli -- credenciais-shopee --cliente c1
@@ -82,8 +85,22 @@ Lista do dia (texto com marcadores; o sistema preenche preço, desconto e link):
 Redator (IA; usa a API do Claude e gera custo):
   npm run cli -- redigir --cliente c1 --oferta <id> [--oferta <id2> ...] [--data AAAA-MM-DD]
       Escreve a mensagem de cada oferta e cria o rascunho (preço e link preenchidos pelo sistema).
-  npm run cli -- testar-redator --cliente c1
-      Roda os casos de teste de agents/redator/casos com o modelo de verdade.
+  npm run cli -- testar-agente --cliente c1 --agente redator|curador
+      Roda os casos de teste do agente (agents/<nome>/casos) com o modelo de verdade.
+
+Curadoria (IA):
+  npm run cli -- curar --cliente c1 [--data AAAA-MM-DD] [--quantidade 5]
+      O Curador escolhe as ofertas do dia entre as candidatas, seguindo as diretrizes aprovadas.
+  npm run cli -- selecionadas --cliente c1 [--data AAAA-MM-DD]
+  npm run cli -- redigir-dia --cliente c1 [--data AAAA-MM-DD]
+      O Redator escreve as mensagens das escolhidas que já têm link.
+  preparar-links sem --oferta mostra só as escolhidas sem link (use --todas para todas as do dia).
+
+Diretrizes de nicho (o Curador só usa as aprovadas):
+  npm run cli -- diretrizes --cliente c1 [--nicho casa]
+  npm run cli -- propor-diretriz --cliente c1 --nicho casa --texto "Priorizar utilidades de cozinha até R$ 60."
+  npm run cli -- aprovar-diretriz --cliente c1 --id <id>
+  npm run cli -- descartar-diretriz --cliente c1 --id <id>
 
 Vendas:
   npm run cli -- importar-vendas --cliente c1 --arquivo vendas.csv   (modelo: docs/modelos/vendas.csv)
@@ -116,6 +133,10 @@ const { values: op, positionals } = parseArgs({
     motivo: { type: 'string' },
     preco: { type: 'string' },
     de: { type: 'string' },
+    todas: { type: 'boolean' },
+    agente: { type: 'string' },
+    quantidade: { type: 'string' },
+    id: { type: 'string' },
     ate: { type: 'string' },
     ajuda: { type: 'boolean', short: 'h' },
   },
@@ -203,7 +224,9 @@ async function comandoSemCliente(sql: Sql, comando: string): Promise<boolean> {
       return true;
     }
     case 'fila': {
-      const executores = criarExecutores({ sql, shopeeDoCliente: (c) => shopeeDoCliente(sql, c) });
+      const executores = criarExecutores({
+        sql, shopeeDoCliente: (c) => shopeeDoCliente(sql, c), modelo: () => criarModeloClaude(), precos: precosDoAmbiente(),
+      });
       const limite = op.limite ? Number(op.limite) : undefined;
       const r = await processarFila(sql, executores, { limite });
       console.log(`Fila: ${r.executadas} executadas · ${r.concluidas} concluídas · ${r.novasTentativas} vão tentar de novo · ${r.falharam} falharam`);
@@ -306,7 +329,14 @@ async function principal(): Promise<void> {
 
       case 'preparar-links': {
         const quando = op.quando ? horarioLocalParaData(op.quando, cliente.fusoHorario) : new Date();
-        const lista = await prepararLinks(sql, cliente, { quando, canal: op.canal, ofertaIds: op.oferta });
+        // Sem --oferta: as escolhidas pelo Curador no dia que ainda não têm link (ou todas do dia, com --todas).
+        let ofertaIds = op.oferta;
+        if (!ofertaIds?.length && !op.todas) {
+          const sel = await selecionadasDoDia(sql, cliente, dataLocal(quando, cliente.fusoHorario));
+          if (sel.length) ofertaIds = sel.filter((x) => !x.linkId && x.plataforma === 'shopee').map((x) => x.ofertaId);
+          if (sel.length && !ofertaIds?.length) { console.log('Todas as ofertas escolhidas do dia já têm link.'); break; }
+        }
+        const lista = await prepararLinks(sql, cliente, { quando, canal: op.canal, ofertaIds });
         if (!lista.length) {
           console.log('Nenhuma oferta encontrada para o dia. Importe a planilha primeiro (importar-ofertas).');
           break;
@@ -411,10 +441,14 @@ async function principal(): Promise<void> {
         break;
       }
 
-      case 'testar-redator': {
-        const { casos } = await carregarAgente(new URL('../agents/redator', import.meta.url).pathname);
+      case 'testar-redator':
+      case 'testar-agente': {
+        const nome = comando === 'testar-redator' ? 'redator' : exigir('agente');
+        const contratos = { redator: contratoRedator, curador: contratoCurador } as Record<string, () => Promise<any>>;
+        if (!contratos[nome]) throw new Error(`Agente sem casos de teste: ${nome} (use ${Object.keys(contratos).join(' ou ')})`);
+        const { casos } = await carregarAgente(new URL(`../agents/${nome}`, import.meta.url).pathname);
         const r = await rodarCasos(sql, {
-          contrato: await contratoRedator(), casos, modelo: criarModeloClaude(), clienteId: cliente.clienteId, precos: precosDoAmbiente(),
+          contrato: await contratos[nome]!(), casos, modelo: criarModeloClaude(), clienteId: cliente.clienteId, precos: precosDoAmbiente(),
         });
         for (const c of r) console.log(`${c.ok ? '✔' : '✘'} ${c.caso}: ${c.detalhe}`);
         const [custo] = await sql`
@@ -422,6 +456,63 @@ async function principal(): Promise<void> {
           from execucoes_agente where cliente_id = ${cliente.clienteId} and criado_em > now() - interval '10 minutes'`;
         console.log(`\n${r.filter((c) => c.ok).length} de ${r.length} casos ok · ${custo!.chamadas} chamadas · US$ ${custo!.custo}`);
         if (r.some((c) => !c.ok)) process.exitCode = 2;
+        break;
+      }
+
+      case 'curar': {
+        const q = op.quantidade ? Number(op.quantidade) : undefined;
+        const r = await curarDia(sql, { cliente, data: dataLista(), modelo: criarModeloClaude(), precos: precosDoAmbiente(), quantidade: q });
+        if (!r.escolhas.length) { console.log('Nenhuma candidata no dia. Importe ofertas primeiro (importar-ofertas).'); break; }
+        console.log(`Curadoria de ${r.data}: ${r.escolhas.length} escolhidas entre ${r.candidatas} candidatas\n`);
+        for (const e of r.escolhas) console.log(`  ${e.posicao}. ${e.titulo}\n     ${e.motivo}`);
+        console.log(`\nPróximo passo: links (preparar-links) e depois redigir-dia.`);
+        break;
+      }
+
+      case 'selecionadas': {
+        const sel = await selecionadasDoDia(sql, cliente, dataLista());
+        if (!sel.length) console.log('Nenhuma oferta escolhida neste dia (rode curar).');
+        for (const x of sel) {
+          const estado = x.mensagemId ? 'com mensagem' : x.linkId ? 'com link, sem mensagem' : 'SEM LINK';
+          console.log(`  ${x.posicao}. [${estado}] ${x.titulo} · ${x.ofertaId}\n     ${x.motivo}`);
+        }
+        break;
+      }
+
+      case 'redigir-dia': {
+        const r = await redigirSelecionadas(sql, { cliente, data: dataLista(), modelo: criarModeloClaude(), precos: precosDoAmbiente() });
+        console.log(`Redigidas: ${r.redigidas.length} · já tinham mensagem: ${r.jaTinhamMensagem} · sem link: ${r.semLink.length} · falhas: ${r.falhas.length}`);
+        for (const x of r.semLink) console.log(`  sem link: ${x.titulo} (${x.ofertaId})`);
+        for (const x of r.falhas) console.log(`  falha: ${x.ofertaId}: ${x.erro}`);
+        if (r.redigidas.length) console.log(`\nPróximo passo: npm run cli -- validar --cliente ${cliente.codigo}`);
+        if (r.falhas.length) process.exitCode = 2;
+        break;
+      }
+
+      case 'diretrizes': {
+        const lista = await listarDiretrizes(sql, cliente, op.nicho);
+        if (!lista.length) console.log('Nenhuma diretriz cadastrada.');
+        for (const d of lista) {
+          console.log(`\n[${d.situacao.toUpperCase()}] ${d.nicho} v${d.versao} · por ${d.propostaPor} · ${d.id}\n  ${d.texto.replace(/\n/g, '\n  ')}`);
+        }
+        break;
+      }
+
+      case 'propor-diretriz': {
+        const d = await proporDiretriz(sql, cliente, exigir('nicho'), exigir('texto'), 'operador');
+        console.log(`Proposta ${d.nicho} v${d.versao} criada (${d.id}). Para valer: npm run cli -- aprovar-diretriz --cliente ${cliente.codigo} --id ${d.id}`);
+        break;
+      }
+
+      case 'aprovar-diretriz': {
+        const d = await aprovarDiretriz(sql, cliente, exigir('id'));
+        console.log(`Diretriz ${d.nicho} v${d.versao} aprovada; o Curador passa a usá-la.`);
+        break;
+      }
+
+      case 'descartar-diretriz': {
+        await descartarDiretriz(sql, cliente, exigir('id'));
+        console.log('Proposta descartada.');
         break;
       }
 

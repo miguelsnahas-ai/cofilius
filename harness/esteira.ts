@@ -12,7 +12,11 @@ import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import { coletarOfertasShopee } from '../services/ofertas/coletarOfertasShopee.ts';
 import { validarDia } from '../services/lista/lista.ts';
+import { redigirSelecionadas } from '../services/lista/redator.ts';
+import { curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
+import { gerarLinkShopee } from '../services/links/gerarLinkShopee.ts';
 import type { ClienteShopee } from '../services/shopee/client.ts';
+import type { ModeloIA, PrecoModelo } from './agentes.ts';
 
 export interface Etapa {
   tipo: string;
@@ -27,13 +31,19 @@ export interface Etapa {
 
 export const ETAPAS: Etapa[] = [
   { tipo: 'ofertas.shopee.coletar', horario: '05:30', porNicho: true, precisa: 'shopee_open_api', descricao: 'Conector de ofertas (Shopee, via Open API)' },
+  { tipo: 'curadoria.curar', horario: '06:00', descricao: 'Curador escolhe as ofertas do dia' },
+  { tipo: 'links.shopee.gerar', horario: '06:15', precisa: 'shopee_open_api', descricao: 'Links com rastreio das escolhidas (Shopee, via Open API)' },
+  { tipo: 'redacao.redigir', horario: '06:30', descricao: 'Redator escreve as mensagens das escolhidas com link' },
   { tipo: 'lista.validar', horario: '06:45', descricao: 'Validadores da lista do dia' },
 ];
 
 export interface DepsEsteira {
   sql: Sql;
   /** Monta o cliente da Shopee de um cliente (lê a credencial cifrada). */
-  shopeeDoCliente: (cliente: Cliente) => Promise<Pick<ClienteShopee, 'buscarOfertas'>>;
+  shopeeDoCliente: (cliente: Cliente) => Promise<Pick<ClienteShopee, 'buscarOfertas' | 'gerarLinkCurto'>>;
+  /** Modelo de IA dos agentes (Curador, Redator). Sem ele, as etapas de agente falham com aviso. */
+  modelo?: () => ModeloIA;
+  precos?: Record<string, PrecoModelo>;
 }
 
 export function criarExecutores(deps: DepsEsteira): Record<string, Executor> {
@@ -43,10 +53,39 @@ export function criarExecutores(deps: DepsEsteira): Record<string, Executor> {
       const cliente = await buscarCliente(sql, t.clienteId);
       const nicho = String(t.entrada.nicho ?? '');
       if (!nicho) throw new Error('tarefa sem nicho');
+      // A coleta pertence ao dia da tarefa (não ao relógio de quem executa, que pode ser outro dia em atraso).
+      const quando = t.entrada.dataLista
+        ? horarioLocalParaData(`${String(t.entrada.dataLista)} 12:00`, cliente.fusoHorario)
+        : undefined;
       const r = await coletarOfertasShopee({ sql, shopee: await deps.shopeeDoCliente(cliente) }, {
-        cliente, nicho, limite: Number(t.entrada.limite ?? 30),
+        cliente, nicho, limite: Number(t.entrada.limite ?? 30), quando,
       });
       return { dataColeta: r.dataColeta, total: r.ofertas.length, novas: r.novas, descartadas: r.descartadas };
+    },
+    'curadoria.curar': async (t) => {
+      const cliente = await buscarCliente(sql, t.clienteId);
+      if (!deps.modelo) throw new Error('modelo de IA não configurado');
+      const r = await curarDia(sql, { cliente, data: String(t.entrada.dataLista), modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id });
+      return { candidatas: r.candidatas, escolhidas: r.escolhas.length };
+    },
+    'links.shopee.gerar': async (t) => {
+      const cliente = await buscarCliente(sql, t.clienteId);
+      const shopee = await deps.shopeeDoCliente(cliente);
+      const pendentes = (await selecionadasDoDia(sql, cliente, String(t.entrada.dataLista)))
+        .filter((s) => s.plataforma === 'shopee' && !s.linkId);
+      let gerados = 0;
+      for (const s of pendentes) {
+        await gerarLinkShopee({ sql, shopee }, { cliente, ofertaId: s.ofertaId, contexto: { origem: 'esteira', tarefa: t.id } });
+        gerados++;
+      }
+      return { gerados };
+    },
+    'redacao.redigir': async (t) => {
+      const cliente = await buscarCliente(sql, t.clienteId);
+      if (!deps.modelo) throw new Error('modelo de IA não configurado');
+      const r = await redigirSelecionadas(sql, { cliente, data: String(t.entrada.dataLista), modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id });
+      if (r.falhas.length && !r.redigidas.length) throw new Error(`nenhuma mensagem redigida: ${r.falhas.map((f) => f.erro).join('; ')}`);
+      return { redigidas: r.redigidas.length, semLink: r.semLink.length, jaTinhamMensagem: r.jaTinhamMensagem, falhas: r.falhas };
     },
     'lista.validar': async (t) => {
       const cliente = await buscarCliente(sql, t.clienteId);

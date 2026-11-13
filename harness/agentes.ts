@@ -202,6 +202,16 @@ export function resolverModelo(porte: string, ambiente: Record<string, string | 
   return ambiente[variavel]?.trim() || MODELO_PADRAO;
 }
 
+/** Contrato pronto para executar: lido da pasta, com o modelo resolvido pelo ambiente e as regras do agente. */
+export async function carregarContrato<E, S>(
+  pasta: string,
+  regrasSaida: (entrada: E, saida: S) => string[],
+  ambiente: Record<string, string | undefined> = process.env,
+): Promise<ContratoAgente<E, S>> {
+  const { contrato } = await carregarAgente(pasta);
+  return { ...contrato, modelo: resolverModelo(contrato.modelo, ambiente), regrasSaida };
+}
+
 /** Lê agents/<nome>/ (prompt.md, esquema.json, contrato.json, casos/*.json). O modelo fica como o porte. */
 export async function carregarAgente(pasta: string): Promise<{ contrato: Omit<ContratoAgente, 'regrasSaida'>; casos: CasoTeste[] }> {
   const json = async (arquivo: string) => JSON.parse(await readFile(join(pasta, arquivo), 'utf8'));

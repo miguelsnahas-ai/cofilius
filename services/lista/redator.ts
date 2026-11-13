@@ -8,7 +8,7 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Sql } from '../../harness/db.ts';
-import { carregarAgente, executarAgente, resolverModelo, type ContratoAgente, type ModeloIA, type PrecoModelo } from '../../harness/agentes.ts';
+import { carregarContrato, executarAgente, type ContratoAgente, type ModeloIA, type PrecoModelo } from '../../harness/agentes.ts';
 import type { Cliente } from '../../db/clientes.ts';
 import { regrasRedator, type EntradaRedator, type SaidaRedator } from '../../agents/redator/regras.ts';
 import { criarRascunho, type MensagemCriada } from './lista.ts';
@@ -19,8 +19,7 @@ const PASTA_REDATOR = join(dirname(fileURLToPath(import.meta.url)), '../../agent
 export async function contratoRedator(
   ambiente: Record<string, string | undefined> = process.env,
 ): Promise<ContratoAgente<EntradaRedator, SaidaRedator>> {
-  const { contrato } = await carregarAgente(PASTA_REDATOR);
-  return { ...contrato, modelo: resolverModelo(contrato.modelo, ambiente), regrasSaida: regrasRedator };
+  return carregarContrato(PASTA_REDATOR, regrasRedator, ambiente);
 }
 
 export async function montarEntradaRedator(sql: Sql, cliente: Cliente, ofertaId: string): Promise<EntradaRedator> {
@@ -78,4 +77,38 @@ export async function redigirMensagem(
     cliente: p.cliente, ofertaId: p.ofertaId, textoModelo: r.saida.texto_modelo, dataLista: p.dataLista,
   });
   return { mensagem, textoModelo: r.saida.texto_modelo, tentativas: r.tentativas, versaoPrompt: r.versaoPrompt };
+}
+
+export interface ResultadoRedacaoDia {
+  redigidas: { ofertaId: string; mensagemId: string }[];
+  /** Escolhidas que ainda não têm link de afiliado (modo manual: gerar no painel e registrar). */
+  semLink: { ofertaId: string; titulo: string }[];
+  jaTinhamMensagem: number;
+  falhas: { ofertaId: string; erro: string }[];
+}
+
+/**
+ * Escreve as mensagens das ofertas escolhidas pelo Curador no dia, na ordem da curadoria.
+ * Pula as que já têm mensagem; as sem link ficam listadas para o operador.
+ */
+export async function redigirSelecionadas(
+  sql: Sql,
+  p: { cliente: Cliente; data: string; modelo: ModeloIA; contrato?: ContratoAgente<EntradaRedator, SaidaRedator>; precos?: Record<string, PrecoModelo>; tarefaId?: string },
+): Promise<ResultadoRedacaoDia> {
+  const { selecionadasDoDia } = await import('../curadoria/curador.ts');
+  const contrato = p.contrato ?? (await contratoRedator());
+  const r: ResultadoRedacaoDia = { redigidas: [], semLink: [], jaTinhamMensagem: 0, falhas: [] };
+  for (const s of await selecionadasDoDia(sql, p.cliente, p.data)) {
+    if (s.mensagemId) { r.jaTinhamMensagem++; continue; }
+    if (!s.linkId) { r.semLink.push({ ofertaId: s.ofertaId, titulo: s.titulo }); continue; }
+    try {
+      const m = await redigirMensagem(sql, {
+        cliente: p.cliente, ofertaId: s.ofertaId, modelo: p.modelo, contrato, precos: p.precos, dataLista: p.data, tarefaId: p.tarefaId,
+      });
+      r.redigidas.push({ ofertaId: s.ofertaId, mensagemId: m.mensagem.id });
+    } catch (erro) {
+      r.falhas.push({ ofertaId: s.ofertaId, erro: (erro as Error).message });
+    }
+  }
+  return r;
 }

@@ -1,0 +1,74 @@
+{
+  "entrada": {
+    "data": "2026-11-12",
+    "quantidade": 3,
+    "diretrizes": {
+      "casa": "Priorizar utilidades de cozinha até R$ 60. Evitar eletrônico sem frete grátis."
+    },
+    "enviados_recentes": [
+      "Garrafa Térmica Inox 1L"
+    ],
+    "candidatas": [
+      {
+        "id": "o1",
+        "plataforma": "shopee",
+        "nicho": "casa",
+        "titulo": "Organizador de Gaveta 6 Divisórias",
+        "preco": 29.9,
+        "desconto_pct": 25,
+        "comissao_pct": 12,
+        "comissao_valor": 3.59,
+        "vendas": 1520,
+        "avaliacao": 4.8
+      },
+      {
+        "id": "o2",
+        "plataforma": "shopee",
+        "nicho": "casa",
+        "titulo": "Fritadeira Air Fryer 4L",
+        "preco": 289.9,
+        "desconto_pct": 0,
+        "comissao_pct": 7.5,
+        "comissao_valor": 21.74,
+        "vendas": 87,
+        "avaliacao": 4.6
+      },
+      {
+        "id": "o3",
+        "plataforma": "shopee",
+        "nicho": "casa",
+        "titulo": "Kit Potes Herméticos 10 peças",
+        "preco": 49.9,
+        "desconto_pct": 40,
+        "comissao_pct": 10,
+        "comissao_valor": 4.99,
+        "vendas": 3200,
+        "avaliacao": 4.9
+      },
+      {
+        "id": "o4",
+        "plataforma": "shopee",
+        "nicho": "casa",
+        "titulo": "Garrafa Térmica Inox 1L",
+        "preco": 39.9,
+        "desconto_pct": 20,
+        "comissao_pct": 10,
+        "comissao_valor": 3.99,
+        "vendas": 900,
+        "avaliacao": 4.7
+      },
+      {
+        "id": "o5",
+        "plataforma": "shopee",
+        "nicho": "casa",
+        "titulo": "Escorredor de Louça Dobrável",
+        "preco": 34.9,
+        "desconto_pct": 30,
+        "comissao_pct": 11,
+        "comissao_valor": 3.84,
+        "vendas": 640,
+        "avaliacao": 4.5
+      }
+    ]
+  }
+}

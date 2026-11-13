@@ -1,0 +1,38 @@
+{
+  "entrada": {
+    "data": "2026-11-12",
+    "quantidade": 5,
+    "diretrizes": {
+      "casa": "Priorizar utilidades de cozinha até R$ 60. Evitar eletrônico sem frete grátis."
+    },
+    "enviados_recentes": [
+      "Garrafa Térmica Inox 1L"
+    ],
+    "candidatas": [
+      {
+        "id": "o1",
+        "plataforma": "shopee",
+        "nicho": "casa",
+        "titulo": "Organizador de Gaveta 6 Divisórias",
+        "preco": 29.9,
+        "desconto_pct": 25,
+        "comissao_pct": 12,
+        "comissao_valor": 3.59,
+        "vendas": 1520,
+        "avaliacao": 4.8
+      },
+      {
+        "id": "o2",
+        "plataforma": "amazon",
+        "nicho": "beleza",
+        "titulo": "Creme para Assaduras 120ml",
+        "preco": 79.9,
+        "desconto_pct": null,
+        "comissao_pct": 3,
+        "comissao_valor": 2.4,
+        "vendas": null,
+        "avaliacao": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "nome": "curador",
+  "modelo": "forte",
+  "ferramentas": [],
+  "observacao": "Escolhe as ofertas do dia por ID, só entre as candidatas recebidas. Não escreve mensagem, link nem preço."
+}
