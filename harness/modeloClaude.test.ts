@@ -91,8 +91,9 @@ describe('criarModeloClaude', () => {
 
 describe('precosDoAmbiente', () => {
   it('lê os preços por porte', () => {
-    expect(precosDoAmbiente({ MODELO_IA_PEQUENO: 'p', MODELO_IA_PEQUENO_PRECO: '0.1, 0.5', MODELO_IA_FORTE: 'f' })).toEqual({
-      p: { entradaPorMilhao: 0.1, saidaPorMilhao: 0.5 },
+    expect(precosDoAmbiente({ MODELO_IA_PEQUENO: 'p', MODELO_IA_PEQUENO_PRECO: '0.2, 1', MODELO_IA_FORTE: 'f' })).toEqual({
+      'claude-haiku-5-5': { entradaPorMilhao: 0.1, saidaPorMilhao: 0.5 },
+      p: { entradaPorMilhao: 0.2, saidaPorMilhao: 1 },
     });
     expect(() => precosDoAmbiente({ MODELO_IA_FORTE: 'f', MODELO_IA_FORTE_PRECO: 'caro' })).toThrow('inválido');
   });

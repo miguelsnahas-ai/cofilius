@@ -46,7 +46,8 @@ describe('utilitários', () => {
   });
   it('resolverModelo usa o ambiente', () => {
     expect(resolverModelo('pequeno', { MODELO_IA_PEQUENO: 'm-p' })).toBe('m-p');
-    expect(() => resolverModelo('forte', {})).toThrow('MODELO_IA_FORTE');
+    expect(resolverModelo('forte', {})).toBe('claude-haiku-5-5');
+    expect(resolverModelo('pequeno', { MODELO_IA_PEQUENO: '  ' })).toBe('claude-haiku-5-5');
   });
 });
 

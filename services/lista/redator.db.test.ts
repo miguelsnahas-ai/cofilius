@@ -43,9 +43,9 @@ describe.skipIf(!BANCO_HABILITADO)('Redator', () => {
     await registrarLinkManual(sql, { cliente, ofertaId, link: 'https://s.shopee.com.br/R501', quando });
   });
 
-  it('o modelo vem do ambiente (porte "pequeno"); sem configurar, erro claro', async () => {
+  it('o modelo vem do ambiente (porte "pequeno"); sem configurar, o padrão (Haiku 5.5)', async () => {
     expect((await contratoRedator(ambiente)).modelo).toBe('modelo-pequeno-teste');
-    await expect(contratoRedator({})).rejects.toThrow('MODELO_IA_PEQUENO');
+    expect((await contratoRedator({})).modelo).toBe('claude-haiku-5-5');
   });
 
   it('entrada do agente não leva preço nem link', async () => {

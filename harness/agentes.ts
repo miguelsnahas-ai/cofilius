@@ -186,15 +186,20 @@ export interface CasoTeste {
 }
 
 /**
- * O contrato diz só o porte do modelo ("pequeno" ou "forte"); o identificador vem do ambiente
- * (MODELO_IA_PEQUENO, MODELO_IA_FORTE), para trocar de modelo sem mexer no código.
+ * Modelo padrão de todos os agentes enquanto o operador não escolher outro (decisão de 13/nov/2026).
+ * Preço por milhão de tokens em US$, para registrar o custo.
+ */
+export const MODELO_PADRAO = 'claude-haiku-5-5';
+export const PRECO_MODELO_PADRAO: PrecoModelo = { entradaPorMilhao: 0.1, saidaPorMilhao: 0.5 };
+
+/**
+ * O contrato diz só o porte do modelo ("pequeno" ou "forte"). O identificador vem do ambiente
+ * (MODELO_IA_PEQUENO, MODELO_IA_FORTE) e, sem configuração, é o MODELO_PADRAO.
  */
 export function resolverModelo(porte: string, ambiente: Record<string, string | undefined> = process.env): string {
   const variavel = porte === 'pequeno' ? 'MODELO_IA_PEQUENO' : porte === 'forte' ? 'MODELO_IA_FORTE' : null;
   if (!variavel) return porte;
-  const id = ambiente[variavel];
-  if (!id) throw new Error(`Defina ${variavel} no .env (modelo de porte "${porte}").`);
-  return id;
+  return ambiente[variavel]?.trim() || MODELO_PADRAO;
 }
 
 /** Lê agents/<nome>/ (prompt.md, esquema.json, contrato.json, casos/*.json). O modelo fica como o porte. */
