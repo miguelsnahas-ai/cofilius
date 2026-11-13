@@ -1,0 +1,140 @@
+{
+  "entrada": {
+    "data": "2026-11-20",
+    "quantidade": 2,
+    "diretrizes": {},
+    "enviados_recentes": [],
+    "candidatas": [
+      {
+        "id": "b1",
+        "plataforma": "shopee",
+        "nicho": "bebe",
+        "titulo": "Kit 5 Bodies Algodão Recém-nascido",
+        "preco": 49.9,
+        "desconto_pct": 30,
+        "comissao_pct": 10,
+        "comissao_valor": 4.99,
+        "vendas": 2100,
+        "avaliacao": 4.9
+      },
+      {
+        "id": "e1",
+        "plataforma": "shopee",
+        "nicho": "eletronicos",
+        "titulo": "Fone Bluetooth Genérico",
+        "preco": 39.9,
+        "desconto_pct": 40,
+        "comissao_pct": 12,
+        "comissao_valor": 4.79,
+        "vendas": 900,
+        "avaliacao": 4.1
+      },
+      {
+        "id": "b2",
+        "plataforma": "shopee",
+        "nicho": "bebe",
+        "titulo": "Babador Silicone com Pega-Migalhas",
+        "preco": 24.9,
+        "desconto_pct": 10,
+        "comissao_pct": 10,
+        "comissao_valor": 1.25,
+        "vendas": 90,
+        "avaliacao": 4.3
+      },
+      {
+        "id": "e2",
+        "plataforma": "shopee",
+        "nicho": "eletronicos",
+        "titulo": "Cabo USB-C 2m",
+        "preco": 19.9,
+        "desconto_pct": 35,
+        "comissao_pct": 12,
+        "comissao_valor": 2.39,
+        "vendas": 3000,
+        "avaliacao": 4.3
+      }
+    ],
+    "desempenho_recente": {
+      "periodo": {
+        "de": "2026-10-23",
+        "ate": "2026-11-19"
+      },
+      "postagens": 24,
+      "amostra_pequena": false,
+      "por_nicho": [
+        {
+          "grupo": "bebe",
+          "postagens": 12,
+          "cliques_por_postagem": 41.5,
+          "pedidos": 19,
+          "comissao": 88.4
+        },
+        {
+          "grupo": "eletronicos",
+          "postagens": 12,
+          "cliques_por_postagem": 6.2,
+          "pedidos": 0,
+          "comissao": 0
+        }
+      ],
+      "por_faixa_preco": [
+        {
+          "grupo": "até R$ 50",
+          "postagens": 18,
+          "cliques_por_postagem": 28,
+          "pedidos": 15,
+          "comissao": 61.2
+        },
+        {
+          "grupo": "R$ 50 a R$ 100",
+          "postagens": 6,
+          "cliques_por_postagem": 12,
+          "pedidos": 4,
+          "comissao": 27.2
+        }
+      ],
+      "melhores": [
+        {
+          "titulo": "Kit Bodies Manga Longa",
+          "nicho": "bebe",
+          "preco": 59.9,
+          "cliques": 80,
+          "pedidos": 5,
+          "comissao": 29.95
+        },
+        {
+          "titulo": "Toalha de Banho Capuz Bebê",
+          "nicho": "bebe",
+          "preco": 34.9,
+          "cliques": 60,
+          "pedidos": 4,
+          "comissao": 13.96
+        }
+      ],
+      "sem_resultado": [
+        {
+          "titulo": "Fone Bluetooth TWS",
+          "nicho": "eletronicos",
+          "preco": 45,
+          "cliques": 3
+        },
+        {
+          "titulo": "Carregador Turbo 20W",
+          "nicho": "eletronicos",
+          "preco": 29.9,
+          "cliques": 4
+        }
+      ]
+    }
+  },
+  "espera": {
+    "escolhas": [
+      {
+        "oferta_id": "b1"
+      },
+      {
+        "oferta_id": "b2"
+      }
+    ]
+  }
+}

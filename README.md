@@ -3,7 +3,7 @@
 Serviço de operação para afiliados de Shopee, Mercado Livre e Amazon que divulgam ofertas em grupos de WhatsApp.
 Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 
-**Estado atual:** Fases 0 a 3 construídas em código: Shopee (API e modo manual), os 4 agentes (Curador, Redator, Analista, Atendente), lista do dia com painel de aprovação, vendas, fechamento semanal, cadastro de clientes, registro de uso e o Disparador com WhatsApp **ainda não conferido** na documentação da Meta. Faltam os importadores dos relatórios reais e a primeira rodada da IA com a chave da API.
+**Estado atual:** Fases 0 a 3 construídas em código: Shopee (API e modo manual), os 4 agentes (Curador, Redator, Analista, Atendente), lista do dia com painel de aprovação, vendas, fechamento semanal, cadastro de clientes, registro de uso e o Disparador com WhatsApp **ainda não conferido** na documentação da Meta. Vendas e cliques da Shopee já chegam pela extensão do Chrome; faltam ofertas e link personalizado da Shopee e os pedidos da Amazon (gravações pendentes).
 
 - banco com as 11 tabelas do modelo de dados, todas com `cliente_id`;
 - padrão de etiquetas de rastreio (sub_ids da Shopee, etiqueta do Mercado Livre, tracking ID da Amazon);
@@ -15,7 +15,7 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - **vendas**: atribuição de cada venda à postagem (ou "não atribuída"), cliques e resumo do período com comissão pendente, validada e cancelada separadas;
 - **esteira e fila de tarefas**: etapas do dia com horário por cliente, novas tentativas e falha isolada;
 - **harness dos agentes**: contrato de cada agente (prompt versionado, esquemas, até 2 repetições, registro de custo e casos de teste), ligado à API do Claude (modelo padrão: Claude Haiku 5.5);
-- **Curador**: escolhe as ofertas do dia só entre as candidatas, seguindo as **diretrizes de nicho** aprovadas;
+- **Curador**: escolhe as ofertas do dia só entre as candidatas, seguindo as **diretrizes de nicho** aprovadas e aprendendo com o **desempenho das postagens** das últimas 4 semanas (cliques, pedidos e comissão por nicho e faixa de preço, o que mais vendeu e o que não vendeu, tudo calculado pelo sistema);
 - **Redator**: escreve as mensagens com marcadores; preço e link são preenchidos pelo sistema;
 - **cadastro de clientes e nichos** e **registro de uso** (minutos do operador e custo de IA por cliente);
 - **Atendente**: entende o pedido da afiliada, responde com números do banco ou passa para você;
@@ -39,7 +39,7 @@ Do dia a dia em diante, tudo é pelo painel:
 
 | Aba | O que tem |
 |---|---|
-| **Dia** | escolhas do Curador, links, mensagens (validar, aprovar, enviar), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
+| **Dia** | escolhas do Curador (com "o que o Curador está aprendendo"), links, mensagens (validar, aprovar, enviar) e o resultado de cada mensagem enviada (cliques, pedidos, comissão), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
 | **Resultados** | comissão validada e pendente (nunca somadas), pedidos, cliques e conversão; comissão e cliques por dia (com tabela), produtos que mais renderam, vendas recentes; 7, 30 ou 90 dias, por plataforma |
 | **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
 | **Importar** | planilha de ofertas, planilha de vendas (com modelos para baixar) e arquivo de gravação da extensão |

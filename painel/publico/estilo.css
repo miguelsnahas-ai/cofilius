@@ -283,3 +283,16 @@ details.cartao[open] > summary { border-bottom: 1px solid var(--linha); border-r
 .situacao.ok .icone { color: var(--ganho); }
 .situacao.espera .icone { color: var(--atencao); }
 .situacao.caiu .icone { color: var(--queda); }
+
+/* ---------- Desempenho por postagem ---------- */
+.desempenho { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--superficie-funda); }
+.desempenho .rotulo { margin: 0; }
+.desempenho.vendeu { background: var(--lima-suave); }
+.aprendizado { background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0; }
+.aprendizado summary { cursor: pointer; font-weight: 600; }
+.aprendizado-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4); margin-top: var(--space-3); }
+.aprendizado h3 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-suave); margin: 0 0 var(--space-2); }
+.aprendizado ul { margin: 0; padding-left: var(--space-4); }
+.aprendizado li { margin-bottom: var(--space-2); white-space: normal; }
+.aprendizado li .detalhe { display: block; font-size: 13px; color: var(--tinta-suave); }

@@ -15,6 +15,7 @@ import type { Cliente } from '../../db/clientes.ts';
 import { regrasCurador, type EntradaCurador, type SaidaCurador } from '../../agents/curador/regras.ts';
 import { DIAS_SEM_REPETIR } from '../lista/lista.ts';
 import { diretrizesVigentes } from './diretrizes.ts';
+import { desempenhoParaCurador } from '../relatorios/desempenho.ts';
 
 const PASTA = join(dirname(fileURLToPath(import.meta.url)), '../../agents/curador');
 export const QUANTIDADE_PADRAO = 5;
@@ -58,6 +59,7 @@ export async function montarEntradaCurador(
     candidatas,
     diretrizes: Object.fromEntries(Object.entries(vigentes).map(([n, d]) => [n, d.texto])),
     enviados_recentes: enviados.map((e) => e.titulo.slice(0, 200)).slice(0, 50),
+    desempenho_recente: await desempenhoParaCurador(sql, cliente, data),
   };
 }
 

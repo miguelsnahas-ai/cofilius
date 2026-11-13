@@ -2,49 +2,241 @@
   "entrada": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["data", "quantidade", "candidatas", "diretrizes", "enviados_recentes"],
+    "required": [
+      "data",
+      "quantidade",
+      "candidatas",
+      "diretrizes",
+      "enviados_recentes"
+    ],
     "properties": {
-      "data": { "type": "string" },
-      "quantidade": { "type": "integer", "minimum": 1, "maximum": 20 },
+      "data": {
+        "type": "string"
+      },
+      "quantidade": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 20
+      },
       "candidatas": {
         "type": "array",
         "maxItems": 60,
         "items": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["id", "plataforma", "nicho", "titulo", "preco", "desconto_pct", "comissao_pct", "comissao_valor", "vendas", "avaliacao"],
+          "required": [
+            "id",
+            "plataforma",
+            "nicho",
+            "titulo",
+            "preco",
+            "desconto_pct",
+            "comissao_pct",
+            "comissao_valor",
+            "vendas",
+            "avaliacao"
+          ],
           "properties": {
-            "id": { "type": "string" },
-            "plataforma": { "type": "string" },
-            "nicho": { "type": ["string", "null"] },
-            "titulo": { "type": "string" },
-            "preco": { "type": "number" },
-            "desconto_pct": { "type": ["number", "null"] },
-            "comissao_pct": { "type": ["number", "null"] },
-            "comissao_valor": { "type": ["number", "null"] },
-            "vendas": { "type": ["integer", "null"] },
-            "avaliacao": { "type": ["number", "null"] }
+            "id": {
+              "type": "string"
+            },
+            "plataforma": {
+              "type": "string"
+            },
+            "nicho": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "titulo": {
+              "type": "string"
+            },
+            "preco": {
+              "type": "number"
+            },
+            "desconto_pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "comissao_pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "comissao_valor": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "vendas": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "avaliacao": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
           }
         }
       },
-      "diretrizes": { "type": "object", "additionalProperties": { "type": "string" } },
-      "enviados_recentes": { "type": "array", "items": { "type": "string" } }
+      "diretrizes": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "enviados_recentes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "desempenho_recente": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "periodo",
+          "postagens",
+          "amostra_pequena",
+          "por_nicho",
+          "por_faixa_preco",
+          "melhores",
+          "sem_resultado"
+        ],
+        "properties": {
+          "periodo": {
+            "type": "object",
+            "properties": {
+              "de": {
+                "type": "string"
+              },
+              "ate": {
+                "type": "string"
+              }
+            }
+          },
+          "postagens": {
+            "type": "integer"
+          },
+          "amostra_pequena": {
+            "type": "boolean"
+          },
+          "por_nicho": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "grupo",
+                "postagens",
+                "cliques_por_postagem",
+                "pedidos",
+                "comissao"
+              ],
+              "properties": {
+                "grupo": {
+                  "type": "string"
+                },
+                "postagens": {
+                  "type": "integer"
+                },
+                "cliques_por_postagem": {
+                  "type": "number"
+                },
+                "pedidos": {
+                  "type": "integer"
+                },
+                "comissao": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "por_faixa_preco": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "grupo",
+                "postagens",
+                "cliques_por_postagem",
+                "pedidos",
+                "comissao"
+              ],
+              "properties": {
+                "grupo": {
+                  "type": "string"
+                },
+                "postagens": {
+                  "type": "integer"
+                },
+                "cliques_por_postagem": {
+                  "type": "number"
+                },
+                "pedidos": {
+                  "type": "integer"
+                },
+                "comissao": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "melhores": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object"
+            }
+          },
+          "sem_resultado": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
     }
   },
   "saida": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["escolhas"],
+    "required": [
+      "escolhas"
+    ],
     "properties": {
       "escolhas": {
         "type": "array",
         "items": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["oferta_id", "motivo"],
+          "required": [
+            "oferta_id",
+            "motivo"
+          ],
           "properties": {
-            "oferta_id": { "type": "string" },
-            "motivo": { "type": "string", "maxLength": 200 }
+            "oferta_id": {
+              "type": "string"
+            },
+            "motivo": {
+              "type": "string",
+              "maxLength": 200
+            }
           }
         }
       }

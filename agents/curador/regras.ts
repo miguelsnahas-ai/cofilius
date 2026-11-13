@@ -21,6 +21,8 @@ export interface EntradaCurador {
   candidatas: CandidataCurador[];
   diretrizes: Record<string, string>;
   enviados_recentes: string[];
+  /** O que funcionou no grupo nas últimas 4 semanas (calculado pelo código). Ausente/null sem histórico. */
+  desempenho_recente?: import('../../services/relatorios/desempenho.ts').DesempenhoRecente | null;
 }
 
 export interface SaidaCurador {

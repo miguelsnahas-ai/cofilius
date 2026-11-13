@@ -6,6 +6,7 @@ import type { Sql } from '../harness/db.ts';
 import type { ModeloIA, PrecoModelo } from '../harness/agentes.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
+import { desempenhoParaCurador, desempenhoPostagens } from '../services/relatorios/desempenho.ts';
 import {
   aprovar, confirmarPreco, dataLocal, descartar, listarDia, validarDia, validarMensagem,
 } from '../services/lista/lista.ts';
@@ -79,6 +80,8 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
         where m.id in ${sql(mensagens.map((m) => m.id))}`
     : [];
   const extra = new Map(extras.map((e) => [e.id, e]));
+  const desempenho = new Map((await desempenhoPostagens(sql, cliente, { ids: mensagens.map((m) => m.id) })).map((d) => [d.mensagemId, d]));
+  const aprendizado = await desempenhoParaCurador(sql, cliente, dia);
 
   const [contagem] = await sql`
     select count(*)::int as candidatas from ofertas where cliente_id = ${cliente.clienteId} and data_coleta = ${dia}`;
@@ -100,6 +103,8 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
     whatsappDisponivel: !!deps.whatsapp && !!cad!.whatsapp,
     /** Extensão pareada: quando os dados chegaram pela última vez (null = não pareada). */
     extensao: ext ? { ultimoRecebimento: ext.ultimo ?? null, ultimoErro: ext.ultimo_erro ?? null } : null,
+    /** O mesmo resumo de desempenho que o Curador recebe (null sem postagens medidas). */
+    aprendizado,
     selecionadas: selecionadas.map((s) => {
       const p = porOferta.get(s.ofertaId);
       return {
@@ -115,6 +120,11 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
         plataforma: e?.plataforma ?? null,
         enviadaEm: e?.enviada_em ?? null,
         precoConferidoEm: e?.preco_conferido_em ?? null,
+        desempenho: (() => {
+          const d = desempenho.get(m.id);
+          return d ? { medivel: d.medivel, cliques: d.cliques, pedidos: d.pedidos, cancelados: d.cancelados,
+            comissaoPendente: d.comissaoPendente, comissaoValidada: d.comissaoValidada } : null;
+        })(),
       };
     }),
     pedidos: pedidos.map((p) => ({

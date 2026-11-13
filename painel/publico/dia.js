@@ -61,6 +61,45 @@ function formPreco(m) {
   return el('div', { classe: 'linha-form' }, campo, botao);
 }
 
+/** Resultado da postagem: cliques (quando a plataforma mede por postagem), pedidos e comissão. */
+function linhaDesempenho(d) {
+  const comissao = d.comissaoPendente + d.comissaoValidada;
+  const partes = [];
+  if (d.medivel) partes.push(`${d.cliques} ${d.cliques === 1 ? 'clique' : 'cliques'}`);
+  partes.push(`${d.pedidos} ${d.pedidos === 1 ? 'pedido' : 'pedidos'}`);
+  if (comissao > 0) partes.push(`${reais(comissao)}${d.comissaoPendente > 0 ? ` (${d.comissaoValidada > 0 ? `${reais(d.comissaoPendente)} pendente` : 'pendente'})` : ''}`);
+  if (d.cancelados) partes.push(`${d.cancelados} cancelado(s)`);
+  const vendeu = d.pedidos > 0;
+  return el('p', { classe: `desempenho ${vendeu ? 'vendeu' : ''}` },
+    el('span', { classe: 'rotulo', texto: 'Resultado' }),
+    el('span', { classe: 'num', texto: partes.join(' · ') }),
+    !d.medivel ? el('span', { classe: 'motivo', texto: ' (cliques por postagem só na Shopee)' }) : null);
+}
+
+/** O mesmo resumo que o Curador recebe: o que funcionou no grupo nas últimas 4 semanas. */
+function desenharAprendizado(a) {
+  const caixa = $('aprendizado');
+  caixa.hidden = !a;
+  if (!a) return;
+  const plural = (n, um, varios) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ${n === 1 ? um : varios}`;
+  const grupo = (g) => el('li', {}, el('strong', { texto: g.grupo }),
+    el('span', { classe: 'detalhe', texto: `${plural(g.postagens, 'postagem', 'postagens')} · ${plural(g.cliques_por_postagem, 'clique', 'cliques')} por postagem · ${plural(g.pedidos, 'pedido', 'pedidos')} · ${reais(g.comissao)}` }));
+  const dataBr = (d) => d.split('-').reverse().slice(0, 2).join('/');
+  caixa.replaceChildren(
+    el('summary', { texto: `O que o Curador está aprendendo (${a.postagens} postage${a.postagens === 1 ? 'm' : 'ns'}, ${dataBr(a.periodo.de)} a ${dataBr(a.periodo.ate)})` }),
+    a.amostra_pequena ? el('p', { classe: 'ajuda', texto: 'Ainda são poucas postagens: o Curador usa isto como pista fraca.' }) : null,
+    el('div', { classe: 'aprendizado-grade' },
+      el('div', {}, el('h3', { texto: 'Por nicho' }), el('ul', {}, ...a.por_nicho.map(grupo))),
+      el('div', {}, el('h3', { texto: 'Por faixa de preço' }), el('ul', {}, ...a.por_faixa_preco.map(grupo))),
+      el('div', {}, el('h3', { texto: 'Mais venderam' }), a.melhores.length
+        ? el('ul', {}, ...a.melhores.map((p) => el('li', {}, p.titulo, el('span', { classe: 'detalhe', texto: `${plural(p.pedidos, 'pedido', 'pedidos')} · ${reais(p.comissao)}` }))))
+        : el('p', { classe: 'ajuda', texto: 'Nenhuma postagem vendeu ainda.' })),
+      el('div', {}, el('h3', { texto: 'Não venderam' }), a.sem_resultado.length
+        ? el('ul', {}, ...a.sem_resultado.map((p) => el('li', {}, p.titulo, el('span', { classe: 'detalhe', texto: plural(p.cliques, 'clique', 'cliques') }))))
+        : el('p', { classe: 'ajuda', texto: 'Todas venderam.' }))),
+    el('p', { classe: 'ajuda', texto: 'Calculado pelo sistema a partir das vendas e cliques de cada link. As diretrizes que você aprova valem mais do que isto.' }));
+}
+
 function cartaoMensagem(m) {
   const [rotulo, cor] = ESTADOS[m.estado] || [m.estado, ''];
   const cartao = el('article', { classe: 'cartao' },
@@ -76,6 +115,7 @@ function cartaoMensagem(m) {
   }
   if (m.motivoDescarte) cartao.append(el('p', { classe: 'motivo', texto: `Motivo: ${m.motivoDescarte}` }));
   if (m.enviadaEm) cartao.append(el('p', { classe: 'motivo num', texto: `Enviada em ${new Date(m.enviadaEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` }));
+  if (m.desempenho) cartao.append(linhaDesempenho(m.desempenho));
 
   const acoes = el('div', { classe: 'acoes' });
   const botao = (texto, classe, fn) => {
@@ -233,6 +273,7 @@ function desenhar() {
     el('li', { classe: feito ? 'feito' : '' }, el('span', { classe: 'valor', texto: String(valor) }), el('span', { classe: 'rotulo', texto: rotulo }))));
 
   $('aviso-ia').hidden = d.iaDisponivel;
+  desenharAprendizado(d.aprendizado);
   const aviso = avisoExtensao(d.extensao);
   $('aviso-extensao').hidden = !aviso;
   $('aviso-extensao').textContent = aviso || '';
