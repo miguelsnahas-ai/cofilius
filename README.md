@@ -17,6 +17,7 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - **harness dos agentes**: contrato de cada agente (prompt versionado, esquemas, até 2 repetições, registro de custo e casos de teste), ligado à API do Claude (modelo padrão: Claude Haiku 5.5);
 - **Curador**: escolhe as ofertas do dia só entre as candidatas, seguindo as **diretrizes de nicho** aprovadas;
 - **Redator**: escreve as mensagens com marcadores; preço e link são preenchidos pelo sistema;
+- **painel do operador**: tela web local para aprovar a lista do dia (escolhas do Curador, links, mensagens, propostas de diretriz);
 - **Analista e fechamento semanal**: indicadores calculados em código, 3 leituras ligadas aos dados e propostas de diretriz que só valem com aprovação;
 - **extensão de Chrome (etapa 1: gravador para Mercado Livre, Shopee e Amazon)**: grava os dados que as páginas de afiliado carregam, para mapear o formato real. Instalação e uso em [extensao/LEIA-ME.md](extensao/LEIA-ME.md).
 
@@ -33,6 +34,7 @@ services/
   vendas/    atribuição de vendas, cliques, resumo do período
   curadoria/ Curador e diretrizes de nicho
   relatorios/ indicadores, Analista, fechamento semanal
+painel/      tela de aprovação do operador (servidor local + página)
 harness/     o que roda os serviços: config, log, novas tentativas, cifragem, banco, fila, esteira, agentes, comandos
 testes/      apoio aos testes com banco
 db/          migrations, seed, script de migração, acesso a clientes e credenciais
@@ -195,6 +197,33 @@ Em `links.chave_rastreio` eles ficam unidos por hífen (`c1-wa-20261112-22912345
 
 Uma linha por cliente + produto + dia de coleta. Buscar de novo no mesmo dia atualiza preço, desconto e comissão.
 Em outro dia, entra uma linha nova, o que guarda o histórico de preço.
+
+## Painel de aprovação
+
+A tela do dia a dia: em vez dos comandos de lista, você aprova tudo no navegador.
+
+1. No `.env`, defina `PAINEL_SENHA` (obrigatória) e `PAINEL_OPERADOR` (seu nome, gravado em cada aprovação).
+2. Rode:
+   ```bash
+   npm run painel
+   ```
+3. Abra `http://127.0.0.1:3000`. O navegador pede a senha (usuário: qualquer).
+
+O que dá para fazer, por cliente e por dia:
+
+| Seção | Ações |
+|---|---|
+| Escolhidas do Curador | rodar o Curador; para as escolhidas sem link, ver o produto e os 5 Sub_ids (com botão de copiar) e colar o link gerado no painel da Shopee |
+| Mensagens do dia | redigir com o Redator; validar, aprovar, descartar com motivo; copiar o texto para o WhatsApp; confirmar o preço olhando a página; marcar como enviada |
+| Propostas de diretriz | aprovar ou descartar o que o Analista propôs |
+
+As regras são as mesmas do terminal e do banco: nada é aprovado sem validar, nada é enviado sem aprovação,
+o preço precisa ter sido conferido há no máximo 30 minutos, e preço mudado tira a mensagem da lista.
+Os Sub_ids mostrados usam o horário de envio do cliente (`clientes.horario_envio`, padrão 08:00).
+
+Segurança: o painel só aceita conexões do próprio computador (para abrir na rede, defina `PAINEL_HOST`), exige senha,
+e só aceita ações vindas da própria página (outro site aberto no navegador não consegue aprovar nada).
+Rodar o Curador e o Redator pela tela exige `ANTHROPIC_API_KEY`; sem ela, o resto funciona e os botões ficam desligados.
 
 ## Lista do dia, vendas e esteira
 
@@ -371,7 +400,7 @@ npm test
 
 Testa o módulo de etiquetas, o parser e o cliente da Shopee (com respostas de exemplo em `services/shopee/fixtures/`), as novas tentativas, a cifragem, os marcadores, as planilhas e o núcleo da extensão.
 
-Os testes com banco de verdade (serviços, lista, vendas, fila e agentes) rodam só com `TEST_DATABASE_URL` apontando para um Postgres **de teste**.
+Os testes com banco de verdade (serviços, lista, vendas, fila, agentes e painel) rodam só com `TEST_DATABASE_URL` apontando para um Postgres **de teste**.
 O nome do banco precisa conter `teste`, porque o schema `public` dele é apagado a cada execução:
 
 ```bash

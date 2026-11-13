@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cofilius · Painel</title>
+  <link rel="stylesheet" href="estilo.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topo">
+    <h1>Cofilius <span class="suave">· aprovação do dia</span></h1>
+    <form id="filtros" class="filtros">
+      <label>Cliente <select id="cliente" required></select></label>
+      <label>Dia <input id="data" type="date" required></label>
+      <button type="submit">Atualizar</button>
+    </form>
+  </header>
+
+  <main>
+    <p id="resumo" class="resumo"></p>
+    <p id="aviso-ia" class="aviso" hidden>IA desligada: defina ANTHROPIC_API_KEY no .env e reinicie o painel para rodar o Curador e o Redator.</p>
+
+    <section>
+      <div class="secao-topo">
+        <h2>1. Escolhidas do Curador</h2>
+        <button id="rodar-curador" class="secundario">Rodar Curador</button>
+      </div>
+      <p class="ajuda">As ofertas do dia escolhidas pela IA, em ordem. As que não têm link: gere no painel da Shopee com estes Sub_ids e cole o link aqui.</p>
+      <ol id="selecionadas" class="lista"></ol>
+    </section>
+
+    <section>
+      <div class="secao-topo">
+        <h2>2. Mensagens do dia</h2>
+        <button id="rodar-redator" class="secundario">Redigir mensagens</button>
+      </div>
+      <p class="ajuda">Preço e link são preenchidos pelo sistema. Fluxo: rascunho → validar → aprovar → copiar e enviar no WhatsApp → marcar como enviada.</p>
+      <div id="mensagens" class="cartoes"></div>
+    </section>
+
+    <section id="secao-propostas" hidden>
+      <h2>3. Propostas de diretriz</h2>
+      <p class="ajuda">Sugestões do Analista (ou suas). Só passam a valer para o Curador depois de aprovadas.</p>
+      <div id="propostas" class="cartoes"></div>
+    </section>
+  </main>
+
+  <div id="aviso" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

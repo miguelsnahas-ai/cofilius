@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["agents", "services", "harness", "db", "testes", "*.ts"]
+  "include": ["agents", "services", "harness", "db", "testes", "painel", "*.ts"]
 }
