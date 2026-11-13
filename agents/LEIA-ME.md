@@ -10,9 +10,14 @@ Cada agente é uma pasta com o contrato que o harness (`harness/agentes.ts`) exi
 | `regras.ts` | Regras além do esquema (ex.: o Redator não escreve preço; o Curador só escolhe IDs da lista recebida). |
 | `casos/*.json` | Entradas de teste, rodadas a cada mudança de prompt. A meta é 15 a 20 casos reais por agente. |
 
-Situação:
+Situação (modelo padrão de todos: Claude Haiku 5.5, trocável no `.env`):
 
-- **redator**: ligado à API do Claude (`harness/modeloClaude.ts`) e à lista do dia (`services/lista/redator.ts`, comando `redigir`).
-  O prompt ainda é um **rascunho**, com 3 casos.
-  TODO: trocar os casos por 15 a 20 ofertas reais, com mensagens que tiveram bom clique.
-- curador, analista, atendente: ainda não existem.
+| Agente | Porte | Onde é usado | Casos |
+|---|---|---|---|
+| **curador** | forte | `services/curadoria/curador.ts` · comando `curar` · esteira 06:00 | 3 de exemplo |
+| **redator** | pequeno | `services/lista/redator.ts` · comandos `redigir`, `redigir-dia` · esteira 06:30 | 3 de exemplo |
+| **analista** | forte | `services/relatorios/analista.ts` · comando `fechamento` · esteira domingo 20:00 | 2 de exemplo |
+| atendente | pequeno | ainda não existe (depende do WhatsApp) | - |
+
+Os prompts são **rascunhos**: nenhum foi rodado ainda com o modelo de verdade.
+TODO: trocar os casos de exemplo por 15 a 20 casos reais por agente e rodar `testar-agente` a cada mudança de prompt.

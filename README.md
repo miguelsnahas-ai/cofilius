@@ -3,7 +3,7 @@
 Serviço de operação para afiliados de Shopee, Mercado Livre e Amazon que divulgam ofertas em grupos de WhatsApp.
 Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 
-**Estado atual:** Fase 0 (fundação) e o primeiro serviço da Fase 1, só para a Shopee:
+**Estado atual:** Fase 0 completa; Fase 1 com Shopee (API e modo manual), os 3 agentes de decisão (Curador, Redator, Analista) e o fechamento semanal. Faltam WhatsApp (Disparador e Atendente) e importadores dos relatórios reais.
 
 - banco com as 11 tabelas do modelo de dados, todas com `cliente_id`;
 - padrão de etiquetas de rastreio (sub_ids da Shopee, etiqueta do Mercado Livre, tracking ID da Amazon);
@@ -14,13 +14,16 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - **lista diária**: rascunho → validada → aprovada → enviada → medida, com os estados garantidos pelo banco, marcadores preenchidos pelo código e os validadores da arquitetura;
 - **vendas**: atribuição de cada venda à postagem (ou "não atribuída"), cliques e resumo do período com comissão pendente, validada e cancelada separadas;
 - **esteira e fila de tarefas**: etapas do dia com horário por cliente, novas tentativas e falha isolada;
-- **harness dos agentes**: contrato de cada agente (prompt versionado, esquemas, até 2 repetições, registro de custo e casos de teste), com o contrato do Redator como primeiro exemplo;
+- **harness dos agentes**: contrato de cada agente (prompt versionado, esquemas, até 2 repetições, registro de custo e casos de teste), ligado à API do Claude (modelo padrão: Claude Haiku 5.5);
+- **Curador**: escolhe as ofertas do dia só entre as candidatas, seguindo as **diretrizes de nicho** aprovadas;
+- **Redator**: escreve as mensagens com marcadores; preço e link são preenchidos pelo sistema;
+- **Analista e fechamento semanal**: indicadores calculados em código, 3 leituras ligadas aos dados e propostas de diretriz que só valem com aprovação;
 - **extensão de Chrome (etapa 1: gravador para Mercado Livre, Shopee e Amazon)**: grava os dados que as páginas de afiliado carregam, para mapear o formato real. Instalação e uso em [extensao/LEIA-ME.md](extensao/LEIA-ME.md).
 
 ## Estrutura
 
 ```
-agents/      contratos dos agentes de IA (por enquanto, o Redator)
+agents/      contratos dos agentes de IA (Curador, Redator, Analista)
 services/
   etiquetas/ padrão de etiquetas de rastreio
   shopee/    cliente da Shopee Affiliate Open API (client.ts) e parser das respostas
@@ -28,6 +31,8 @@ services/
   links/     Links e rastreio · Shopee (API e painel)
   lista/     lista diária: marcadores, validadores, aprovação, envio
   vendas/    atribuição de vendas, cliques, resumo do período
+  curadoria/ Curador e diretrizes de nicho
+  relatorios/ indicadores, Analista, fechamento semanal
 harness/     o que roda os serviços: config, log, novas tentativas, cifragem, banco, fila, esteira, agentes, comandos
 testes/      apoio aos testes com banco
 db/          migrations, seed, script de migração, acesso a clientes e credenciais
@@ -279,44 +284,82 @@ npm run cli -- fila
 npm run cli -- fila-status
 ```
 
-`agendar-dia` cria as tarefas do dia para cada cliente, no horário dele. Hoje são duas etapas:
-a coleta de ofertas, que só roda com a Open API da Shopee (sem ela, a etapa é pulada e avisada), e a validação da lista.
-Rodar de novo não duplica.
+`agendar-dia` cria as tarefas do dia para cada cliente, no horário dele (Brasília). Rodar de novo não duplica.
+
+| Horário | Etapa | Observação |
+|---|---|---|
+| 05:30 | coleta de ofertas | só com a Open API da Shopee; sem ela, a etapa é pulada (ofertas entram pela planilha) |
+| 06:00 | Curador escolhe as ofertas do dia | |
+| 06:15 | links das escolhidas | só com a Open API; sem ela, `preparar-links` mostra as escolhidas sem link |
+| 06:30 | Redator escreve as mensagens | só das escolhidas que já têm link |
+| 06:45 | validação da lista | |
+| domingo 20:00 | fechamento e Analista | o texto do fechamento fica no resultado da tarefa até o WhatsApp existir |
+
 `fila` executa as tarefas vencidas: uma etapa que falha tenta de novo com espera crescente (1, 2 e 4 minutos), até 3 vezes,
 sem segurar as outras. Para rodar sozinho, basta chamar `fila` a cada poucos minutos (cron do servidor ou do Supabase).
 
-### Agentes: o Redator
+### Agentes (IA)
 
-O Redator escreve a mensagem de cada oferta com a API do Claude e cria o rascunho na lista do dia.
-Ele recebe só o título, o nicho, se a oferta tem desconto, o tom do grupo e até 3 mensagens já enviadas
-(as de mais cliques), **nunca preço nem link**. Devolve o texto com marcadores; o sistema preenche os valores.
+Todos usam a API do Claude pelo mesmo harness. **Modelo padrão: Claude Haiku 5.5** (barato e rápido).
+Para trocar, defina no `.env` `MODELO_IA_PEQUENO` (Redator) e/ou `MODELO_IA_FORTE` (Curador e Analista),
+com `MODELO_IA_..._PRECO` para registrar o custo. A chave vai em `ANTHROPIC_API_KEY`.
 
-Configuração no `.env`:
-
-| Variável | O que é |
-|---|---|
-| `ANTHROPIC_API_KEY` | chave da API (console da Anthropic → API Keys) |
-| `MODELO_IA_PEQUENO` | modelo usado pelo Redator (porte "pequeno" no contrato) |
-| `MODELO_IA_PEQUENO_PRECO` | opcional: preço por milhão de tokens em US$, `"entrada,saida"`, para registrar o custo |
+**Curador** (escolhe as ofertas do dia):
 
 ```bash
-npm run cli -- redigir --cliente c1 --oferta <id> --oferta <id2>
+npm run cli -- curar --cliente c1
 ```
-
-Depois, o caminho é o mesmo de um texto escrito à mão: `validar`, `lista`, `aprovar`.
-
-Para testar o prompt com os casos de `agents/redator/casos` (gera custo, pequeno):
 
 ```bash
-npm run cli -- testar-redator --cliente c1
+npm run cli -- selecionadas --cliente c1
 ```
 
-Como a chamada é protegida:
-- O SDK oficial faz timeout (60 s) e até 3 novas tentativas em erro de rede, sobrecarga ou limite de chamadas.
-- A resposta vem em JSON com o esquema do agente (saída estruturada da API) e é conferida de novo pelo harness.
-- Texto com preço, link ou número escrito é recusado; o Redator tenta de novo com o motivo, no máximo 2 vezes.
-- Chave errada ou faltando para na primeira tentativa, com mensagem clara.
-- Cada tentativa fica em `execucoes_agente` (entrada, saída, versão do prompt, modelo, tokens, custo).
+Recebe as candidatas do dia (sem produtos enviados nos últimos 7 dias), as diretrizes aprovadas e o que foi enviado recentemente.
+Devolve IDs em ordem, com um motivo cada. ID fora da lista é recusado. A escolha fica gravada na oferta.
+
+**Redator** (escreve as mensagens das escolhidas que já têm link):
+
+```bash
+npm run cli -- redigir-dia --cliente c1
+```
+
+Recebe título, nicho, se tem desconto, o tom do grupo e até 3 mensagens antigas com mais cliques, **nunca preço nem link**.
+Também dá para redigir ofertas avulsas: `npm run cli -- redigir --cliente c1 --oferta <id>`.
+
+**Diretrizes de nicho** (o texto que o Curador segue; só valem aprovadas):
+
+```bash
+npm run cli -- diretrizes --cliente c1
+```
+
+```bash
+npm run cli -- propor-diretriz --cliente c1 --nicho casa --texto "Priorizar utilidades de cozinha até R$ 60."
+```
+
+```bash
+npm run cli -- aprovar-diretriz --cliente c1 --id <id>
+```
+
+**Analista e fechamento** (semanal; também roda sozinho aos domingos pela fila):
+
+```bash
+npm run cli -- fechamento --cliente c1 --de 2026-11-09 --ate 2026-11-15
+```
+
+Os indicadores (por nicho, horário, plataforma, faixa de preço e postagem) são calculados em código.
+O Analista devolve 3 leituras, cada uma apontando para as linhas de dado que a sustentam, e propostas de diretriz.
+No texto, os números saem do banco; leitura com valor em reais ou percentual escrito pelo modelo é recusada.
+As propostas ficam como "proposta" até você aprovar: o Analista nunca muda código, prompt ou diretriz em vigor.
+
+**Testar um agente** com seus casos de teste (gera custo, pequeno):
+
+```bash
+npm run cli -- testar-agente --cliente c1 --agente curador
+```
+
+Proteções de toda chamada: timeout de 60 s e até 3 novas tentativas pelo SDK; saída em JSON com o esquema do agente,
+conferida de novo; resposta recusada é repetida com o motivo, no máximo 2 vezes; chave errada para na primeira tentativa;
+cada tentativa fica em `execucoes_agente` (entrada, saída, versão do prompt, modelo, tokens, custo).
 
 Contrato e formato dos agentes: [agents/LEIA-ME.md](agents/LEIA-ME.md).
 
@@ -371,8 +414,9 @@ Se algo estiver diferente, o erro aparece no primeiro teste com a conta real: a 
 ### Decisões em aberto, para depois
 
 - **Aviso de falha:** etapa que falha de vez fica em `fila-status` e no log de erro. Falta mandar o aviso por WhatsApp quando o canal existir.
-- **Redator na esteira:** hoje ele roda pelo comando `redigir`. Entra na fila do dia quando existir o Curador, que escolhe as ofertas.
-- **Casos de teste do Redator:** são 3 de exemplo; a meta é 15 a 20 reais.
+- **Casos de teste dos agentes:** são 2 a 3 de exemplo por agente; a meta é 15 a 20 reais. Nenhum foi rodado ainda com o modelo de verdade.
+- **Modelo:** todos no Claude Haiku 5.5 por enquanto. Se a curadoria ou a análise ficarem fracas, o primeiro teste é subir o porte "forte" (`MODELO_IA_FORTE`).
+- **WhatsApp:** Disparador e Atendente dependem da aprovação do número na Cloud API da Meta. Até lá, o envio é manual e o fechamento fica no resultado da tarefa (`fila-status`) e no comando `fechamento`.
 
 - **Link perdido se o banco falhar:** se a Shopee gerar o link e a gravação falhar depois das novas tentativas, o link não fica salvo. Ele é só registrado no log de erro. Basta pedir o link de novo.
 - **Paginação além do necessário:** se uma página da Shopee só trouxer produtos repetidos, a busca segue para a próxima, até 5 páginas por palavra-chave.

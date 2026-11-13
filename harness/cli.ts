@@ -46,6 +46,8 @@ import { carregarAgente, rodarCasos } from './agentes.ts';
 import { contratoCurador, curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
 import { aprovarDiretriz, descartarDiretriz, listarDiretrizes, proporDiretriz } from '../services/curadoria/diretrizes.ts';
 import { redigirSelecionadas } from '../services/lista/redator.ts';
+import { analisarPeriodo, contratoAnalista } from '../services/relatorios/analista.ts';
+import { montarFechamento } from '../services/relatorios/fechamento.ts';
 
 const AJUDA = `Uso:
   npm run cli -- credenciais-shopee --cliente c1
@@ -85,7 +87,7 @@ Lista do dia (texto com marcadores; o sistema preenche preço, desconto e link):
 Redator (IA; usa a API do Claude e gera custo):
   npm run cli -- redigir --cliente c1 --oferta <id> [--oferta <id2> ...] [--data AAAA-MM-DD]
       Escreve a mensagem de cada oferta e cria o rascunho (preço e link preenchidos pelo sistema).
-  npm run cli -- testar-agente --cliente c1 --agente redator|curador
+  npm run cli -- testar-agente --cliente c1 --agente redator|curador|analista
       Roda os casos de teste do agente (agents/<nome>/casos) com o modelo de verdade.
 
 Curadoria (IA):
@@ -95,6 +97,10 @@ Curadoria (IA):
   npm run cli -- redigir-dia --cliente c1 [--data AAAA-MM-DD]
       O Redator escreve as mensagens das escolhidas que já têm link.
   preparar-links sem --oferta mostra só as escolhidas sem link (use --todas para todas as do dia).
+
+Fechamento e Analista (IA):
+  npm run cli -- fechamento --cliente c1 --de AAAA-MM-DD --ate AAAA-MM-DD [--sem-analise]
+      Texto do fechamento (números do banco) com as 3 leituras do Analista; mostra as propostas de diretriz.
 
 Diretrizes de nicho (o Curador só usa as aprovadas):
   npm run cli -- diretrizes --cliente c1 [--nicho casa]
@@ -134,6 +140,7 @@ const { values: op, positionals } = parseArgs({
     preco: { type: 'string' },
     de: { type: 'string' },
     todas: { type: 'boolean' },
+    'sem-analise': { type: 'boolean' },
     agente: { type: 'string' },
     quantidade: { type: 'string' },
     id: { type: 'string' },
@@ -444,7 +451,7 @@ async function principal(): Promise<void> {
       case 'testar-redator':
       case 'testar-agente': {
         const nome = comando === 'testar-redator' ? 'redator' : exigir('agente');
-        const contratos = { redator: contratoRedator, curador: contratoCurador } as Record<string, () => Promise<any>>;
+        const contratos = { redator: contratoRedator, curador: contratoCurador, analista: contratoAnalista } as Record<string, () => Promise<any>>;
         if (!contratos[nome]) throw new Error(`Agente sem casos de teste: ${nome} (use ${Object.keys(contratos).join(' ou ')})`);
         const { casos } = await carregarAgente(new URL(`../agents/${nome}`, import.meta.url).pathname);
         const r = await rodarCasos(sql, {
@@ -486,6 +493,24 @@ async function principal(): Promise<void> {
         for (const x of r.falhas) console.log(`  falha: ${x.ofertaId}: ${x.erro}`);
         if (r.redigidas.length) console.log(`\nPróximo passo: npm run cli -- validar --cliente ${cliente.codigo}`);
         if (r.falhas.length) process.exitCode = 2;
+        break;
+      }
+
+      case 'analisar':
+      case 'fechamento': {
+        const inicio = exigir('de');
+        const fim = exigir('ate');
+        const resumo = await resumoPeriodo(sql, cliente, inicio, fim);
+        const analise = op['sem-analise']
+          ? null
+          : await analisarPeriodo(sql, { cliente, inicio, fim, modelo: criarModeloClaude(), precos: precosDoAmbiente() });
+        console.log(montarFechamento(cliente.nome, resumo, analise));
+        if (analise?.propostas.length) {
+          console.log('\n--- Para o operador: propostas de diretriz do Analista (só valem se aprovadas) ---');
+          for (const d of analise.propostas) {
+            console.log(`\n${d.nicho} v${d.versao} (${d.id}):\n  ${d.texto}\n  aprovar: npm run cli -- aprovar-diretriz --cliente ${cliente.codigo} --id ${d.id}`);
+          }
+        }
         break;
       }
 

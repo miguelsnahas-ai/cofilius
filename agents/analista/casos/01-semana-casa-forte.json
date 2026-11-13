@@ -1,0 +1,86 @@
+{
+  "entrada": {
+    "periodo": {
+      "inicio": "2026-11-09",
+      "fim": "2026-11-15"
+    },
+    "nichos": [
+      "casa",
+      "beleza"
+    ],
+    "diretrizes_atuais": {
+      "casa": "Priorizar utilidades de cozinha até R$ 60."
+    },
+    "indicadores": [
+      {
+        "ref": "nicho:beleza",
+        "dimensao": "nicho",
+        "rotulo": "beleza",
+        "mensagens": 10,
+        "cliques": 40,
+        "pedidos": 1,
+        "comissao": 2.4
+      },
+      {
+        "ref": "nicho:casa",
+        "dimensao": "nicho",
+        "rotulo": "casa",
+        "mensagens": 25,
+        "cliques": 310,
+        "pedidos": 9,
+        "comissao": 38.5
+      },
+      {
+        "ref": "horario:08",
+        "dimensao": "horario",
+        "rotulo": "08h",
+        "mensagens": 20,
+        "cliques": 250,
+        "pedidos": 8,
+        "comissao": 33.1
+      },
+      {
+        "ref": "horario:19",
+        "dimensao": "horario",
+        "rotulo": "19h",
+        "mensagens": 15,
+        "cliques": 100,
+        "pedidos": 2,
+        "comissao": 7.8
+      },
+      {
+        "ref": "preco:0-50",
+        "dimensao": "faixa_preco",
+        "rotulo": "até R$ 50",
+        "mensagens": 22,
+        "cliques": 300,
+        "pedidos": 9,
+        "comissao": 30.2
+      },
+      {
+        "ref": "preco:200-mais",
+        "dimensao": "faixa_preco",
+        "rotulo": "acima de R$ 200",
+        "mensagens": 5,
+        "cliques": 20,
+        "pedidos": 0,
+        "comissao": 0
+      },
+      {
+        "ref": "plataforma:shopee",
+        "dimensao": "plataforma",
+        "rotulo": "shopee",
+        "mensagens": 35,
+        "cliques": 350,
+        "pedidos": 10,
+        "comissao": 40.9
+      }
+    ],
+    "totais": {
+      "mensagens": 35,
+      "cliques": 350,
+      "pedidos": 10,
+      "comissao": 40.9
+    }
+  }
+}

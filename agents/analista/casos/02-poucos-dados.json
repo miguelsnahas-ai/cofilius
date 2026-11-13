@@ -1,0 +1,32 @@
+{
+  "entrada": {
+    "periodo": {
+      "inicio": "2026-11-09",
+      "fim": "2026-11-15"
+    },
+    "nichos": [
+      "casa"
+    ],
+    "diretrizes_atuais": {},
+    "indicadores": [
+      {
+        "ref": "nicho:casa",
+        "dimensao": "nicho",
+        "rotulo": "casa",
+        "mensagens": 2,
+        "cliques": 5,
+        "pedidos": 0,
+        "comissao": 0
+      }
+    ],
+    "totais": {
+      "mensagens": 2,
+      "cliques": 5,
+      "pedidos": 0,
+      "comissao": 0
+    }
+  },
+  "espera": {
+    "diretrizes": []
+  }
+}

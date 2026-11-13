@@ -3,7 +3,7 @@ import type { Sql } from './db.ts';
 import { BANCO_HABILITADO, bancoLimpo } from '../testes/banco.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { devolverPresas, enfileirar, pegarProxima, processarFila, statusFila } from './fila.ts';
-import { agendarDia, criarExecutores } from './esteira.ts';
+import { agendarDia, criarExecutores, semanaAte } from './esteira.ts';
 import type { PaginaOfertas } from '../services/shopee/parser.ts';
 import type { ModeloIA } from './agentes.ts';
 
@@ -98,6 +98,19 @@ describe.skipIf(!BANCO_HABILITADO)('fila de tarefas', () => {
       ['curadoria.curar', null, 'ja_existia'], ['links.shopee.gerar', null, 'agendada'],
       ['redacao.redigir', null, 'ja_existia'], ['lista.validar', null, 'ja_existia'],
     ]);
+  });
+
+  it('domingo agenda também o fechamento semanal', async () => {
+    const a = await agendarDia(sql, '2026-11-15');
+    expect(a.at(-1)).toMatchObject({ tipo: 'analise.semanal', situacao: 'agendada' });
+    expect(a.at(-1)!.horario.toISOString()).toBe('2026-11-15T23:00:00.000Z'); // 20h em São Paulo
+    expect(semanaAte('2026-11-15')).toEqual({ inicio: '2026-11-09', fim: '2026-11-15' });
+    const r = await processarFila(sql, criarExecutores({ sql, shopeeDoCliente: async () => { throw new Error('x'); }, modelo: () => ({ async gerar() { throw new Error('não deveria chamar'); } }) }),
+      { agora: () => new Date('2026-11-16T00:00:00Z') });
+    expect(r.falharam).toBe(0);
+    const [t] = await sql`select resultado from tarefas where tipo = 'analise.semanal'`;
+    expect(t!.resultado).toMatchObject({ inicio: '2026-11-09', fim: '2026-11-15', semDados: true, propostas: [] });
+    expect(t!.resultado.fechamento).toContain('Sem mensagens enviadas no período');
   });
 
   it('esteira completa pela fila: coleta, curadoria, links, redação e validação', async () => {

@@ -14,6 +14,9 @@ import { coletarOfertasShopee } from '../services/ofertas/coletarOfertasShopee.t
 import { validarDia } from '../services/lista/lista.ts';
 import { redigirSelecionadas } from '../services/lista/redator.ts';
 import { curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
+import { analisarPeriodo } from '../services/relatorios/analista.ts';
+import { montarFechamento } from '../services/relatorios/fechamento.ts';
+import { resumoPeriodo } from '../services/vendas/atribuicao.ts';
 import { gerarLinkShopee } from '../services/links/gerarLinkShopee.ts';
 import type { ClienteShopee } from '../services/shopee/client.ts';
 import type { ModeloIA, PrecoModelo } from './agentes.ts';
@@ -26,6 +29,8 @@ export interface Etapa {
   porNicho?: boolean;
   /** Pré-requisito do cliente. */
   precisa?: 'shopee_open_api';
+  /** Só neste dia da semana (0 = domingo). */
+  diaSemana?: number;
   descricao: string;
 }
 
@@ -35,7 +40,15 @@ export const ETAPAS: Etapa[] = [
   { tipo: 'links.shopee.gerar', horario: '06:15', precisa: 'shopee_open_api', descricao: 'Links com rastreio das escolhidas (Shopee, via Open API)' },
   { tipo: 'redacao.redigir', horario: '06:30', descricao: 'Redator escreve as mensagens das escolhidas com link' },
   { tipo: 'lista.validar', horario: '06:45', descricao: 'Validadores da lista do dia' },
+  { tipo: 'analise.semanal', horario: '20:00', diaSemana: 0, descricao: 'Fechamento da semana e Analista (propõe diretrizes)' },
 ];
+
+/** Segunda a domingo da semana que termina na data informada (um domingo). */
+export function semanaAte(domingo: string): { inicio: string; fim: string } {
+  const fim = new Date(`${domingo}T12:00:00Z`);
+  const inicio = new Date(fim.getTime() - 6 * 86_400_000);
+  return { inicio: inicio.toISOString().slice(0, 10), fim: domingo };
+}
 
 export interface DepsEsteira {
   sql: Sql;
@@ -87,6 +100,19 @@ export function criarExecutores(deps: DepsEsteira): Record<string, Executor> {
       if (r.falhas.length && !r.redigidas.length) throw new Error(`nenhuma mensagem redigida: ${r.falhas.map((f) => f.erro).join('; ')}`);
       return { redigidas: r.redigidas.length, semLink: r.semLink.length, jaTinhamMensagem: r.jaTinhamMensagem, falhas: r.falhas };
     },
+    'analise.semanal': async (t) => {
+      const cliente = await buscarCliente(sql, t.clienteId);
+      if (!deps.modelo) throw new Error('modelo de IA não configurado');
+      const { inicio, fim } = semanaAte(String(t.entrada.dataLista));
+      const analise = await analisarPeriodo(sql, { cliente, inicio, fim, modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id });
+      const resumo = await resumoPeriodo(sql, cliente, inicio, fim);
+      // O texto fica no resultado da tarefa até existir o Disparador (WhatsApp).
+      return {
+        inicio, fim, semDados: analise.semDados,
+        propostas: analise.propostas.map((d) => ({ id: d.id, nicho: d.nicho, versao: d.versao })),
+        fechamento: montarFechamento(cliente.nome, resumo, analise),
+      };
+    },
     'lista.validar': async (t) => {
       const cliente = await buscarCliente(sql, t.clienteId);
       const r = await validarDia(sql, cliente, String(t.entrada.dataLista));
@@ -113,7 +139,9 @@ export async function agendarDia(sql: Sql, data: string): Promise<Agendamento[]>
   const saida: Agendamento[] = [];
   for (const c of clientes) {
     const cliente = await buscarCliente(sql, c.cliente_id);
+    const diaDaSemana = new Date(`${data}T12:00:00Z`).getUTCDay();
     for (const etapa of ETAPAS) {
+      if (etapa.diaSemana !== undefined && etapa.diaSemana !== diaDaSemana) continue;
       const horario = horarioLocalParaData(`${data} ${etapa.horario}`, cliente.fusoHorario);
       if (etapa.precisa === 'shopee_open_api' && !c.shopee_api) {
         saida.push({ cliente: c.codigo, tipo: etapa.tipo, horario, situacao: 'pulada', motivo: 'sem credencial da Open API da Shopee (usar modo manual)' });
