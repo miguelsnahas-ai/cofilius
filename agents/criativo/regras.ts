@@ -4,6 +4,7 @@
  * {{desconto}} só com desconto, e o número de telas pedido.
  */
 import { descreverProblema, verificarTextoModelo } from '../../services/lista/marcadores.ts';
+import { MARCAS } from '../../services/conformidade/regras.ts';
 
 export type FormatoCriativo = 'carrossel' | 'stories' | 'reels';
 
@@ -36,6 +37,8 @@ export function regrasCriativo(entrada: EntradaCriativo, saida: SaidaCriativo): 
   for (const [campo, texto] of textosDoRoteiro(saida)) {
     for (const p of verificarTextoModelo(texto, { exigirLink: false, proibirLink: true })) problemas.push(`${campo}: ${descreverProblema(p)}`);
     if (!entrada.oferta.tem_desconto && /\{\{\s*desconto\s*\}\}/i.test(texto)) problemas.push(`${campo}: usou {{desconto}} numa oferta sem desconto`);
+    const marca = texto.match(MARCAS);
+    if (marca) problemas.push(`${campo}: não cite o nome da loja ("${marca[0]}"); os programas proíbem usar a marca no conteúdo e no perfil`);
   }
   if (saida.telas.length !== entrada.telas) problemas.push(`escreva exatamente ${entrada.telas} telas (vieram ${saida.telas.length})`);
   const hashtags = saida.legenda.match(/#[\p{L}\p{N}_]+/gu) ?? [];

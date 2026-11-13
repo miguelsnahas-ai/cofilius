@@ -11,9 +11,8 @@ Com a extensão **pareada** com o painel, não há arquivo para subir:
 | Links curtos | Barra SiteStripe na página de produto da Amazon | Link da Amazon (produto + tracking ID), para atribuir as vendas depois |
 
 Como chega:
-- **Sozinha, a cada 6 horas** (com o Chrome aberto e logada na Shopee Afiliados): a extensão abre os dois relatórios da Shopee numa janela minimizada, pega os dados e fecha a janela.
-- **Na hora**, sempre que você abre esses relatórios, ou pelo botão **Buscar agora**.
-- A extensão percorre todas as páginas do relatório (até 25), não só a primeira.
+- **Quando você abre os relatórios** de conversões e de cliques da Shopee (ou pelo botão **Abrir os relatórios agora**). Passe pelas páginas da tabela: cada página que a Shopee carrega vai para o painel.
+- **Automação desligada por padrão.** Os termos da Shopee proíbem extração automatizada de dados (item 4.3(d)). Em "Automação" no popup dá para ligar a abertura sozinha a cada 6 horas e a leitura das páginas seguintes, com aviso de que isso aumenta o risco de bloqueio.
 - Se o painel estiver fechado, os dados esperam numa fila e vão quando ele abrir (tentativa a cada 5 minutos).
 
 ### Parear (uma vez por cliente)

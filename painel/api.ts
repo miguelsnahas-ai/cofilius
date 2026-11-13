@@ -9,6 +9,7 @@ import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import { desempenhoParaCurador, desempenhoPostagens } from '../services/relatorios/desempenho.ts';
 import { enviarFechamento, fechamentoPronto } from '../services/relatorios/fechamentoAfiliada.ts';
 import { avisosCancelamento, marcarAvisosVistos } from '../services/vendas/avisos.ts';
+import { conformidadeDoCliente } from '../services/conformidade/cliente.ts';
 import {
   aprovar, confirmarPreco, dataLocal, descartar, listarDia, validarDia, validarMensagem,
 } from '../services/lista/lista.ts';
@@ -86,6 +87,7 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const aprendizado = await desempenhoParaCurador(sql, cliente, dia);
   const fechamento = await fechamentoPronto(sql, cliente, dia);
   const cancelamentos = await avisosCancelamento(sql, cliente);
+  const conformidade = await conformidadeDoCliente(sql, cliente);
 
   const [contagem] = await sql`
     select count(*)::int as candidatas from ofertas where cliente_id = ${cliente.clienteId} and data_coleta = ${dia}`;
@@ -113,6 +115,8 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
     fechamento,
     /** Vendas que caíram (pendente/validada → cancelada) e o operador ainda não viu. */
     cancelamentos,
+    /** Itens da lista de conferência dos programas que a afiliada ainda não marcou como feitos. */
+    conformidadePendente: conformidade.pendentes,
     selecionadas: selecionadas.map((s) => {
       const p = porOferta.get(s.ofertaId);
       return {

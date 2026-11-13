@@ -4,9 +4,10 @@
  * interessam, manda uma cópia mascarada para a ponte da extensão. Não altera nem bloqueia nada:
  * a página recebe a resposta original, intacta.
  *
- * Relatórios paginados da Shopee (conversões e cliques): a página só carrega a primeira página;
- * o interceptor pede as seguintes do mesmo jeito que a página pediu (mesmo endereço e cabeçalhos,
- * só muda page_num), para o painel receber o relatório inteiro. Os cabeçalhos nunca saem da página.
+ * Relatórios paginados da Shopee (conversões e cliques): a página só carrega a primeira página.
+ * Com a opção "ler as páginas seguintes" ligada no popup (desligada por padrão, porque os termos da
+ * Shopee proíbem extração automatizada), o interceptor pede as seguintes do mesmo jeito que a página
+ * pediu (mesmo endereço e cabeçalhos, só muda page_num). Os cabeçalhos nunca saem da página.
  */
 (function () {
   'use strict';
@@ -21,9 +22,15 @@
   }
 
   const jaPedidas = new Set();
+  // Só segue páginas com a opção ligada no popup (vem da ponte). Padrão: desligado.
+  let paginar = false;
+  window.addEventListener('message', function (ev) {
+    if (ev.source === window && ev.data && ev.data.cofilius === 'config') paginar = ev.data.paginar === true;
+  });
 
   /** Pede a próxima página de um relatório paginado e registra como se a página tivesse pedido. */
   function seguirPaginas(url, cabecalhos, json) {
+    if (!paginar) return;
     const proxima = N.proximaPagina(url, location.href, json);
     if (!proxima || jaPedidas.has(proxima)) return;
     jaPedidas.add(proxima);

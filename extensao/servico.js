@@ -6,8 +6,8 @@
  * 2. Sincronia com o painel (com a extensão pareada): os relatórios que o painel usa (conversões e
  *    cliques da Shopee, links curtos da Amazon) vão direto para o painel do Cofilius, sem arquivo.
  *    Se o painel estiver fechado, ficam na fila e vão na próxima tentativa (a cada 5 minutos).
- * 3. Busca automática: a cada 6 horas abre, numa janela minimizada, os relatórios da Shopee; as
- *    páginas carregam os dados, a extensão envia e a janela fecha.
+ * 3. Busca automática (desligada por padrão; os termos da Shopee proíbem extração automatizada):
+ *    a cada 6 horas abre, numa janela minimizada, os relatórios da Shopee e fecha depois.
  */
 importScripts('nucleo.js');
 const N = globalThis.CofiliusNucleo;
@@ -134,6 +134,13 @@ async function enviarPendentes() {
 // Busca automática: abre os relatórios numa janela minimizada e fecha depois
 // ---------------------------------------------------------------------------
 
+/** Pedido dela no popup: abre os relatórios em abas normais, para ela navegar (sem fechar sozinho). */
+async function abrirRelatorios() {
+  if (!(await pareamento())) return { ok: false, erro: 'Pareie a extensão com o painel primeiro.' };
+  for (const [i, url] of N.PAGINAS_BUSCA.entries()) await chrome.tabs.create({ url, active: i === 0 });
+  return { ok: true };
+}
+
 async function buscarAgora() {
   if (!(await pareamento())) return { ok: false, erro: 'Pareie a extensão com o painel primeiro.' };
   const janela = await chrome.windows.create({ url: N.PAGINAS_BUSCA, focused: false, state: 'minimized' });
@@ -146,7 +153,8 @@ async function buscarAgora() {
 chrome.alarms.onAlarm.addListener(async (alarme) => {
   if (alarme.name === 'reenviar') return enviarPendentes();
   if (alarme.name === 'buscar') {
-    const { buscaAutomatica = true } = await chrome.storage.local.get('buscaAutomatica');
+    // Desligada por padrão: abrir relatórios sozinha é automação (termos da Shopee, 4.3(d)).
+    const { buscaAutomatica = false } = await chrome.storage.local.get('buscaAutomatica');
     if (buscaAutomatica) await buscarAgora();
   }
 });
@@ -186,7 +194,7 @@ chrome.runtime.onMessage.addListener((msg, remetente, responder) => {
       .catch((e) => responder({ ok: false, erro: e.message }));
     return true;
   }
-  if (msg.cofilius === 'buscar') { buscarAgora().then(responder); return true; }
+  if (msg.cofilius === 'buscar') { abrirRelatorios().then(responder); return true; }
   if (msg.cofilius === 'enviar') { enviarPendentes().then(() => responder({ ok: true })); return true; }
 });
 

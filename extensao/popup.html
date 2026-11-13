@@ -43,8 +43,14 @@
     </form>
     <div id="pareada" hidden>
       <p id="sincronia" class="suave"></p>
-      <label class="check"><input id="busca-auto" type="checkbox"> Buscar sozinha a cada 6 horas (com o Chrome aberto)</label>
-      <button id="buscar" class="principal">Buscar agora</button>
+      <p class="suave">Para não arriscar a conta, a extensão só lê o que você abre. Abra os relatórios da Shopee e passe pelas páginas da tabela.</p>
+      <button id="buscar" class="principal">Abrir os relatórios agora</button>
+      <details>
+        <summary>Automação (aumenta o risco de bloqueio)</summary>
+        <p class="aviso">Os termos da Shopee proíbem extração automatizada de dados (item 4.3(d)).</p>
+        <label class="check"><input id="busca-auto" type="checkbox"> Abrir os relatórios sozinha a cada 6 horas</label>
+        <label class="check"><input id="paginar" type="checkbox"> Ler sozinha as páginas seguintes do relatório</label>
+      </details>
       <button id="despareada">Trocar de painel ou cliente</button>
     </div>
   </section>

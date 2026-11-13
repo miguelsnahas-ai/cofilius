@@ -332,3 +332,17 @@ details.cartao[open] > summary { border-bottom: 1px solid var(--linha); border-r
 .criativo .chip { margin-right: var(--space-1); }
 .saida-video video { width: 240px; max-width: 100%; aspect-ratio: 9 / 16; border-radius: var(--radius-md); background: #000; margin-top: var(--space-3); display: block; }
 .cartoes > .criativo { min-width: 0; max-width: 100%; }
+
+/* ---------- Conformidade ---------- */
+.grupo-conformidade h3 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-suave); margin: var(--space-4) 0 var(--space-2); }
+.lista-conformidade { list-style: none; padding: 0; margin: 0; }
+.lista-conformidade li { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) 0; border-bottom: 1px solid var(--linha); }
+.lista-conformidade li:last-child { border-bottom: 0; }
+.lista-conformidade strong { display: block; }
+.lista-conformidade .detalhe { display: block; font-size: 14px; color: var(--tinta); margin-top: 2px; }
+.lista-conformidade .fonte { display: block; font-size: 12px; color: var(--tinta-suave); margin-top: 4px; }
+.lista-conformidade .marcar input { width: 22px; height: 22px; margin: 2px 0 0; }
+.lista-conformidade .chip { flex: 0 0 auto; margin-top: 2px; }
+.lista-conformidade li.feito strong { color: var(--tinta-suave); }
+.linha-aviso { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.linha-aviso[hidden] { display: none; }

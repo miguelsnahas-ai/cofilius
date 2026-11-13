@@ -13,6 +13,7 @@ import { log } from '../../harness/log.ts';
 import type { Cliente } from '../../db/clientes.ts';
 import { partesLocais } from '../etiquetas/etiquetas.ts';
 import { descreverProblema, preencherMensagem, verificarTextoModelo } from './marcadores.ts';
+import { aplicarConformidade, HOSTS_OFICIAIS, lerConformidade } from '../conformidade/regras.ts';
 
 export const DIAS_SEM_REPETIR = 7;
 export const MINUTOS_PRECO_VALIDO = 30;
@@ -33,11 +34,23 @@ export interface ResultadoValidacao {
 }
 
 /** Domínios aceitos para o link de afiliado de cada plataforma. */
-const HOSTS_LINK: Record<string, RegExp> = {
-  shopee: /^(s\.shopee\.com\.br|shope\.ee|shopee\.com\.br)$/i,
-  mercado_livre: /(^|\.)(mercadolivre\.com|mercadolivre\.com\.br|mercadolibre\.com)$/i,
-  amazon: /^(amzn\.to|www\.amazon\.com\.br|amazon\.com\.br)$/i,
-};
+const HOSTS_LINK = HOSTS_OFICIAIS;
+
+/**
+ * Texto final que a afiliada envia: o modelo preenchido com os valores do banco, mais a conformidade
+ * (identificação de publicidade; na Amazon, aviso de preço e declaração de Associado).
+ */
+export function montarTextoFinal(
+  textoModelo: string,
+  valores: { preco: string; desconto: string | null; link: string },
+  p: { plataforma: string; conformidade: unknown },
+): string {
+  return aplicarConformidade(preencherMensagem(textoModelo, valores), {
+    plataforma: p.plataforma,
+    identificacao: lerConformidade(p.conformidade).identificacao,
+    temPreco: /\{\{\s*preco\s*\}\}/i.test(textoModelo),
+  });
+}
 
 export function linkDaPlataforma(plataforma: string, url: string): boolean {
   try {
@@ -94,7 +107,9 @@ export async function criarRascunho(sql: Sql, e: EntradaRascunho): Promise<Mensa
                 order by criado_em desc limit 1`;
   if (!link) throw new Error('Esta oferta ainda não tem link de afiliado. Gere o link antes de montar a mensagem.');
 
-  const textoFinal = preencherMensagem(e.textoModelo, { preco: oferta.preco, desconto: oferta.desconto_pct, link: link.url_afiliado });
+  const [cad] = await sql`select conformidade from clientes where cliente_id = ${clienteId}`;
+  const textoFinal = montarTextoFinal(e.textoModelo, { preco: oferta.preco, desconto: oferta.desconto_pct, link: link.url_afiliado },
+    { plataforma: oferta.plataforma, conformidade: cad?.conformidade });
   const dataLista = e.dataLista ?? dataLocal(new Date(), e.cliente.fusoHorario);
 
   try {
@@ -130,7 +145,7 @@ async function carregar(sql: Sql, mensagemId: string) {
            o.preco::text as oferta_preco, o.desconto_pct::text as oferta_desconto, o.plataforma, o.produto_id,
            o.preco_conferido_em,
            l.url_afiliado, l.plataforma as link_plataforma, l.produto_id as link_produto, l.sub_ids, l.cliente_id as link_cliente,
-           c.codigo, c.limite_mensagens_dia
+           c.codigo, c.limite_mensagens_dia, c.conformidade
     from mensagens m
     join clientes c on c.cliente_id = m.cliente_id
     left join ofertas o on o.cliente_id = m.cliente_id and o.id = m.oferta_id
@@ -171,9 +186,10 @@ async function regras(sql: Sql, m: Carregada, op: OpcoesValidacao): Promise<Resu
     try {
       // Confere que o texto final é exatamente o preenchimento do modelo com os valores gravados
       // (se o preço da oferta mudou depois, quem acusa é a regra "preco").
-      const esperado = preencherMensagem(m.texto_modelo, { preco: m.preco_usado, desconto: m.desconto_usado, link: m.url_afiliado });
+      const esperado = montarTextoFinal(m.texto_modelo, { preco: m.preco_usado, desconto: m.desconto_usado, link: m.url_afiliado },
+        { plataforma: m.plataforma, conformidade: m.conformidade });
       saida.push(esperado === m.texto_final
-        ? { regra: 'texto', ok: true, detalhe: 'só marcadores; valores vindos do banco' }
+        ? { regra: 'texto', ok: true, detalhe: 'só marcadores; valores vindos do banco; com identificação de publicidade' }
         : { regra: 'texto', ok: false, detalhe: 'o texto final não é o preenchimento do modelo com os valores do banco' });
     } catch (erro) {
       saida.push({ regra: 'texto', ok: false, detalhe: (erro as Error).message });

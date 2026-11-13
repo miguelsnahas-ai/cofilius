@@ -123,6 +123,23 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     const img = await get('/api/imagem?url=' + encodeURIComponent('https://exemplo.com/x.jpg'));
     expect(img.status).toBe(400);
     expect(img.json.erro).toContain('não permitido');
+    // Conformidade: lista com fonte, itens marcados, identificação validada e aviso no Dia.
+    let conf = (await get('/api/conformidade?cliente=c1')).json;
+    expect(conf.identificacao).toBe('#publi');
+    const pendentesAntes = conf.pendentes;
+    expect(pendentesAntes).toBeGreaterThan(5);
+    expect((await get('/api/dia?cliente=c1&data=2030-12-31')).json.conformidadePendente).toBe(pendentesAntes);
+    expect((await post('/api/conformidade/item', { cliente: 'c1', item: 'sem_autocompra', feito: true })).json).toEqual({ ok: true });
+    expect((await post('/api/conformidade/item', { cliente: 'c1', item: 'identificacao', feito: true })).json.erro).toContain('desconhecido');
+    conf = (await get('/api/conformidade?cliente=c1')).json;
+    expect(conf.pendentes).toBe(pendentesAntes - 1);
+    expect(conf.regras.find((r: any) => r.id === 'sem_autocompra').feitoEm).toBeTruthy();
+    await post('/api/conformidade/item', { cliente: 'c1', item: 'sem_autocompra', feito: false });
+    expect((await get('/api/conformidade?cliente=c1')).json.pendentes).toBe(pendentesAntes);
+    expect((await post('/api/conformidade/identificacao', { cliente: 'c1', identificacao: 'oi' })).json.erro).toContain('3 a 40');
+    expect((await post('/api/conformidade/identificacao', { cliente: 'c1', identificacao: 'Promo top' })).json.erro).toContain('publicidade');
+    expect((await post('/api/conformidade/identificacao', { cliente: 'c1', identificacao: 'Publicidade' })).json).toEqual({ ok: true, identificacao: 'Publicidade' });
+    await post('/api/conformidade/identificacao', { cliente: 'c1', identificacao: '#publi' });
     expect((await post('/api/fechamento', { cliente: 'c1', de: '2026-01-01', ate: '2026-01-31', comAnalise: true })).json.erro).toContain('IA');
     expect((await post('/api/fechamento', { cliente: 'c1', de: '2026-02-01', ate: '2026-01-01' })).json.erro).toContain('depois');
     const u = await get('/api/uso?de=2026-01-01&ate=2030-12-31');

@@ -13,6 +13,7 @@ import { carregarContrato, executarAgente, type ContratoAgente, type ModeloIA, t
 import type { Cliente } from '../../db/clientes.ts';
 import { regrasCriativo, type EntradaCriativo, type FormatoCriativo, type SaidaCriativo } from '../../agents/criativo/regras.ts';
 import { formatarDesconto, formatarPreco, preencherMensagem } from '../lista/marcadores.ts';
+import { aplicarConformidade, lerConformidade } from '../conformidade/regras.ts';
 
 const PASTA = join(dirname(fileURLToPath(import.meta.url)), '../../agents/criativo');
 
@@ -55,9 +56,14 @@ export interface CriativoPronto {
   criadoEm: string;
 }
 
-function preencherRoteiro(r: SaidaCriativo, preco: string, desconto: string | null): SaidaCriativo {
+function preencherRoteiro(r: SaidaCriativo, preco: string, desconto: string | null, p: { plataforma: string; conformidade: unknown }): SaidaCriativo {
   const f = (t: string) => preencherMensagem(t, { preco, desconto, link: 'https://x' }, { exigirLink: false, proibirLink: true });
-  return { gancho: f(r.gancho), telas: r.telas.map((t) => ({ titulo: f(t.titulo), texto: f(t.texto) })), cta: f(r.cta), legenda: f(r.legenda) };
+  // A legenda é o texto publicado: leva a identificação de publicidade no começo e, na Amazon, o aviso
+  // de preço e a declaração de Associado. O preço sempre aparece na tela final, por isso temPreco.
+  const legenda = aplicarConformidade(f(r.legenda), {
+    plataforma: p.plataforma, identificacao: lerConformidade(p.conformidade).identificacao, temPreco: true,
+  });
+  return { gancho: f(r.gancho), telas: r.telas.map((t) => ({ titulo: f(t.titulo), texto: f(t.texto) })), cta: f(r.cta), legenda };
 }
 
 /** Gera o roteiro com a IA e grava o criativo (rascunho). */
@@ -83,10 +89,11 @@ export async function criarCriativo(
 export async function criativosDoDia(sql: Sql, cliente: Cliente, dataLista: string): Promise<CriativoPronto[]> {
   const linhas = await sql`
     select k.id, k.formato, k.estado, k.oferta_id, k.roteiro, k.criado_em, o.titulo, o.plataforma, o.preco::text as preco,
-           o.desconto_pct::text as desconto, o.imagem_url, o.preco_conferido_em,
+           o.desconto_pct::text as desconto, o.imagem_url, o.preco_conferido_em, c.conformidade,
            coalesce(l.url_afiliado, (select url_afiliado from links x where x.cliente_id = k.cliente_id and x.oferta_id = k.oferta_id
                                      order by x.criado_em desc limit 1)) as link
     from criativos k
+    join clientes c on c.cliente_id = k.cliente_id
     join ofertas o on o.cliente_id = k.cliente_id and o.id = k.oferta_id
     left join links l on l.cliente_id = k.cliente_id and l.id = k.link_id
     where k.cliente_id = ${cliente.clienteId} and k.data_lista = ${dataLista} and k.estado <> 'descartado'
@@ -95,9 +102,10 @@ export async function criativosDoDia(sql: Sql, cliente: Cliente, dataLista: stri
     const desconto = k.desconto !== null && Number(k.desconto) > 0 ? k.desconto : null;
     return {
       id: k.id, formato: k.formato, estado: k.estado, ofertaId: k.oferta_id, titulo: k.titulo, plataforma: k.plataforma,
-      roteiro: preencherRoteiro(k.roteiro as SaidaCriativo, k.preco, desconto),
+      roteiro: preencherRoteiro(k.roteiro as SaidaCriativo, k.preco, desconto, { plataforma: k.plataforma, conformidade: k.conformidade }),
       preco: formatarPreco(k.preco), desconto: desconto ? formatarDesconto(desconto) : null,
-      link: k.link, imagemUrl: k.imagem_url,
+      // Amazon: as imagens da loja não podem ser guardadas (Políticas do Programa de Associados).
+      link: k.link, imagemUrl: k.plataforma === 'amazon' ? null : k.imagem_url,
       precoConferidoEm: k.preco_conferido_em ? new Date(k.preco_conferido_em).toISOString() : null,
       criadoEm: new Date(k.criado_em).toISOString(),
     };

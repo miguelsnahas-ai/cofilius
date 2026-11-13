@@ -92,7 +92,7 @@ describe.skipIf(!BANCO_HABILITADO)('painel do operador', () => {
     dia = await (await get(`/api/dia?cliente=c1&data=${DIA}`)).json() as Record<string, any>;
     const m = dia.mensagens[0];
     // a primeira escolhida é a de maior comissão (Kit Potes, R$ 49,90 com 40%)
-    expect(m).toMatchObject({ estado: 'rascunho', titulo: 'Kit Potes', textoFinal: 'Achado do dia 😍 R$ 49,90 com 40% off 👉 https://s.shopee.com.br/Tela1' });
+    expect(m).toMatchObject({ estado: 'rascunho', titulo: 'Kit Potes', textoFinal: '#publi Achado do dia 😍 R$ 49,90 com 40% off 👉 https://s.shopee.com.br/Tela1' });
 
     expect((await post(`/api/mensagens/${m.id}/aprovar`, {})).json.erro).toContain('esperado: validada');
     expect((await post(`/api/mensagens/${m.id}/validar`, {})).json).toMatchObject({ ok: true, estado: 'validada' });

@@ -24,6 +24,9 @@ Regras obrigatórias:
 - Não use {{link}}: no Instagram o link vai no sticker do story ou na bio, e o sistema cuida disso.
 - Se o título tiver número solto (ex.: "6 divisórias"), escreva por extenso ("seis divisórias"). Número grudado
   em letra, como 4L ou 128GB, pode ficar.
+- Não cite o nome da loja (Shopee, Amazon, Mercado Livre): os programas proíbem usar a marca deles no conteúdo.
+- Não escreva "#publi" nem "publicidade": o sistema já põe a identificação no lugar certo.
+- Não prometa sorteio, prêmio ou recompensa para quem comprar.
 - Não invente característica que não esteja no título. Siga o tom.
 
 Responda só com JSON, neste formato:

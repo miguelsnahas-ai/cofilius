@@ -335,6 +335,14 @@ function desenhar() {
   desenharAprendizado(d.aprendizado);
   desenharFechamento(d);
   desenharCancelamentos(d.cancelamentos || []);
+  const pend = d.conformidadePendente || 0;
+  $('aviso-conformidade').hidden = !pend;
+  if (pend) {
+    const ir = el('button', { classe: 'secundario', texto: 'Ver a lista', attrs: { type: 'button' } });
+    ir.addEventListener('click', () => window.Cofilius.mostrarAba('config').then(() => document.getElementById('secao-conformidade').scrollIntoView({ behavior: 'smooth' })));
+    $('aviso-conformidade').replaceChildren(
+      el('span', { texto: `${pend} ${pend === 1 ? 'cuidado' : 'cuidados'} com as regras dos programas ainda não ${pend === 1 ? 'foi conferido' : 'foram conferidos'}. Evita bloqueio da conta.` }), ir);
+  }
   const aviso = avisoExtensao(d.extensao);
   $('aviso-extensao').hidden = !aviso;
   $('aviso-extensao').textContent = aviso || '';

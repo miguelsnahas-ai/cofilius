@@ -36,7 +36,7 @@ describe.skipIf(!BANCO_HABILITADO)('lista diária', () => {
     const ofertaId = await ofertaComLink('101');
     const m = await criarRascunho(sql, { cliente, ofertaId, textoModelo: TEXTO, dataLista: DIA });
     expect(m.estado).toBe('rascunho');
-    expect(m.textoFinal).toBe('Organizador por R$ 29,90 com 25% off! https://s.shopee.com.br/L101');
+    expect(m.textoFinal).toBe('#publi Organizador por R$ 29,90 com 25% off! https://s.shopee.com.br/L101');
   });
 
   it('rascunho recusa texto com preço escrito, oferta sem link e oferta repetida no dia', async () => {

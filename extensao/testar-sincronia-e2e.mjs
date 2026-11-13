@@ -81,7 +81,20 @@ await popup.click('#form-parear button');
 await popup.waitForSelector('#pareada:not([hidden])');
 assert.match(await popup.textContent('#estado-painel'), /Silvana/);
 
-// Abre o relatório (gravação desligada): as 3 páginas devem chegar ao painel.
+// Sem a opção "ler páginas seguintes" (padrão): só a página que a própria página carregou.
+const pag0 = await contexto.newPage();
+await pag0.goto('https://affiliate.shopee.com.br/report/conversion_report');
+const limite0 = Date.now() + 8000;
+while (recebidas.length < 1 && Date.now() < limite0) await new Promise((r) => setTimeout(r, 200));
+await new Promise((r) => setTimeout(r, 2500));
+assert.equal(recebidas.length, 1, 'com a paginação desligada, só a primeira página');
+assert.equal(cabecalhosVistos.length, 1, 'nenhuma página extra pedida');
+await pag0.close();
+recebidas.length = 0;
+cabecalhosVistos.length = 0;
+
+// Com a opção ligada: as 3 páginas devem chegar ao painel.
+await sw.evaluate(() => chrome.storage.local.set({ paginar: true }));
 const pag = await contexto.newPage();
 await pag.goto('https://affiliate.shopee.com.br/report/conversion_report');
 const limite = Date.now() + 20000;

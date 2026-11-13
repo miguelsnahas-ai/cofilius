@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cofilius",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Leva ao painel do Cofilius (no seu computador) as vendas, cliques e links das páginas de afiliado da Shopee e da Amazon. Também grava formatos novos para o Cofilius aprender.",
   "minimum_chrome_version": "111",
   "permissions": [

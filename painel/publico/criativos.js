@@ -226,7 +226,10 @@ function desenharTela(ctx, c, i, foto, anim = 1) {
     ctx.fillStyle = p.suave;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('preço consultado na loja; pode mudar', W / 2, H - (c.formato === 'stories' ? 160 : 130));
+    // Aviso de preço com data e hora (exigido pela Amazon; vale para todos: preço pode mudar).
+    const quando = c.precoConferidoEm || c.criadoEm;
+    const dataHora = new Date(quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    ctx.fillText(`preço consultado em ${dataHora}; sujeito a alteração`, W / 2, H - (c.formato === 'stories' ? 160 : 130));
   }
   ctx.globalAlpha = 1;
 }
@@ -424,7 +427,10 @@ function cartao(c) {
       el('span', { classe: 'chip', texto: ESTADOS[c.estado] || c.estado })),
     el('p', { classe: 'motivo', texto: `${c.preco}${c.desconto ? ` · ${c.desconto} de desconto` : ''} · ${conferido}` }),
     miniaturas,
-    el('label', { classe: 'trocar-foto' }, c.imagemUrl ? 'Trocar a foto ' : 'Sem foto da loja. Escolha uma foto do produto ', trocar),
+    el('label', { classe: 'trocar-foto' },
+      c.imagemUrl ? 'Trocar a foto '
+        : c.plataforma === 'amazon' ? 'Amazon: a foto da loja não pode ser usada. Escolha uma foto sua do produto '
+          : 'Sem foto da loja. Escolha uma foto do produto ', trocar),
     el('details', { classe: 'legenda' }, el('summary', { texto: 'Legenda' }), el('div', { classe: 'conversa' }, el('div', { classe: 'balao', texto: c.roteiro.legenda }))),
     acoes,
     saidaVideo);

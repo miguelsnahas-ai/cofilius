@@ -41,6 +41,7 @@ import { clientePareado, gerarPareamento, receberCapturas, ultimosRecebimentos }
 import { buscarCliente } from '../db/clientes.ts';
 import { resultadosPeriodo, type FiltroPlataforma } from '../services/relatorios/resultados.ts';
 import { acaoCriativo, novoCriativo, telaCriativos } from './apiCriativos.ts';
+import { conformidadeDoCliente, definirIdentificacao, marcarItem } from '../services/conformidade/cliente.ts';
 import { buscarImagem } from '../services/criativos/imagem.ts';
 import { canalWhatsapp } from '../services/disparador/disparador.ts';
 import { configWhatsappDoAmbiente } from '../services/disparador/whatsapp.ts';
@@ -172,6 +173,14 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     [/^\/api\/mensagens\/([0-9a-f-]{36})\/(validar|aprovar|descartar|enviada|whatsapp)$/, (m, c, d) => acaoMensagem(d, m[1]!, m[2]!, c)],
     [/^\/api\/ofertas\/([0-9a-f-]{36})\/preco$/, (m, c, d) => confirmarPrecoOferta(d, m[1]!, c)],
     [/^\/api\/ofertas\/([0-9a-f-]{36})\/link$/, (m, c, d) => registrarLinkOferta(d, m[1]!, c)],
+    [/^\/api\/conformidade\/identificacao$/, async (_m, c, d) => {
+      try { return { ok: true, identificacao: await definirIdentificacao(d.sql, await buscarCliente(d.sql, String(c.cliente ?? '')), String(c.identificacao ?? '')) }; }
+      catch (e) { throw new ErroPedido((e as Error).message); }
+    }],
+    [/^\/api\/conformidade\/item$/, async (_m, c, d) => {
+      try { await marcarItem(d.sql, await buscarCliente(d.sql, String(c.cliente ?? '')), String(c.item ?? ''), c.feito === true); return { ok: true }; }
+      catch (e) { throw new ErroPedido((e as Error).message); }
+    }],
     [/^\/api\/criativos$/, (_m, c, d) => novoCriativo(d, c)],
     [/^\/api\/criativos\/([0-9a-f-]{36})\/(aprovar|publicado|descartar)$/, (m, c, d) => acaoCriativo(d, m[1]!, m[2]!, c)],
     [/^\/api\/cancelamentos\/vistos$/, (_m, c, d) => verCancelamentos(d, c)],
@@ -323,6 +332,7 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
           case '/api/esteira': return responder(res, 200, esteira ? await esteira.status() : { ligada: false, rodando: false, ultima: null, tarefas: [] });
           case '/api/uso': return responder(res, 200, await uso(d, q.get('de'), q.get('ate')));
           case '/api/extensao': return responder(res, 200, await ultimosRecebimentos(d.sql, await buscarCliente(d.sql, q.get('cliente') ?? '')));
+          case '/api/conformidade': return responder(res, 200, await conformidadeDoCliente(d.sql, await buscarCliente(d.sql, q.get('cliente') ?? '')));
           case '/api/criativos': return responder(res, 200, await telaCriativos(d, q.get('cliente') ?? '', q.get('data')));
           case '/api/imagem': {
             const img = await buscarImagem(q.get('url') ?? '');

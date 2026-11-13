@@ -100,7 +100,7 @@ describe.skipIf(!BANCO_HABILITADO)('Disparador e entrada pelo WhatsApp', () => {
     const a = await aprovada('1');
     const r = await enviarMensagem(sql, cliente, a, canalFalso);
     expect(r).toMatchObject({ enviada: true, idExterno: 'wamid.1' });
-    expect(enviados[0]).toEqual({ para: '5511999998888', texto: 'Achado R$ 10,00 👉 https://s.shopee.com.br/W1' });
+    expect(enviados[0]).toEqual({ para: '5511999998888', texto: '#publi Achado R$ 10,00 👉 https://s.shopee.com.br/W1' });
     const b = await aprovada('2');
     expect((await enviarMensagem(sql, cliente, b, canalManual)).idExterno).toBeNull();
     const linhas = await sql`select estado, canal, id_externo from mensagens order by criado_em`;
@@ -145,7 +145,7 @@ describe.skipIf(!BANCO_HABILITADO)('Disparador e entrada pelo WhatsApp', () => {
     expect((await fetch(`${base}/?hub.mode=subscribe&hub.verify_token=verifica&hub.challenge=abc`)).status).toBe(200);
     expect((await postar(aviso('w1', '5511999998888', 'Mandar a lista de hoje'), false)).status).toBe(401);
     expect((await postar(aviso('w1', '5511999998888', 'Mandar a lista de hoje'))).status).toBe(200);
-    expect(enviados.map((e) => e.texto.split(' ')[0])).toEqual(['Primeira', 'Segunda']);
+    expect(enviados.map((e) => e.texto.split(' ')[1])).toEqual(['Primeira', 'Segunda']);
     await postar(aviso('w1', '5511999998888', 'Mandar a lista de hoje'));
     expect(enviados).toHaveLength(2);
     await postar(aviso('w2', '5599000000000', 'oi'));

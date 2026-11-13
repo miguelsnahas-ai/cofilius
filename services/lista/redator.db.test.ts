@@ -70,7 +70,7 @@ describe.skipIf(!BANCO_HABILITADO)('Redator', () => {
     });
     expect(r.tentativas).toBe(2);
     expect(pedidos[1]!.correcao).toContain('valor em dinheiro');
-    expect(r.mensagem.textoFinal).toBe('Gaveta organizada em seis divisórias 😍 R$ 29,90 com 25% off 👉 https://s.shopee.com.br/R501');
+    expect(r.mensagem.textoFinal).toBe('#publi Gaveta organizada em seis divisórias 😍 R$ 29,90 com 25% off 👉 https://s.shopee.com.br/R501');
     const execucoes = await sql`select saida_valida, modelo, custo_usd::text from execucoes_agente order by criado_em`;
     expect(execucoes.map((e) => [e.saida_valida, e.modelo, e.custo_usd])).toEqual([
       [false, 'modelo-pequeno-teste', '0.000500'], [true, 'modelo-pequeno-teste', '0.000500'],

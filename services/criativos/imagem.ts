@@ -8,7 +8,7 @@ import { log } from '../../harness/log.ts';
 
 const HOSTS = [
   /(^|\.)susercontent\.com$/i, /^cf\.shopee\.com\.br$/i, /(^|\.)img\.shopee\.com\.br$/i,
-  /^m\.media-amazon\.com$/i, /^images-na\.ssl-images-amazon\.com$/i,
+  // Amazon fica de fora: as Políticas do Programa de Associados não permitem guardar as imagens da loja.
   /(^|\.)mlstatic\.com$/i,
 ];
 const LIMITE = 8 * 1024 * 1024;
@@ -25,7 +25,7 @@ export interface Imagem { tipo: string; dados: Buffer }
 
 export async function buscarImagem(endereco: string, buscar: typeof fetch = fetch): Promise<Imagem> {
   const u = imagemPermitida(endereco);
-  if (!u) throw new Error('Endereço de imagem não permitido (só fotos da Shopee, Amazon ou Mercado Livre).');
+  if (!u) throw new Error('Endereço de imagem não permitido (só fotos da Shopee ou do Mercado Livre).');
   return comRetentativa(async () => {
     let resp: Response;
     try {

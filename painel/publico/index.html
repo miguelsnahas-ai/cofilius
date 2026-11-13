@@ -50,6 +50,7 @@
       <ol id="andamento" class="andamento" aria-label="Andamento do dia"></ol>
       <section id="cancelamentos" class="cartao cancelamentos" hidden></section>
       <p id="aviso-extensao" class="aviso" hidden></p>
+      <div id="aviso-conformidade" class="aviso linha-aviso" hidden></div>
       <p id="aviso-ia" class="aviso" hidden>A IA está desligada. Coloque a chave da IA (Gemini, gratuita) na aba Configuração para o Curador e o Redator trabalharem.</p>
 
       <section id="secao-escolhidas">
@@ -275,6 +276,16 @@
           <div class="largo"><button type="submit" class="primario">Salvar configuração</button></div>
         </form>
         <p id="estado-whatsapp" class="ajuda"></p>
+      </section>
+      <section class="cartao" id="secao-conformidade">
+        <h2>Conformidade dos programas</h2>
+        <p class="ajuda">O que evita que a conta seja bloqueada na Shopee, na Amazon e no Mercado Livre, para o cliente escolhido no topo. O que é automático o Cofilius já faz; o resto ela precisa fazer nos painéis e marcar aqui.</p>
+        <form id="form-identificacao" class="linha-form">
+          <label class="largo">Identificação de publicidade (vai no começo de cada mensagem e legenda)
+            <input name="identificacao" maxlength="40" placeholder="#publi"></label>
+          <button type="submit" class="secundario">Salvar</button>
+        </form>
+        <div id="lista-conformidade"></div>
       </section>
       <section class="cartao">
         <div class="secao-topo">

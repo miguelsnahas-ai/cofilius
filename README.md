@@ -46,7 +46,7 @@ Do dia a dia em diante, tudo é pelo painel:
 | **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
 | **Importar** | planilha de ofertas, planilha de vendas (com modelos para baixar) e arquivo de gravação da extensão |
 | **Relatórios** | fechamento de qualquer período (com a leitura do Analista e o texto para a afiliada), uso por cliente, esteira automática |
-| **Configuração** | seu nome, senha, provedor de IA (Gemini gratuito ou Claude) e a chave dele, modelos, esteira ligada/desligada, pareamento da extensão do Chrome, testar os agentes |
+| **Configuração** | conformidade dos programas (identificação de publicidade e lista de conferência por cliente), seu nome, senha, provedor de IA (Gemini gratuito ou Claude) e a chave dele, modelos, esteira ligada/desligada, pareamento da extensão do Chrome, testar os agentes |
 
 **Visual:** o painel segue o Design System Cofilius (cores, logo, fontes Gabarito, Onest e DM Mono, voz). As fontes e o logo
 ficam em `painel/publico/`; as cores estão no topo de `painel/publico/estilo.css`, com o tema escuro do próprio sistema.
@@ -528,6 +528,22 @@ conferida de novo; resposta recusada é repetida com o motivo, no máximo 2 veze
 cada tentativa fica em `execucoes_agente` (entrada, saída, versão do prompt, modelo, tokens, custo).
 
 Contrato e formato dos agentes: [agents/LEIA-ME.md](agents/LEIA-ME.md).
+
+## Conformidade (para a conta não ser bloqueada)
+
+Regras em `services/conformidade/regras.ts`, cada uma com a fonte (termos da Shopee de 09/09/2026, Contrato
+Operacional e Políticas da Amazon, Guia do CONAR de 2026; Mercado Livre por resumos de terceiros, marcado
+"a conferir"). Conferidas em 13/11/2026; releia a cada trimestre.
+
+O que o Cofilius faz sozinho:
+- **Identificação de publicidade** (padrão `#publi`, editável por cliente) no começo de toda mensagem e legenda.
+- **Amazon:** declaração de Associado exata e aviso de preço em toda mensagem e legenda; nenhuma foto da Amazon nos criativos (a foto da loja não pode ser guardada).
+- **Links:** só domínios oficiais (sem encurtador de terceiros); preço só do banco e conferido antes do envio; a IA não escreve valores nem o nome da loja nos criativos.
+- **Extensão:** sem automação por padrão (a Shopee proíbe extração automatizada, 4.3(d)); os dados chegam quando ela abre os relatórios.
+
+O que só ela pode fazer (lista de conferência em Configuração, com aviso no Dia enquanto faltar): cadastrar os
+canais nos programas, declaração na bio e na descrição do grupo, perfil sem a marca das lojas, grupo só com quem
+pediu para entrar, ninguém da casa comprando pelos links dela, sem sorteio por compra, sem Google Ads, sem e-mail marketing.
 
 ## 6. Testes automatizados
 

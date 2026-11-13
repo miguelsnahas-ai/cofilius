@@ -32,8 +32,54 @@ async function mostrarExtensao() {
   }
 }
 
+const NOMES_PROGRAMA = { geral: 'Todos os programas', shopee: 'Shopee', amazon: 'Amazon', mercado_livre: 'Mercado Livre' };
+
+async function mostrarConformidade() {
+  const alvo = $('lista-conformidade');
+  if (!estado.cliente) { alvo.replaceChildren(); return; }
+  let c;
+  try { c = await api(`/api/conformidade?cliente=${encodeURIComponent(estado.cliente)}`); }
+  catch (e) { alvo.replaceChildren(el('p', { classe: 'erro-texto', texto: e.message })); return; }
+  $('form-identificacao').elements.identificacao.value = c.identificacao;
+  const grupos = ['geral', 'shopee', 'amazon', 'mercado_livre'].map((prog) => {
+    const regras = c.regras.filter((r) => r.programa === prog);
+    return el('div', { classe: 'grupo-conformidade' },
+      el('h3', { texto: NOMES_PROGRAMA[prog] }),
+      el('ul', { classe: 'lista-conformidade' }, ...regras.map((r) => {
+        const titulo = el('strong', { texto: r.titulo });
+        const detalhe = el('span', { classe: 'detalhe', texto: `${r.explicacao}${r.aConferir ? ' (Regra a conferir no texto oficial.)' : ''}` });
+        const fonte = el('span', { classe: 'fonte', texto: `Fonte: ${r.fonte}` });
+        if (r.tipo === 'automatica') {
+          return el('li', { classe: 'automatica' }, el('span', { classe: 'chip ok', texto: 'Automático' }), el('div', {}, titulo, detalhe, fonte));
+        }
+        const caixa = el('input', { attrs: { type: 'checkbox', 'aria-label': r.titulo } });
+        caixa.checked = !!r.feitoEm;
+        caixa.addEventListener('change', async () => {
+          caixa.disabled = true;
+          try {
+            await api('/api/conformidade/item', { item: r.id, feito: caixa.checked });
+            avisar(caixa.checked ? 'Marcado como feito' : 'Desmarcado');
+            mostrarConformidade();
+          } catch (e) { avisar(e.message, true); caixa.checked = !caixa.checked; }
+          finally { caixa.disabled = false; }
+        });
+        return el('li', { classe: r.feitoEm ? 'feito' : 'pendente' },
+          el('label', { classe: 'marcar' }, caixa),
+          el('div', {}, titulo, detalhe, fonte,
+            r.feitoEm ? el('span', { classe: 'fonte', texto: `Feito em ${new Date(r.feitoEm).toLocaleDateString('pt-BR')}` }) : null));
+      })));
+  });
+  alvo.replaceChildren(
+    el('p', { classe: c.pendentes ? 'aviso' : 'ajuda', texto: c.pendentes
+      ? `${c.pendentes} ${c.pendentes === 1 ? 'item pendente' : 'itens pendentes'} na lista abaixo.`
+      : 'Lista de conferência completa.' }),
+    ...grupos,
+    el('p', { classe: 'ajuda', texto: `Regras conferidas em ${c.verificadoEm.split('-').reverse().join('/')}. Os programas mudam as regras: releia os termos a cada trimestre.` }));
+}
+
 window.Cofilius.registrar('config', {
   async mostrar() {
+    mostrarConformidade();
     $('codigo-pareamento').hidden = true;
     mostrarExtensao();
     const c = await api('/api/config');
@@ -70,6 +116,12 @@ window.Cofilius.registrar('config', {
       if (!dados.novaSenha) delete dados.novaSenha;
       agir(f.querySelector('button[type=submit]'), () => api('/api/config', dados),
         (r) => (r.senhaAlterada ? 'Salvo. A senha mudou: o navegador vai pedir a nova.' : 'Configuração salva'));
+    });
+    $('form-identificacao').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const f = ev.currentTarget;
+      agir(f.querySelector('button'), () => api('/api/conformidade/identificacao', { identificacao: f.elements.identificacao.value }),
+        'Identificação salva. Vale para as próximas mensagens e legendas.');
     });
     $('gerar-pareamento').addEventListener('click', async (ev) => {
       if (!estado.cliente) return avisar('Escolha o cliente no topo.', true);

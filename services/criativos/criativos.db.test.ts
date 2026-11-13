@@ -33,11 +33,11 @@ describe.skipIf(!BANCO_HABILITADO)('criativos', () => {
     expect(c).toMatchObject({ id, formato: 'carrossel', estado: 'rascunho', preco: 'R$ 29,90', desconto: '25%', link: 'https://s.shopee.com.br/L555',
       imagemUrl: 'https://down-br.img.susercontent.com/file/abc' });
     expect(c!.roteiro.telas[0]!.texto).toBe('Com 25% de desconto.');
-    expect(c!.roteiro.legenda).toBe('Só R$ 29,90 ✨ #achadinhos');
+    expect(c!.roteiro.legenda).toBe('#publi Só R$ 29,90 ✨ #achadinhos');
     // O preço mudou no banco: o criativo mostra o novo.
     await sql`update ofertas set preco = 27.5 where id = ${ofertaId}`;
     [c] = await criativosDoDia(sql, cliente, '2026-11-13');
-    expect(c!.roteiro.legenda).toBe('Só R$ 27,50 ✨ #achadinhos');
+    expect(c!.roteiro.legenda).toBe('#publi Só R$ 27,50 ✨ #achadinhos');
 
     expect(await mudarEstadoCriativo(sql, cliente, id, 'aprovar')).toBe('aprovado');
     expect(await mudarEstadoCriativo(sql, cliente, id, 'publicado')).toBe('publicado');

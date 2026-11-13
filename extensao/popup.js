@@ -111,21 +111,22 @@ function quando(iso) {
 }
 
 async function desenharPainel() {
-  const { painel = null, sincronia = {}, buscaAutomatica = true, pendentes = [], ultimaBusca = '' } =
-    await chrome.storage.local.get(['painel', 'sincronia', 'buscaAutomatica', 'pendentes', 'ultimaBusca']);
+  const { painel = null, sincronia = {}, buscaAutomatica = false, paginar = false, pendentes = [], ultimaBusca = '' } =
+    await chrome.storage.local.get(['painel', 'sincronia', 'buscaAutomatica', 'paginar', 'pendentes', 'ultimaBusca']);
   const pareada = !!(painel && painel.codigo);
   $('form-parear').hidden = pareada;
   $('pareada').hidden = !pareada;
   $('estado-painel').textContent = pareada ? `Pareada com o painel · cliente ${painel.cliente}` : 'Não pareada.';
   $('estado-painel').className = pareada ? 'ok' : 'suave';
   $('busca-auto').checked = buscaAutomatica;
+  $('paginar').checked = paginar;
   const partes = [];
   if (sincronia.em) partes.push(`Último envio ${quando(sincronia.em)}`);
   if (sincronia.detalhe) partes.push(sincronia.detalhe);
   if (sincronia.erro) partes.push(`Atenção: ${sincronia.erro}`);
   if (pendentes.length) partes.push(`${pendentes.length} na fila`);
   if (ultimaBusca) partes.push(`Última busca ${quando(ultimaBusca)}`);
-  $('sincronia').textContent = partes.join(' · ') || 'Nada enviado ainda. Abra o relatório de conversões da Shopee ou clique em Buscar agora.';
+  $('sincronia').textContent = partes.join(' · ') || 'Nada enviado ainda. Abra o relatório de conversões e o de cliques da Shopee (e passe pelas páginas da tabela): os dados vão sozinhos para o painel.';
   $('sincronia').className = sincronia.erro ? 'aviso' : 'suave';
 }
 
@@ -143,15 +144,23 @@ $('form-parear').addEventListener('submit', async (ev) => {
   }
 });
 
-$('busca-auto').addEventListener('change', (ev) => chrome.storage.local.set({ buscaAutomatica: ev.target.checked }));
+const AVISO_AUTOMACAO = 'Os termos da Shopee proíbem extração automatizada de dados (item 4.3(d)). Ligar isto aumenta o risco de bloqueio da conta. Ligar mesmo assim?';
+$('busca-auto').addEventListener('change', (ev) => {
+  if (ev.target.checked && !window.confirm(AVISO_AUTOMACAO)) { ev.target.checked = false; return; }
+  chrome.storage.local.set({ buscaAutomatica: ev.target.checked });
+});
+$('paginar').addEventListener('change', (ev) => {
+  if (ev.target.checked && !window.confirm(AVISO_AUTOMACAO)) { ev.target.checked = false; return; }
+  chrome.storage.local.set({ paginar: ev.target.checked });
+});
 
 $('buscar').addEventListener('click', async () => {
   $('buscar').disabled = true;
   const r = await chrome.runtime.sendMessage({ cofilius: 'buscar' });
   $('sincronia').textContent = r.ok
-    ? 'Buscando: uma janela minimizada abre os relatórios da Shopee e fecha sozinha em 1 minuto e meio. Precisa estar logada na Shopee Afiliados.'
+    ? 'Abri os relatórios de conversões e de cliques. Passe pelas páginas da tabela; os dados vão sozinhos para o painel.'
     : r.erro;
-  setTimeout(() => { $('buscar').disabled = false; }, 90000);
+  setTimeout(() => { $('buscar').disabled = false; }, 3000);
 });
 
 $('despareada').addEventListener('click', async () => {
