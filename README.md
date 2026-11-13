@@ -45,6 +45,10 @@ Do dia a dia em diante, tudo é pelo painel:
 | **Relatórios** | fechamento do período (com a leitura do Analista), uso por cliente, esteira automática |
 | **Configuração** | seu nome, senha, chave da API do Claude, modelos, esteira ligada/desligada, testar os agentes |
 
+**Visual:** o painel segue o Design System Cofilius (cores, logo, fontes Gabarito, Onest e DM Mono, voz). As fontes e o logo
+ficam em `painel/publico/`; as cores estão no topo de `painel/publico/estilo.css`, com o tema escuro do próprio sistema.
+Na aba Dia, o bloco **Próximo passo** diz o que fazer agora, e a linha de andamento mostra onde o dia está.
+
 **Esteira automática:** enquanto o painel estiver aberto, a cada 5 minutos ele roda as etapas do dia sozinho
 (Curador às 6h, Redator às 6h30, validação às 6h45, fechamento aos domingos às 20h). Sem a chave da IA, essas etapas
 aparecem como "puladas".

@@ -7,7 +7,7 @@ import type { ModeloIA, PrecoModelo } from '../harness/agentes.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import {
-  aprovar, confirmarPreco, dataLocal, descartar, listarDia, validarMensagem,
+  aprovar, confirmarPreco, dataLocal, descartar, listarDia, validarDia, validarMensagem,
 } from '../services/lista/lista.ts';
 import { prepararLinks, registrarLinkManual } from '../services/links/linksManuaisShopee.ts';
 import { curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
@@ -207,4 +207,11 @@ export async function concluirPedidoAfiliado(deps: DepsApi, pedidoId: string, co
   const cliente = await buscarCliente(deps.sql, texto(corpo, 'cliente'));
   await concluirPedido(deps.sql, cliente, pedidoId, typeof corpo.resposta === 'string' ? corpo.resposta : '');
   return { ok: true };
+}
+
+/** Valida todos os rascunhos do dia de uma vez. */
+export async function validarDiaInteiro(deps: DepsApi, corpo: Record<string, unknown>) {
+  const cliente = await buscarCliente(deps.sql, texto(corpo, 'cliente'));
+  const r = await validarDia(deps.sql, cliente, data(corpo.data, cliente));
+  return { ok: true, validadas: r.filter((x) => x.ok).length, barradas: r.filter((x) => !x.ok).length };
 }

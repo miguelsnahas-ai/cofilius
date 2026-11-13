@@ -30,7 +30,7 @@ import { migrar } from '../db/migrate.ts';
 import { registrarAcao } from '../services/relatorios/uso.ts';
 import {
   acaoDiretriz, acaoMensagem, confirmarPrecoOferta, ErroPedido, listarClientes, painelDoDia, registrarLinkOferta,
-  rodarCurador, rodarRedator, simularRecebida, concluirPedidoAfiliado, type DepsApi,
+  rodarCurador, rodarRedator, simularRecebida, concluirPedidoAfiliado, validarDiaInteiro, type DepsApi,
 } from './api.ts';
 import {
   ativarCliente, cadastroClientes, diretrizesDoCliente, editarCliente, fechamento, importarOfertas, importarVendasPlanilha,
@@ -44,7 +44,10 @@ import { lerCredencialShopee } from '../db/credenciais.ts';
 import { criarClienteShopee, ENDPOINT_BRASIL } from '../services/shopee/client.ts';
 
 const PUBLICO = join(dirname(fileURLToPath(import.meta.url)), 'publico');
-const TIPOS: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
+const TIPOS: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png',
+};
 const LIMITE_CORPO = 3_000_000; // planilhas importadas vêm no corpo
 const CODIGO = '([a-z0-9]{1,12})';
 
@@ -85,12 +88,13 @@ async function lerCorpo(req: IncomingMessage): Promise<Record<string, unknown>> 
 }
 
 async function servirArquivo(res: ServerResponse, arquivo: string): Promise<void> {
-  if (!/^[a-z0-9-]+\.(html|js|css|svg)$/.test(arquivo)) return responder(res, 404, { erro: 'Não encontrado.' });
+  if (!/^[a-z0-9-]+\.(html|js|css|svg|woff2|png)$/.test(arquivo)) return responder(res, 404, { erro: 'Não encontrado.' });
   const conteudo = await readFile(join(PUBLICO, arquivo)).catch(() => null);
   if (!conteudo) return responder(res, 404, { erro: 'Não encontrado.' });
   res.writeHead(200, {
     'Content-Type': TIPOS[extname(arquivo)] ?? 'application/octet-stream',
-    'Cache-Control': 'no-store',
+    // Fontes e logo mudam pouco: cache de 1 dia. Páginas e scripts: sempre frescos.
+    'Cache-Control': /\.(woff2|svg|png)$/.test(arquivo) ? 'public, max-age=86400' : 'no-store',
     'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:",
     'X-Frame-Options': 'DENY',
   });
@@ -167,6 +171,7 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     [/^\/api\/diretrizes$/, (_m, c, d) => novaDiretriz(d, c)],
     [/^\/api\/curar$/, (_m, c, d) => rodarCurador(d, c)],
     [/^\/api\/redigir$/, (_m, c, d) => rodarRedator(d, c)],
+    [/^\/api\/validar-dia$/, (_m, c, d) => validarDiaInteiro(d, c)],
     [/^\/api\/receber$/, (_m, c, d) => simularRecebida(d, c)],
     [/^\/api\/pedidos\/([0-9a-f-]{36})\/concluir$/, (m, c, d) => concluirPedidoAfiliado(d, m[1]!, c)],
     [/^\/api\/gestao\/clientes$/, (_m, c, d) => novoCliente(d, c)],

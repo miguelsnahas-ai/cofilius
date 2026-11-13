@@ -29,7 +29,7 @@ function blocoNichos(c) {
     remover.addEventListener('click', () => {
       if (window.confirm(`Remover o nicho "${n.nome || n.slug}"?`)) agir(remover, () => api(`/api/gestao/clientes/${c.codigo}/nichos/${n.slug}/remover`, {}), 'Nicho removido');
     });
-    return el('li', {}, el('strong', { texto: n.nome || n.slug }), ` · ${(n.palavras_chave || []).join(', ')} `, remover);
+    return el('li', {}, el('strong', { texto: n.nome || n.slug }), el('span', { classe: 'palavras', texto: (n.palavras_chave || []).join(', ') }), remover);
   }));
   const form = el('form', { classe: 'linha-form' },
     el('input', { attrs: { name: 'nome', placeholder: 'Nicho (ex.: Casa)', required: '' } }),
@@ -74,7 +74,10 @@ async function blocoDiretrizes(c) {
     el('h3', { texto: 'Diretrizes de curadoria' }),
     el('p', { classe: 'ajuda', texto: 'O texto que o Curador segue em cada nicho. Propostas são aprovadas na aba Dia.' }),
     vigentes.length
-      ? el('ul', { classe: 'nichos' }, ...vigentes.map((d) => el('li', {}, el('strong', { texto: `${d.nicho} v${d.versao}` }), ` (${d.situacao}) · ${d.texto}`)))
+      ? el('ul', { classe: 'nichos' }, ...vigentes.map((d) => el('li', {},
+        el('strong', { texto: `${d.nicho} · versão ${d.versao}` }),
+        el('span', { classe: `chip ${d.situacao === 'aprovada' ? 'ok' : 'alerta'}`, texto: d.situacao === 'aprovada' ? 'em vigor' : 'proposta' }),
+        el('span', { classe: 'palavras', texto: d.texto }))))
       : el('p', { classe: 'vazio', texto: 'Nenhuma diretriz ainda.' }),
     c.nichos.length ? form : null);
 }
@@ -88,9 +91,11 @@ async function cartaoCliente(c) {
   });
   const detalhes = el('details', { classe: 'cartao', attrs: c.codigo === estado.cliente ? { open: '' } : {} },
     el('summary', {},
-      el('span', { classe: 'titulo', texto: `${c.nome} (${c.codigo})` }), ' ',
-      el('span', { classe: `chip ${c.ativo ? 'ok' : 'erro'}`, texto: c.ativo ? 'ativo' : 'pausado' }), ' ',
-      el('span', { classe: 'chip', texto: `${c.nichos.length} nichos` })),
+      el('span', { classe: 'titulo', texto: c.nome }),
+      el('span', { classe: 'etiqueta', texto: c.codigo }),
+      el('span', { classe: `chip ${c.ativo ? 'ok' : 'erro'}`, texto: c.ativo ? 'ativo' : 'pausado' }),
+      el('span', { classe: 'chip', texto: `${c.nichos.length} ${c.nichos.length === 1 ? 'nicho' : 'nichos'}` }),
+      c.shopeeApi ? el('span', { classe: 'chip destaque', texto: 'Open API Shopee' }) : null),
     formEditar(c), blocoNichos(c), blocoShopee(c));
   if (c.ativo) detalhes.append(await blocoDiretrizes(c));
   detalhes.append(el('div', { classe: 'acoes' }, ativo));

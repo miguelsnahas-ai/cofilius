@@ -115,7 +115,7 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     const chaveAntes = process.env.CREDENCIAIS_CHAVE;
     delete process.env.CREDENCIAIS_CHAVE; // primeira configuração: o painel gera a chave
     expect(await (await fetch(`${url}/api/estado`)).json()).toEqual({ modo: 'configuracao' });
-    expect(await (await fetch(`${url}/`)).text()).toContain('configuração inicial');
+    expect(await (await fetch(`${url}/`)).text()).toContain('Vamos ligar o seu painel');
     expect((await fetch(`${url}/api/clientes`)).status).toBe(503);
     const configurar = (corpo: object) => fetch(`${url}/api/configurar`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Cofilius': '1' }, body: JSON.stringify(corpo) });
     expect((await (await configurar({ databaseUrl: 'mysql://x', senha: '123456' })).json() as any).erro).toContain('postgresql://');

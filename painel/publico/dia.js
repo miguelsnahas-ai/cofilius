@@ -24,7 +24,7 @@ function itemSelecionada(s) {
   const situacao = s.mensagemId ? ['com mensagem', 'ok'] : s.linkId ? ['com link', 'destaque'] : ['sem link', 'alerta'];
   const li = el('li', { classe: 'cartao' },
     el('div', { classe: 'cartao-topo' },
-      el('span', { classe: 'titulo', texto: `${s.posicao}. ${s.titulo}` }),
+      el('span', { classe: 'titulo' }, el('span', { classe: 'posicao', texto: String(s.posicao).padStart(2, '0') }), s.titulo),
       el('span', { classe: `chip ${situacao[1]}`, texto: situacao[0] })),
     el('p', { classe: 'motivo', texto: s.motivo }));
 
@@ -65,16 +65,17 @@ function cartaoMensagem(m) {
   const [rotulo, cor] = ESTADOS[m.estado] || [m.estado, ''];
   const cartao = el('article', { classe: 'cartao' },
     el('div', { classe: 'cartao-topo' },
-      el('span', { classe: 'titulo', texto: m.titulo || '(oferta removida)' }),
+      el('span', { classe: 'titulo' }, m.titulo || '(oferta removida)', m.preco ? el('span', { classe: 'num motivo', texto: ` · ${reais(m.preco)}` }) : null),
       el('span', { classe: `chip ${cor}`, texto: rotulo })));
-  if (m.textoFinal) cartao.append(el('div', { classe: 'balao', texto: m.textoFinal }));
+  // Prévia como ela vai receber no WhatsApp.
+  if (m.textoFinal) cartao.append(el('div', { classe: 'conversa' }, el('div', { classe: 'balao', texto: m.textoFinal })));
 
   const falhas = (m.validacao || []).filter((r) => !r.ok);
   if (falhas.length && m.estado === 'rascunho') {
     cartao.append(el('ul', { classe: 'falhas' }, ...falhas.map((f) => el('li', { texto: `${REGRAS[f.regra] || f.regra}: ${f.detalhe}` }))));
   }
   if (m.motivoDescarte) cartao.append(el('p', { classe: 'motivo', texto: `Motivo: ${m.motivoDescarte}` }));
-  if (m.enviadaEm) cartao.append(el('p', { classe: 'motivo', texto: `Enviada em ${new Date(m.enviadaEm).toLocaleString('pt-BR')}` }));
+  if (m.enviadaEm) cartao.append(el('p', { classe: 'motivo num', texto: `Enviada em ${new Date(m.enviadaEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` }));
 
   const acoes = el('div', { classe: 'acoes' });
   const botao = (texto, classe, fn) => {
@@ -107,9 +108,9 @@ function cartaoMensagem(m) {
     const quando = m.precoConferidoEm
       ? new Date(m.precoConferidoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
       : 'nunca';
-    cartao.append(
-      el('p', { classe: 'motivo', texto: `Preço conferido: ${quando}. Para enviar, precisa ter sido conferido há no máximo 30 minutos: olhe a página do produto e confirme.` }),
-      formPreco(m));
+    cartao.append(el('div', { classe: 'preco-conferir' },
+      el('p', { classe: 'motivo', texto: `Preço conferido: ${quando}. Para enviar, ele precisa ter sido conferido há no máximo 30 minutos: olhe a página do produto e confirme.` }),
+      formPreco(m)));
   }
   return cartao;
 }
@@ -157,29 +158,83 @@ function cartaoProposta(d) {
 
 // ---------------------------------------------------------------------------
 
+/** O que fazer agora, a partir do estado do dia. Um só botão de marca (goiaba) por tela: o deste bloco. */
+function proximoPasso(d, n) {
+  const ir = (id) => () => document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!d.candidatas) return { titulo: 'Comece pelas ofertas de hoje', texto: 'Importe a planilha de ofertas do dia.', botao: 'Importar ofertas', acao: () => window.Cofilius.mostrarAba('importar') };
+  if (!d.selecionadas.length) {
+    return d.iaDisponivel
+      ? { titulo: `${d.candidatas} ofertas esperando o Curador`, texto: 'O Curador escolhe as melhores do dia, seguindo as diretrizes do nicho.', botao: 'Rodar Curador', acao: 'curar' }
+      : { titulo: 'Ligue a IA para o Curador escolher', texto: 'Coloque a chave da API do Claude na Configuração.', botao: 'Abrir Configuração', acao: () => window.Cofilius.mostrarAba('config') };
+  }
+  if (n.semLink) return { titulo: `Gere ${n.semLink === 1 ? 'o link que falta' : `os ${n.semLink} links que faltam`}`, texto: 'Use os Sub_ids de cada oferta no painel da Shopee e cole o link aqui.', botao: 'Ver as ofertas sem link', acao: ir('secao-escolhidas') };
+  if (n.paraRedigir && d.iaDisponivel) return { titulo: 'Hora das mensagens', texto: `${n.paraRedigir} ${n.paraRedigir === 1 ? 'oferta tem' : 'ofertas têm'} link e ainda não ${n.paraRedigir === 1 ? 'tem' : 'têm'} mensagem.`, botao: 'Redigir mensagens', acao: 'redigir' };
+  if (n.rascunho) return { titulo: `Valide ${n.rascunho === 1 ? 'a mensagem' : `as ${n.rascunho} mensagens`}`, texto: 'O sistema confere link, preço, repetição e o limite do dia.', botao: 'Validar todas', acao: 'validar' };
+  if (n.validada) return { titulo: `Revise e aprove ${n.validada === 1 ? 'a mensagem' : `as ${n.validada} mensagens`}`, texto: 'Leia cada uma como ela vai receber e aprove.', botao: 'Ver mensagens', acao: ir('secao-mensagens') };
+  if (n.aprovada) return { titulo: 'Envie a lista para ela', texto: 'Confira o preço, copie cada mensagem para o WhatsApp e marque como enviada.', botao: 'Ver mensagens aprovadas', acao: ir('secao-mensagens') };
+  if (n.enviada) return { titulo: 'Lista de hoje enviada', texto: 'Agora é com ela. Os cliques e as vendas entram com a importação de vendas.', concluido: true };
+  return { titulo: 'Tudo em dia', texto: 'Nada pendente para este dia.', concluido: true };
+}
+
 function desenhar() {
   const d = dados;
-  const contagem = {};
-  for (const m of d.mensagens) contagem[m.estado] = (contagem[m.estado] || 0) + 1;
-  $('resumo').replaceChildren(
-    el('span', { classe: 'chip', texto: `${d.candidatas} candidatas` }),
-    el('span', { classe: 'chip', texto: `${d.selecionadas.length} escolhidas` }),
-    el('span', { classe: 'chip', texto: `envio às ${d.horarioEnvio.slice(11)}` }),
-    ...Object.entries(contagem).map(([e, n]) => el('span', { classe: `chip ${(ESTADOS[e] || [])[1] || ''}`, texto: `${n} ${(ESTADOS[e] || [e])[0].toLowerCase()}` })));
+  const n = { rascunho: 0, validada: 0, aprovada: 0, enviada: 0 };
+  for (const m of d.mensagens) {
+    if (m.estado === 'medida') n.enviada++;
+    else if (m.estado in n) n[m.estado]++;
+  }
+  n.semLink = d.selecionadas.filter((s) => !s.linkId && s.plataforma === 'shopee').length;
+  n.paraRedigir = d.selecionadas.filter((s) => s.linkId && !s.mensagemId).length;
+
+  // Título com a data por extenso
+  const [a, mes, dia] = d.data.split('-').map(Number);
+  const hoje = window.Cofilius.dataLocal() === d.data;
+  $('rotulo-dia').textContent = new Date(a, mes - 1, dia).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('titulo-dia').textContent = hoje ? 'Sua lista de hoje' : 'Lista do dia';
+
+  // Próximo passo
+  const p = proximoPasso(d, n);
+  const caixa = $('proximo');
+  caixa.className = p.concluido ? 'proximo concluido' : 'proximo';
+  const filhos = [el('div', {}, el('span', { classe: 'rotulo', texto: p.concluido ? 'Pronto' : 'Próximo passo' }), el('h2', { texto: p.titulo }), el('p', { classe: 'motivo', texto: p.texto }))];
+  if (p.botao) {
+    const b = el('button', { classe: 'primario', texto: p.botao, attrs: { type: 'button' } });
+    b.addEventListener('click', () => {
+      if (typeof p.acao === 'function') return p.acao();
+      const rotas = { curar: ['/api/curar', (r) => `Curador escolheu ${r.escolhidas} de ${r.candidatas}`], redigir: ['/api/redigir', (r) => `${r.redigidas} mensagens redigidas`], validar: ['/api/validar-dia', (r) => `${r.validadas} validadas, ${r.barradas} barradas`] };
+      const [rota, msg] = rotas[p.acao];
+      agir(b, () => api(rota, { data: $('data').value }), msg);
+    });
+    filhos.push(b);
+  }
+  caixa.replaceChildren(...filhos);
+
+  // Andamento do dia
+  const passos = [
+    ['Ofertas', d.candidatas, d.candidatas > 0],
+    ['Escolhidas', d.selecionadas.length, d.selecionadas.length > 0],
+    ['Com link', d.selecionadas.filter((s) => s.linkId).length, d.selecionadas.length > 0 && !n.semLink],
+    ['Mensagens', d.mensagens.filter((m) => m.estado !== 'descartada').length, d.mensagens.length > 0 && !n.paraRedigir],
+    ['Aprovadas', n.aprovada + n.enviada, n.aprovada + n.enviada > 0 && !n.rascunho && !n.validada],
+    ['Enviadas', n.enviada, n.enviada > 0 && !n.aprovada],
+  ];
+  $('andamento').replaceChildren(...passos.map(([rotulo, valor, feito]) =>
+    el('li', { classe: feito ? 'feito' : '' }, el('span', { classe: 'valor', texto: String(valor) }), el('span', { classe: 'rotulo', texto: rotulo }))));
 
   $('aviso-ia').hidden = d.iaDisponivel;
   $('rodar-curador').disabled = !d.iaDisponivel || !d.candidatas;
-  $('rodar-redator').disabled = !d.iaDisponivel || !d.selecionadas.some((s) => s.linkId && !s.mensagemId);
+  $('rodar-redator').disabled = !d.iaDisponivel || !n.paraRedigir;
+  $('validar-todas').disabled = !n.rascunho;
 
   $('selecionadas').replaceChildren(...(d.selecionadas.length
     ? d.selecionadas.map(itemSelecionada)
-    : [el('li', { classe: 'vazio', texto: d.candidatas ? 'O Curador ainda não escolheu as ofertas deste dia.' : 'Nenhuma oferta coletada neste dia. Importe a planilha (importar-ofertas).' })]));
+    : [el('li', { classe: 'vazio', texto: d.candidatas ? 'O Curador ainda não escolheu as ofertas deste dia.' : 'Nenhuma oferta neste dia ainda. Importe a planilha na aba Importar.' })]));
 
   const ordem = ['aprovada', 'validada', 'rascunho', 'enviada', 'medida', 'descartada'];
-  const mensagens = [...d.mensagens].sort((a, b) => ordem.indexOf(a.estado) - ordem.indexOf(b.estado));
+  const mensagens = [...d.mensagens].sort((x, y) => ordem.indexOf(x.estado) - ordem.indexOf(y.estado));
   $('mensagens').replaceChildren(...(mensagens.length
     ? mensagens.map(cartaoMensagem)
-    : [el('p', { classe: 'vazio', texto: 'Nenhuma mensagem neste dia.' })]));
+    : [el('p', { classe: 'vazio', texto: 'Nenhuma mensagem ainda. Elas aparecem aqui depois que o Redator escreve (ou quando você cria um rascunho).' })]));
 
   $('pedidos').replaceChildren(...(d.pedidos.length
     ? d.pedidos.map(cartaoPedido)
@@ -203,6 +258,8 @@ window.Cofilius.registrar('dia', {
       (r) => `Curador escolheu ${r.escolhidas} de ${r.candidatas} candidatas`));
     $('rodar-redator').addEventListener('click', (ev) => agir(ev.currentTarget, () => api('/api/redigir', { data: $('data').value }),
       (r) => `${r.redigidas} mensagens redigidas${r.falhas.length ? `, ${r.falhas.length} falharam` : ''}`));
+    $('validar-todas').addEventListener('click', (ev) => agir(ev.currentTarget, () => api('/api/validar-dia', { data: $('data').value }),
+      (r) => `${r.validadas} validadas, ${r.barradas} barradas`));
     $('simular').addEventListener('submit', (ev) => {
       ev.preventDefault();
       const campo = $('simular-texto');

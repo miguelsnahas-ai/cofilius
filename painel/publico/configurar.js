@@ -3,7 +3,8 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('form-configurar');
-  const mensagem = document.getElementById('mensagem');
+  const caixa = document.getElementById('mensagem');
+  const mensagem = { set textContent(t) { caixa.hidden = !t; caixa.textContent = t; } };
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const d = Object.fromEntries(new FormData(form).entries());

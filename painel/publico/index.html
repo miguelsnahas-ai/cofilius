@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cofilius · Painel</title>
+  <link rel="icon" type="image/svg+xml" href="cofilius-simbolo.svg">
+  <link rel="preload" href="onest-variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="gabarito-variable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="estilo.css">
   <script src="nucleo.js" defer></script>
   <script src="dia.js" defer></script>
@@ -14,98 +17,116 @@
 </head>
 <body>
   <header class="topo">
-    <h1>Cofilius</h1>
-    <nav class="abas" aria-label="Seções">
+    <a class="marca-link" href="#" data-ir="dia" aria-label="Cofilius · ir para o dia">
+      <img class="marca" src="cofilius-horizontal-negativo.svg" alt="Cofilius">
+    </a>
+    <nav class="abas" aria-label="Seções do painel">
       <button type="button" data-aba="dia">Dia</button>
       <button type="button" data-aba="clientes">Clientes</button>
       <button type="button" data-aba="importar">Importar</button>
       <button type="button" data-aba="relatorios">Relatórios</button>
       <button type="button" data-aba="config">Configuração</button>
     </nav>
-    <label class="seletor">Cliente <select id="cliente"></select></label>
+    <label class="seletor-cliente">Cliente <select id="cliente" aria-label="Cliente"></select></label>
   </header>
 
   <main>
     <!-- ===================== DIA ===================== -->
     <div data-painel="dia" hidden>
-      <div class="linha-topo">
-        <label class="seletor">Dia <input id="data" type="date"></label>
-        <p id="resumo" class="resumo"></p>
-      </div>
-      <p id="aviso-ia" class="aviso" hidden>IA desligada: coloque a chave da API do Claude na aba Configuração para rodar o Curador e o Redator.</p>
-
-      <section>
-        <div class="secao-topo">
-          <h2>1. Escolhidas do Curador</h2>
-          <button id="rodar-curador" class="secundario">Rodar Curador</button>
+      <div class="cabecalho-pagina">
+        <div>
+          <span class="rotulo" id="rotulo-dia">Lista do dia</span>
+          <h1 id="titulo-dia">Sua lista de hoje</h1>
         </div>
-        <p class="ajuda">As ofertas do dia escolhidas pela IA, em ordem. As que não têm link: gere no painel da Shopee com estes Sub_ids e cole o link aqui.</p>
+        <label class="seletor">Dia <input id="data" type="date"></label>
+      </div>
+
+      <div id="proximo" class="proximo" aria-live="polite"></div>
+      <ol id="andamento" class="andamento" aria-label="Andamento do dia"></ol>
+      <p id="aviso-ia" class="aviso" hidden>A IA está desligada. Coloque a chave da API do Claude na aba Configuração para o Curador e o Redator trabalharem.</p>
+
+      <section id="secao-escolhidas">
+        <div class="secao-topo">
+          <h2>Escolhidas do Curador</h2>
+          <button id="rodar-curador" class="secundario" type="button">Rodar Curador de novo</button>
+        </div>
+        <p class="ajuda">As ofertas de hoje, na ordem do Curador. As que estão sem link: gere o link no painel da Shopee com estes Sub_ids e cole aqui.</p>
         <ol id="selecionadas" class="lista"></ol>
       </section>
 
-      <section>
+      <section id="secao-mensagens">
         <div class="secao-topo">
-          <h2>2. Mensagens do dia</h2>
-          <button id="rodar-redator" class="secundario">Redigir mensagens</button>
+          <h2>Mensagens</h2>
+          <div class="acoes sem-margem">
+            <button id="validar-todas" class="secundario" type="button">Validar todas</button>
+            <button id="rodar-redator" class="secundario" type="button">Redigir</button>
+          </div>
         </div>
-        <p class="ajuda">Preço e link são preenchidos pelo sistema. Fluxo: rascunho → validar → aprovar → enviar → marcar como enviada.</p>
+        <p class="ajuda">Preço e link entram pelo sistema. O caminho: rascunho, validar, aprovar, enviar para ela e marcar como enviada.</p>
         <div id="mensagens" class="cartoes"></div>
       </section>
 
       <section>
-        <h2>3. Pedidos da afiliada</h2>
-        <p class="ajuda">O que ela pediu e o Atendente não resolveu sozinho. Responda pelo WhatsApp e conclua aqui.</p>
+        <h2>Pedidos da afiliada</h2>
+        <p class="ajuda">O que ela pediu e o Atendente deixou para você. Responda pelo WhatsApp e conclua aqui.</p>
         <div id="pedidos" class="cartoes"></div>
         <form id="simular" class="linha-form">
-          <input id="simular-texto" placeholder="Colar uma mensagem que ela mandou (ex.: quanto ganhei essa semana?)" aria-label="Mensagem recebida">
+          <input id="simular-texto" placeholder="Cole uma mensagem que ela mandou (ex.: quanto ganhei essa semana?)" aria-label="Mensagem recebida da afiliada">
           <button type="submit" class="secundario">Processar mensagem</button>
         </form>
       </section>
 
       <section id="secao-propostas" hidden>
-        <h2>4. Propostas de diretriz</h2>
-        <p class="ajuda">Sugestões do Analista (ou suas). Só passam a valer para o Curador depois de aprovadas.</p>
+        <h2>Propostas de diretriz</h2>
+        <p class="ajuda">Sugestões do Analista (ou suas). Só valem para o Curador depois que você aprovar.</p>
         <div id="propostas" class="cartoes"></div>
       </section>
     </div>
 
     <!-- ===================== CLIENTES ===================== -->
     <div data-painel="clientes" hidden>
-      <section>
+      <div class="cabecalho-pagina">
+        <div><span class="rotulo">Cadastro</span><h1>Clientes</h1></div>
+      </div>
+      <section class="cartao">
         <h2>Novo cliente</h2>
         <form id="form-novo-cliente" class="grade-form">
-          <label>Código <input name="codigo" required maxlength="12" pattern="[a-z0-9]{1,12}" placeholder="ex.: ana"><small>minúsculas e números; vai nos links e não muda</small></label>
+          <label>Código <input name="codigo" required maxlength="12" pattern="[a-z0-9]{1,12}" placeholder="ana" autocomplete="off"><small>Minúsculas e números. Vai nos links e não muda depois.</small></label>
           <label>Nome <input name="nome" required placeholder="Ana Souza"></label>
           <label>WhatsApp <input name="whatsapp" inputmode="tel" placeholder="(11) 99999-8888"></label>
           <label>Horário de envio <input name="horarioEnvio" type="time" value="08:00"></label>
           <label>Mensagens por dia <input name="limiteMensagensDia" type="number" min="1" max="100" value="5"></label>
           <label class="largo">Tom do grupo <input name="tomGrupo" placeholder="Próximo e animado, frases curtas"></label>
-          <div class="largo"><button type="submit">Cadastrar</button></div>
+          <div class="largo"><button type="submit" class="primario">Cadastrar cliente</button></div>
         </form>
       </section>
       <section>
-        <h2>Clientes cadastrados</h2>
+        <h2>Cadastrados</h2>
+        <p class="ajuda">Abra um cliente para editar os dados, os nichos, as credenciais da Shopee e as diretrizes.</p>
         <div id="lista-clientes" class="cartoes"></div>
       </section>
     </div>
 
     <!-- ===================== IMPORTAR ===================== -->
     <div data-painel="importar" hidden>
+      <div class="cabecalho-pagina">
+        <div><span class="rotulo">Planilhas</span><h1>Importar</h1></div>
+      </div>
       <section class="cartao">
-        <h2>Ofertas do dia (planilha)</h2>
+        <h2>Ofertas de hoje</h2>
         <p class="ajuda">Uma linha por produto: link completo da Shopee, título, preço, desconto, comissão e nicho. Salve como CSV.
-          <a href="/modelos/ofertas-shopee.csv">Baixar modelo</a></p>
+          <a href="/modelos/ofertas-shopee.csv">Baixar o modelo</a></p>
         <form id="form-ofertas" class="grade-form">
           <label class="largo">Arquivo CSV <input name="arquivo" type="file" accept=".csv,text/csv" required></label>
-          <label>Nicho padrão (se a planilha não tiver) <select name="nicho"></select></label>
-          <div class="largo"><button type="submit">Importar ofertas</button></div>
+          <label>Nicho, se a planilha não tiver <select name="nicho"></select></label>
+          <div class="largo"><button type="submit" class="primario">Importar ofertas</button></div>
         </form>
         <div id="resultado-ofertas"></div>
       </section>
       <section class="cartao">
-        <h2>Vendas (planilha)</h2>
-        <p class="ajuda">Pedidos com plataforma, produto, comissão, situação e etiqueta (ou Sub_ids). Reimportar atualiza a situação.
-          <a href="/modelos/vendas.csv">Baixar modelo</a></p>
+        <h2>Vendas</h2>
+        <p class="ajuda">Pedidos com plataforma, produto, comissão, situação e etiqueta (ou Sub_ids). Importar de novo atualiza a situação.
+          <a href="/modelos/vendas.csv">Baixar o modelo</a></p>
         <form id="form-vendas" class="grade-form">
           <label class="largo">Arquivo CSV <input name="arquivo" type="file" accept=".csv,text/csv" required></label>
           <div class="largo"><button type="submit">Importar vendas</button></div>
@@ -116,13 +137,17 @@
 
     <!-- ===================== RELATÓRIOS ===================== -->
     <div data-painel="relatorios" hidden>
+      <div class="cabecalho-pagina">
+        <div><span class="rotulo">Números</span><h1>Relatórios</h1></div>
+      </div>
       <section class="cartao">
         <h2>Fechamento</h2>
+        <p class="ajuda">O que rendeu no período, pelas vendas importadas. Pendente e validada sempre separadas.</p>
         <form id="form-fechamento" class="grade-form">
           <label>De <input name="de" type="date" required></label>
           <label>Até <input name="ate" type="date" required></label>
-          <label class="check largo"><input name="comAnalise" type="checkbox"> Incluir a leitura do Analista (usa IA, custo pequeno)</label>
-          <div class="largo"><button type="submit">Gerar fechamento</button></div>
+          <label class="check largo"><input name="comAnalise" type="checkbox"> Incluir a leitura do Analista (usa IA, custo de centavos)</label>
+          <div class="largo"><button type="submit" class="primario">Gerar fechamento</button></div>
         </form>
         <div id="resultado-fechamento"></div>
       </section>
@@ -141,7 +166,7 @@
           <h2>Esteira automática</h2>
           <button id="rodar-esteira" class="secundario" type="button">Rodar agora</button>
         </div>
-        <p class="ajuda">Enquanto o painel estiver aberto, a cada 5 minutos as etapas do dia rodam sozinhas (Curador às 6h, Redator às 6h30, validação às 6h45, fechamento aos domingos às 20h).</p>
+        <p class="ajuda">Com o painel aberto, as etapas do dia rodam sozinhas a cada 5 minutos: Curador às 6h, Redator às 6h30, validação às 6h45 e fechamento aos domingos às 20h.</p>
         <p id="estado-esteira"></p>
         <div id="tarefas-esteira" class="rolagem"></div>
       </section>
@@ -149,16 +174,19 @@
 
     <!-- ===================== CONFIGURAÇÃO ===================== -->
     <div data-painel="config" hidden>
+      <div class="cabecalho-pagina">
+        <div><span class="rotulo">Ajustes</span><h1>Configuração</h1></div>
+      </div>
       <section class="cartao">
         <h2>Geral</h2>
         <form id="form-config" class="grade-form">
-          <label>Seu nome (grava em cada aprovação) <input name="operador"></label>
-          <label>Nova senha do painel <input name="novaSenha" type="password" autocomplete="new-password" placeholder="deixe vazio para manter"></label>
+          <label>Seu nome <input name="operador"><small>Fica gravado em cada aprovação.</small></label>
+          <label>Nova senha do painel <input name="novaSenha" type="password" autocomplete="new-password" placeholder="Deixe vazio para manter"></label>
           <label class="largo">Chave da API do Claude <input name="anthropicKey" type="password" autocomplete="off" placeholder="sk-ant-..."><small id="estado-chave"></small></label>
-          <label>Modelo dos agentes simples (Redator, Atendente) <input name="modeloPequeno"></label>
-          <label>Modelo dos agentes de decisão (Curador, Analista) <input name="modeloForte"></label>
+          <label>Modelo dos agentes simples <input name="modeloPequeno"><small>Redator e Atendente</small></label>
+          <label>Modelo dos agentes de decisão <input name="modeloForte"><small>Curador e Analista</small></label>
           <label class="check largo"><input name="esteiraLigada" type="checkbox"> Esteira automática ligada</label>
-          <div class="largo"><button type="submit">Salvar</button></div>
+          <div class="largo"><button type="submit" class="primario">Salvar configuração</button></div>
         </form>
         <p id="estado-whatsapp" class="ajuda"></p>
       </section>

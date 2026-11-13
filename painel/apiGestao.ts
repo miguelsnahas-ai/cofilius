@@ -135,6 +135,8 @@ export async function fechamento(deps: DepsApi, corpo: Record<string, unknown>) 
   }
   return {
     ok: true,
+    resumo,
+    leituras: (analise?.leituras ?? []).map((l) => ({ texto: l.texto, evidencias: l.evidencias })),
     texto: montarFechamento(cliente.nome, resumo, analise),
     propostas: (analise?.propostas ?? []).map((d) => ({ id: d.id, nicho: d.nicho, versao: d.versao, texto: d.texto })),
   };
