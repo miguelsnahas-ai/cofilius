@@ -107,3 +107,23 @@ describe('montarArquivo', () => {
     expect(a).toMatchObject({ formato: 'cofilius-gravacao', versao: 2, plataformas: { shopee: 1, amazon: 1 }, extensao: '0.2.0', total: 2 });
   });
 });
+
+describe('sincronia com o painel', () => {
+  it('reconhece só os relatórios que o painel usa', () => {
+    expect(N.tipoSincronia('https://affiliate.shopee.com.br/api/v3/report/list?page_num=1')).toBe('shopee.conversoes');
+    expect(N.tipoSincronia('/api/v1/click_report/list?page_num=1', 'https://affiliate.shopee.com.br/report/click_report')).toBe('shopee.cliques');
+    expect(N.tipoSincronia('https://www.amazon.com.br/associates/sitestripe/getShortUrl?storeId=x')).toBe('amazon.link');
+    expect(N.tipoSincronia('https://affiliate.shopee.com.br/api/v3/dashboard/detail')).toBeNull();
+    expect(N.tipoSincronia('http://affiliate.shopee.com.br/api/v3/report/list')).toBeNull();
+  });
+  it('próxima página dos relatórios da Shopee', () => {
+    const url = 'https://affiliate.shopee.com.br/api/v3/report/list?page_size=20&page_num=1&version=1';
+    const dados = (pagina: number, total: number) => ({ code: 0, data: { page_num: pagina, page_size: 20, total_count: total, list: [] } });
+    expect(N.proximaPagina(url, undefined, dados(1, 38))).toBe('https://affiliate.shopee.com.br/api/v3/report/list?page_size=20&page_num=2&version=1');
+    expect(N.proximaPagina(url, undefined, dados(2, 38))).toBeNull();
+    expect(N.proximaPagina(url, undefined, dados(1, 20))).toBeNull();
+    expect(N.proximaPagina(url, undefined, dados(25, 9999))).toBeNull();
+    expect(N.proximaPagina(url, undefined, { code: 1 })).toBeNull();
+    expect(N.proximaPagina('https://www.amazon.com.br/associates/sitestripe/getShortUrl', undefined, dados(1, 50))).toBeNull();
+  });
+});

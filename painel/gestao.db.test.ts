@@ -72,6 +72,29 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     expect((await fetch(`${base}/modelos/..%2F.env`, { headers: auth() })).status).toBe(404);
   });
 
+  it('extensão: pareia pelo painel e manda dados sem a senha do painel', async () => {
+    const { json } = await post('/api/extensao/parear', { cliente: 'c1' });
+    expect(json.codigo).toMatch(/^cof-/);
+    const ext = (caminho: string, codigo: string, corpo?: unknown, extra: Record<string, string> = {}) => fetch(base + caminho, {
+      method: corpo ? 'POST' : 'GET',
+      headers: { 'X-Cofilius-Extensao': codigo, ...(corpo ? { 'Content-Type': 'application/json' } : {}), ...extra },
+      body: corpo ? JSON.stringify(corpo) : undefined,
+    });
+    expect((await ext('/extensao/estado', 'cof-errado-1234567')).status).toBe(401);
+    expect(await (await ext('/extensao/estado', json.codigo)).json()).toEqual({ ok: true, cliente: 'Cliente Teste' });
+    const capturas = [{ tipo: 'resposta', url: 'https://www.amazon.com.br/associates/sitestripe/getShortUrl?storeId=loja-20',
+      resposta: { json: { ok: true, longUrl: 'https://www.amazon.com.br/x/dp/B0DMTGP55X', shortUrl: 'https://link.amazon/abc' } } }];
+    const r = await (await ext('/extensao/receber', json.codigo, { capturas })).json();
+    expect(r).toMatchObject({ ok: true, usados: 1, falhas: [] });
+    expect((await fetch(base + '/extensao/receber', { method: 'POST', headers: { 'X-Cofilius-Extensao': json.codigo, 'Content-Type': 'text/plain' }, body: '{}' })).status).toBe(415);
+    const est = (await get('/api/extensao?cliente=c1')).json;
+    expect(est).toMatchObject({ pareado: true, ultimos: [{ tipo: 'amazon.link', erro: null }] });
+    // gravação inteira pelo Importar
+    const gr = await post('/api/importar/gravacao', { cliente: 'c1', json: JSON.stringify({ formato: 'cofilius-gravacao', capturas }) });
+    expect(gr.json).toMatchObject({ ok: true, usados: 1 });
+    expect((await post('/api/importar/gravacao', { cliente: 'c1', json: '{"x":1}' })).json.erro).toContain('gravação');
+  });
+
   it('fechamento, uso e esteira pela tela', async () => {
     const f = await post('/api/fechamento', { cliente: 'c1', de: '2026-01-01', ate: '2030-12-31' });
     expect(f.json.texto).toContain('Comissão pendente: R$ 2,50');

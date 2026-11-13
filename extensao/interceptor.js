@@ -3,6 +3,10 @@
  * Observa as chamadas que a própria página faz (fetch e XMLHttpRequest) e, para as que
  * interessam, manda uma cópia mascarada para a ponte da extensão. Não altera nem bloqueia nada:
  * a página recebe a resposta original, intacta.
+ *
+ * Relatórios paginados da Shopee (conversões e cliques): a página só carrega a primeira página;
+ * o interceptor pede as seguintes do mesmo jeito que a página pediu (mesmo endereço e cabeçalhos,
+ * só muda page_num), para o painel receber o relatório inteiro. Os cabeçalhos nunca saem da página.
  */
 (function () {
   'use strict';
@@ -16,11 +20,26 @@
     } catch (e) { /* nunca quebra a página */ }
   }
 
-  function registrar(metodo, url, status, corpoPedido, textoResposta) {
+  const jaPedidas = new Set();
+
+  /** Pede a próxima página de um relatório paginado e registra como se a página tivesse pedido. */
+  function seguirPaginas(url, cabecalhos, json) {
+    const proxima = N.proximaPagina(url, location.href, json);
+    if (!proxima || jaPedidas.has(proxima)) return;
+    jaPedidas.add(proxima);
+    setTimeout(function () {
+      fetchOriginal.call(window, proxima, { credentials: 'include', headers: cabecalhos || {} })
+        .then(function (resp) { return resp.text().then(function (t) { registrar('GET', proxima, resp.status, null, t, cabecalhos); }); })
+        .catch(function () { /* sem a próxima página: o painel fica com o que veio */ });
+    }, 800);
+  }
+
+  function registrar(metodo, url, status, corpoPedido, textoResposta, cabecalhos) {
     try {
       if (!N.deveGravar(url, location.href, location.href)) return;
       const resposta = N.interpretarCorpo(textoResposta);
       if (!resposta) return;
+      if (status === 200 && resposta.json && String(metodo).toUpperCase() === 'GET') seguirPaginas(url, cabecalhos, resposta.json);
       enviar({
         tipo: 'resposta',
         plataforma: N.idPlataforma(location.href),
@@ -43,6 +62,17 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', registrarVisita);
   else registrarVisita();
 
+  function copiarCabecalhos(h) {
+    const saida = {};
+    try {
+      if (!h) return saida;
+      if (typeof h.forEach === 'function' && !Array.isArray(h)) h.forEach(function (v, k) { saida[k] = v; });
+      else if (Array.isArray(h)) h.forEach(function (par) { saida[par[0]] = par[1]; });
+      else Object.keys(h).forEach(function (k) { saida[k] = h[k]; });
+    } catch (e) { /* sem cabeçalhos */ }
+    return saida;
+  }
+
   // fetch
   const fetchOriginal = window.fetch;
   if (typeof fetchOriginal === 'function') {
@@ -53,8 +83,9 @@
         const metodo = (opcoes && opcoes.method) || (entrada && entrada.method) || 'GET';
         const corpo = opcoes && typeof opcoes.body === 'string' ? opcoes.body : null;
         if (N.deveGravar(url, location.href, location.href)) {
+          const cabecalhos = N.tipoSincronia(url, location.href) ? copiarCabecalhos((opcoes && opcoes.headers) || (entrada && entrada.headers)) : null;
           promessa.then(function (resp) {
-            resp.clone().text().then(function (t) { registrar(metodo, url, resp.status, corpo, t); }, function () {});
+            resp.clone().text().then(function (t) { registrar(metodo, url, resp.status, corpo, t, cabecalhos); }, function () {});
           }, function () {});
         }
       } catch (e) { /* nunca quebra a página */ }
@@ -65,9 +96,14 @@
   // XMLHttpRequest
   const abrir = XMLHttpRequest.prototype.open;
   const mandar = XMLHttpRequest.prototype.send;
+  const definirCabecalho = XMLHttpRequest.prototype.setRequestHeader;
   XMLHttpRequest.prototype.open = function (metodo, url) {
-    this.__cofilius = { metodo: metodo, url: String(url) };
+    this.__cofilius = { metodo: metodo, url: String(url), cabecalhos: {} };
     return abrir.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.setRequestHeader = function (nome, valor) {
+    try { if (this.__cofilius) this.__cofilius.cabecalhos[nome] = valor; } catch (e) { /* nada */ }
+    return definirCabecalho.apply(this, arguments);
   };
   XMLHttpRequest.prototype.send = function (corpo) {
     const info = this.__cofilius;
@@ -78,7 +114,8 @@
           let texto = null;
           if (xhr.responseType === '' || xhr.responseType === 'text') texto = xhr.responseText;
           else if (xhr.responseType === 'json') texto = JSON.stringify(xhr.response);
-          registrar(info.metodo, info.url, xhr.status, typeof corpo === 'string' ? corpo : null, texto);
+          registrar(info.metodo, info.url, xhr.status, typeof corpo === 'string' ? corpo : null, texto,
+            N.tipoSincronia(info.url, location.href) ? info.cabecalhos : null);
         } catch (e) { /* nunca quebra a página */ }
       });
     }

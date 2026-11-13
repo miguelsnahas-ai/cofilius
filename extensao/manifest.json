@@ -1,25 +1,28 @@
 {
   "manifest_version": 3,
-  "name": "Cofilius · Gravador",
-  "version": "0.2.0",
-  "description": "Grava os dados que as páginas de afiliado do Mercado Livre, Shopee e Amazon carregam, para o Cofilius entender o formato.",
+  "name": "Cofilius",
+  "version": "0.3.0",
+  "description": "Leva ao painel do Cofilius (no seu computador) as vendas, cliques e links das páginas de afiliado da Shopee e da Amazon. Também grava formatos novos para o Cofilius aprender.",
   "minimum_chrome_version": "111",
   "permissions": [
     "storage",
     "unlimitedStorage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "alarms"
   ],
   "host_permissions": [
     "https://*.mercadolivre.com.br/*",
     "https://*.shopee.com.br/*",
-    "https://*.amazon.com.br/*"
+    "https://*.amazon.com.br/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
   ],
   "background": {
     "service_worker": "servico.js"
   },
   "action": {
-    "default_title": "Cofilius · Gravador",
+    "default_title": "Cofilius",
     "default_popup": "popup.html"
   },
   "content_scripts": [

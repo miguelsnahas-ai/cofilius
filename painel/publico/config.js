@@ -2,15 +2,40 @@
 'use strict';
 
 (() => {
-const { $, el, api, agir, lerForm, avisar } = window.Cofilius;
+const { $, el, api, agir, lerForm, avisar, estado } = window.Cofilius;
 
 /** Mostra só o campo de chave do provedor escolhido. */
 function mostrarCamposDoProvedor(provedor) {
   for (const campo of document.querySelectorAll('[data-provedor]')) campo.hidden = campo.dataset.provedor !== provedor;
 }
 
+const NOMES_EXTENSAO = { 'shopee.conversoes': 'Vendas da Shopee', 'shopee.cliques': 'Cliques da Shopee', 'amazon.link': 'Links da Amazon' };
+
+function quando(iso) {
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+async function mostrarExtensao() {
+  const alvo = $('estado-extensao');
+  if (!estado.cliente) { alvo.replaceChildren(); return; }
+  try {
+    const r = await api(`/api/extensao?cliente=${encodeURIComponent(estado.cliente)}`);
+    alvo.replaceChildren(
+      el('p', { classe: 'ajuda', texto: !r.pareado ? 'Ainda não pareada para este cliente.'
+        : r.usadoEm ? `Pareada · último contato da extensão ${quando(r.usadoEm)}` : 'Código gerado; a extensão ainda não se conectou.' }),
+      r.ultimos.length ? el('ul', {}, ...r.ultimos.map((u) => el('li', {
+        classe: u.erro ? 'erro-texto' : '',
+        texto: `${NOMES_EXTENSAO[u.tipo] || u.tipo}: ${quando(u.em)}${u.erro ? ` · erro: ${u.erro}` : ''}`,
+      }))) : null);
+  } catch (e) {
+    alvo.replaceChildren(el('p', { classe: 'erro-texto', texto: e.message }));
+  }
+}
+
 window.Cofilius.registrar('config', {
   async mostrar() {
+    $('codigo-pareamento').hidden = true;
+    mostrarExtensao();
     const c = await api('/api/config');
     const f = $('form-config');
     f.elements.operador.value = c.operador;
@@ -45,6 +70,26 @@ window.Cofilius.registrar('config', {
       if (!dados.novaSenha) delete dados.novaSenha;
       agir(f.querySelector('button[type=submit]'), () => api('/api/config', dados),
         (r) => (r.senhaAlterada ? 'Salvo. A senha mudou: o navegador vai pedir a nova.' : 'Configuração salva'));
+    });
+    $('gerar-pareamento').addEventListener('click', async (ev) => {
+      if (!estado.cliente) return avisar('Escolha o cliente no topo.', true);
+      if (!window.confirm('Gerar um código novo? Se a extensão já estava pareada com este cliente, ela vai precisar do código novo.')) return;
+      const botao = ev.currentTarget;
+      botao.disabled = true;
+      try {
+        const r = await api('/api/extensao/parear', {});
+        $('codigo-texto').textContent = r.codigo;
+        $('codigo-pareamento').hidden = false;
+        mostrarExtensao();
+      } catch (e) {
+        avisar(e.message, true);
+      } finally {
+        botao.disabled = false;
+      }
+    });
+    $('copiar-codigo').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText($('codigo-texto').textContent); avisar('Código copiado'); }
+      catch { avisar('Selecione o código e copie com Ctrl+C.', true); }
     });
     $('form-testar').addEventListener('submit', async (ev) => {
       ev.preventDefault();

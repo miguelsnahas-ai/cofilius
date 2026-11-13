@@ -20,7 +20,7 @@ window.Cofilius.registrar('importar', {
       select.replaceChildren(el('option', { texto: '(usar a coluna da planilha)', attrs: { value: '' } }),
         ...(atual ? atual.nichos : []).map((n) => el('option', { texto: n.nome || n.slug, attrs: { value: n.slug } })));
     }).catch((e) => avisar(e.message, true));
-    for (const id of ['resultado-ofertas', 'resultado-vendas']) $(id).replaceChildren();
+    for (const id of ['resultado-ofertas', 'resultado-vendas', 'resultado-gravacao']) $(id).replaceChildren();
     return c;
   },
   iniciar() {
@@ -64,6 +64,32 @@ window.Cofilius.registrar('importar', {
         botao.disabled = false;
       }
     });
+    $('form-gravacao').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const form = ev.currentTarget;
+      const botao = form.querySelector('button');
+      botao.disabled = true;
+      try {
+        let arquivo;
+        try { arquivo = JSON.parse(await lerArquivo(form.elements.arquivo)); } catch { throw new Error('O arquivo não é uma gravação do Cofilius.'); }
+        if (!arquivo || arquivo.formato !== 'cofilius-gravacao' || !Array.isArray(arquivo.capturas)) throw new Error('O arquivo não é uma gravação do Cofilius.');
+        // Manda só o que o painel usa (a gravação inteira pode ter vários MB). O painel confere de novo.
+        const usadas = arquivo.capturas.filter((c) => c && c.tipo === 'resposta' && USADAS.test(String(c.url || '')));
+        if (!usadas.length) throw new Error('A gravação não tem relatório de conversões ou de cliques da Shopee, nem link da Amazon.');
+        const r = await api('/api/importar/gravacao', { json: JSON.stringify({ formato: arquivo.formato, capturas: usadas }) });
+        $('resultado-gravacao').replaceChildren(
+          el('ul', {}, ...r.resultados.map((x) => el('li', { classe: x.ok ? '' : 'erro-texto', texto: `${x.ok ? '✔' : '✘'} ${NOMES[x.tipo] || x.tipo}: ${x.detalhe}` }))));
+        avisar(`${r.usados} relatório(s) importado(s) da gravação`, r.falhas.length > 0);
+        form.reset();
+      } catch (e) {
+        avisar(e.message, true);
+      } finally {
+        botao.disabled = false;
+      }
+    });
   },
 });
+
+const USADAS = /^https:\/\/(affiliate\.shopee\.com\.br\/api\/(v3\/report|v1\/click_report)\/list|www\.amazon\.com\.br\/associates\/sitestripe\/getShortUrl)\b/;
+const NOMES = { 'shopee.conversoes': 'Vendas da Shopee', 'shopee.cliques': 'Cliques da Shopee', 'amazon.link': 'Link da Amazon' };
 })();

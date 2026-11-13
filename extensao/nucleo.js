@@ -175,7 +175,56 @@
     };
   }
 
+  // -------------------------------------------------------------------------
+  // Sincronia com o painel: só estes dados vão para o painel do Cofilius (no seu computador).
+  // O painel confere de novo (services/extensao/conversores.ts, tipoPelaUrl).
+  // -------------------------------------------------------------------------
+  const SINCRONIA = [
+    { tipo: 'shopee.conversoes', host: 'affiliate.shopee.com.br', caminho: '/api/v3/report/list', paginas: true },
+    { tipo: 'shopee.cliques', host: 'affiliate.shopee.com.br', caminho: '/api/v1/click_report/list', paginas: true },
+    { tipo: 'amazon.link', host: 'www.amazon.com.br', caminho: '/associates/sitestripe/getShortUrl', paginas: false },
+  ];
+
+  /** Páginas que a busca automática abre (escondidas) para os relatórios carregarem. */
+  const PAGINAS_BUSCA = [
+    'https://affiliate.shopee.com.br/report/conversion_report',
+    'https://affiliate.shopee.com.br/report/click_report',
+  ];
+  const MAX_PAGINAS = 25;
+
+  function regraSincronia(url, base) {
+    const u = urlAbsoluta(url, base);
+    if (!u || u.protocol !== 'https:') return null;
+    return SINCRONIA.find(function (r) { return r.host === u.hostname && r.caminho === u.pathname; }) || null;
+  }
+
+  /** Tipo do dado para o painel, ou null se o painel não usa. */
+  function tipoSincronia(url, base) {
+    const r = regraSincronia(url, base);
+    return r ? r.tipo : null;
+  }
+
+  /**
+   * Relatórios paginados da Shopee: endereço da próxima página, ou null se acabou.
+   * Usa page_num / page_size / total_count, como a própria página faz.
+   */
+  function proximaPagina(url, base, json) {
+    const r = regraSincronia(url, base);
+    if (!r || !r.paginas || !json || json.code !== 0 || !json.data) return null;
+    const pagina = Number(json.data.page_num) || 1;
+    const tamanho = Number(json.data.page_size) || 0;
+    const total = Number(json.data.total_count) || 0;
+    if (!tamanho || pagina * tamanho >= total || pagina >= MAX_PAGINAS) return null;
+    const u = urlAbsoluta(url, base);
+    if (!u.searchParams.has('page_num')) return null;
+    u.searchParams.set('page_num', String(pagina + 1));
+    return u.toString();
+  }
+
   raiz.CofiliusNucleo = {
+    tipoSincronia: tipoSincronia,
+    proximaPagina: proximaPagina,
+    PAGINAS_BUSCA: PAGINAS_BUSCA,
     LIMITE_CAPTURAS: LIMITE_CAPTURAS,
     mascarar: mascarar,
     mascararTexto: mascararTexto,

@@ -37,6 +37,8 @@ import {
   MODELOS_PLANILHA, novaDiretriz, novoCliente, removerNichoCliente, salvarNichoCliente, salvarShopeeCliente, testarAgente, uso,
 } from './apiGestao.ts';
 import { criarEsteiraAutomatica, type EsteiraAutomatica } from './esteiraAutomatica.ts';
+import { clientePareado, gerarPareamento, receberCapturas, ultimosRecebimentos } from '../services/extensao/receber.ts';
+import { buscarCliente } from '../db/clientes.ts';
 import { canalWhatsapp } from '../services/disparador/disparador.ts';
 import { configWhatsappDoAmbiente } from '../services/disparador/whatsapp.ts';
 import { importarChave } from '../harness/cripto.ts';
@@ -173,6 +175,14 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     [/^\/api\/redigir$/, (_m, c, d) => rodarRedator(d, c)],
     [/^\/api\/validar-dia$/, (_m, c, d) => validarDiaInteiro(d, c)],
     [/^\/api\/receber$/, (_m, c, d) => simularRecebida(d, c)],
+    [/^\/api\/extensao\/parear$/, async (_m, c, d) => ({ ok: true, codigo: await gerarPareamento(d.sql, String(c.cliente ?? '')) })],
+    [/^\/api\/importar\/gravacao$/, async (_m, c, d) => {
+      const cliente = await buscarCliente(d.sql, String(c.cliente ?? ''));
+      let arquivo: { formato?: string; capturas?: unknown[] };
+      try { arquivo = JSON.parse(String(c.json ?? '')); } catch { throw new ErroPedido('O arquivo não é uma gravação do Cofilius (JSON inválido).'); }
+      if (arquivo?.formato !== 'cofilius-gravacao' || !Array.isArray(arquivo.capturas)) throw new ErroPedido('O arquivo não é uma gravação do Cofilius.');
+      return { ok: true, ...(await receberCapturas(d.sql, cliente, arquivo.capturas)) };
+    }],
     [/^\/api\/pedidos\/([0-9a-f-]{36})\/concluir$/, (m, c, d) => concluirPedidoAfiliado(d, m[1]!, c)],
     [/^\/api\/gestao\/clientes$/, (_m, c, d) => novoCliente(d, c)],
     [new RegExp(`^/api/gestao/clientes/${CODIGO}$`), (m, c, d) => editarCliente(d, m[1]!, c)],
@@ -289,6 +299,8 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
 
       // ---------------- modo normal ----------------
       const d = deps;
+      // Extensão do Chrome: entra pelo código de pareamento do cliente, não pela senha do painel.
+      if (url.pathname.startsWith('/extensao/')) return await rotaExtensao(req, res, url, d);
       if (!senhaConfere(req, d.senha)) {
         res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Cofilius", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Senha necessária.');
@@ -303,6 +315,7 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
           case '/api/config': return responder(res, 200, config(d));
           case '/api/esteira': return responder(res, 200, esteira ? await esteira.status() : { ligada: false, rodando: false, ultima: null, tarefas: [] });
           case '/api/uso': return responder(res, 200, await uso(d, q.get('de'), q.get('ate')));
+          case '/api/extensao': return responder(res, 200, await ultimosRecebimentos(d.sql, await buscarCliente(d.sql, q.get('cliente') ?? '')));
           case '/api/diretrizes': return responder(res, 200, await diretrizesDoCliente(d, q.get('cliente') ?? ''));
           case '/api/dia': {
             const cliente = q.get('cliente');
@@ -348,6 +361,24 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
       responder(res, deUso ? 400 : 500, { erro: deUso ? msg : `Erro interno: ${msg}` });
     }
   });
+}
+
+/**
+ * Rotas da extensão. O código vem no cabeçalho X-Cofilius-Extensao (outro site não consegue mandar
+ * esse cabeçalho sem a permissão do painel, que não é dada: não há CORS).
+ */
+async function rotaExtensao(req: IncomingMessage, res: ServerResponse, url: URL, d: DepsPainel): Promise<void> {
+  const codigo = req.headers['x-cofilius-extensao'];
+  const cliente = await clientePareado(d.sql, typeof codigo === 'string' ? codigo : undefined);
+  if (!cliente) return responder(res, 401, { erro: 'Código de pareamento inválido. Gere um novo no painel, em Configuração.' });
+  if (req.method === 'GET' && url.pathname === '/extensao/estado') return responder(res, 200, { ok: true, cliente: cliente.nome });
+  if (req.method === 'POST' && url.pathname === '/extensao/receber') {
+    if (!(req.headers['content-type'] ?? '').startsWith('application/json')) return responder(res, 415, { erro: 'Envie JSON.' });
+    const corpo = await lerCorpo(req);
+    if (!Array.isArray(corpo.capturas)) throw new ErroPedido('Falta "capturas".');
+    return responder(res, 200, { ok: true, cliente: cliente.nome, ...(await receberCapturas(d.sql, cliente, corpo.capturas)) });
+  }
+  responder(res, 404, { erro: 'Rota desconhecida.' });
 }
 
 /** Compatível com os testes e usos anteriores: painel já configurado, sem esteira automática. */

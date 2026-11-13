@@ -16,6 +16,7 @@ function descrever(c) {
 
 async function desenhar() {
   const { gravando, capturas, aviso } = await ler();
+  if (gravando || capturas.length) $('gravador').open = true;
   $('ponto').classList.toggle('ligado', gravando);
   $('estado').textContent = gravando ? 'Gravando' : 'Parado';
   $('alternar').textContent = gravando ? 'Parar de gravar' : 'Começar a gravar';
@@ -98,3 +99,66 @@ $('limpar').addEventListener('click', async () => {
 
 chrome.storage.onChanged.addListener(desenhar);
 desenhar();
+
+// ---------------------------------------------------------------------------
+// Painel: pareamento, estado da sincronia, busca
+// ---------------------------------------------------------------------------
+
+function quando(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+async function desenharPainel() {
+  const { painel = null, sincronia = {}, buscaAutomatica = true, pendentes = [], ultimaBusca = '' } =
+    await chrome.storage.local.get(['painel', 'sincronia', 'buscaAutomatica', 'pendentes', 'ultimaBusca']);
+  const pareada = !!(painel && painel.codigo);
+  $('form-parear').hidden = pareada;
+  $('pareada').hidden = !pareada;
+  $('estado-painel').textContent = pareada ? `Pareada com o painel · cliente ${painel.cliente}` : 'Não pareada.';
+  $('estado-painel').className = pareada ? 'ok' : 'suave';
+  $('busca-auto').checked = buscaAutomatica;
+  const partes = [];
+  if (sincronia.em) partes.push(`Último envio ${quando(sincronia.em)}`);
+  if (sincronia.detalhe) partes.push(sincronia.detalhe);
+  if (sincronia.erro) partes.push(`Atenção: ${sincronia.erro}`);
+  if (pendentes.length) partes.push(`${pendentes.length} na fila`);
+  if (ultimaBusca) partes.push(`Última busca ${quando(ultimaBusca)}`);
+  $('sincronia').textContent = partes.join(' · ') || 'Nada enviado ainda. Abra o relatório de conversões da Shopee ou clique em Buscar agora.';
+  $('sincronia').className = sincronia.erro ? 'aviso' : 'suave';
+}
+
+$('form-parear').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const botao = ev.currentTarget.querySelector('button');
+  botao.disabled = true;
+  try {
+    const r = await chrome.runtime.sendMessage({ cofilius: 'parear', endereco: $('endereco').value, codigo: $('codigo').value });
+    $('estado-painel').textContent = r.ok ? `Pareada · cliente ${r.cliente}` : r.erro;
+    $('estado-painel').className = r.ok ? 'ok' : 'aviso';
+    if (r.ok) $('codigo').value = '';
+  } finally {
+    botao.disabled = false;
+  }
+});
+
+$('busca-auto').addEventListener('change', (ev) => chrome.storage.local.set({ buscaAutomatica: ev.target.checked }));
+
+$('buscar').addEventListener('click', async () => {
+  $('buscar').disabled = true;
+  const r = await chrome.runtime.sendMessage({ cofilius: 'buscar' });
+  $('sincronia').textContent = r.ok
+    ? 'Buscando: uma janela minimizada abre os relatórios da Shopee e fecha sozinha em 1 minuto e meio. Precisa estar logada na Shopee Afiliados.'
+    : r.erro;
+  setTimeout(() => { $('buscar').disabled = false; }, 90000);
+});
+
+$('despareada').addEventListener('click', async () => {
+  const { painel } = await chrome.storage.local.get('painel');
+  if (painel) $('endereco').value = painel.endereco;
+  await chrome.storage.local.remove('painel');
+});
+
+chrome.storage.onChanged.addListener(desenharPainel);
+desenharPainel();

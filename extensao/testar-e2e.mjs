@@ -96,6 +96,7 @@ await pagina.waitForTimeout(800);
 assert.equal((await capturas()).length, 0, 'gravou com a gravação desligada');
 
 // 2. Ligado: grava visita, fetch e XHR, mascarado; ignora métricas; a página recebe o dado original.
+await popup.click('#gravador summary');
 await popup.click('#alternar');
 await popup.waitForFunction(() => document.getElementById('estado').textContent === 'Gravando');
 await pagina.reload();

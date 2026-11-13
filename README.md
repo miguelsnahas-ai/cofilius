@@ -402,7 +402,12 @@ validada ou aprovada a devolve para rascunho.
 
 ### Vendas e resumo
 
-Enquanto não há importador para os relatórios de cada plataforma, as vendas entram pela planilha
+**Shopee, sem arquivo:** com a extensão do Chrome pareada (painel › Configuração › Extensão do Chrome),
+as vendas e os cliques chegam sozinhos do painel de afiliados da Shopee, a cada 6 horas ou quando você abre os relatórios.
+Os links curtos que você gera pela barra SiteStripe da Amazon também chegam. Passo a passo em [`extensao/LEIA-ME.md`](extensao/LEIA-ME.md).
+Um arquivo de gravação da extensão também pode ser importado em **Importar › Gravação da extensão**.
+
+Para o resto (Mercado Livre, pedidos da Amazon), as vendas entram pela planilha
 [`docs/modelos/vendas.csv`](docs/modelos/vendas.csv) (na Shopee, com as colunas `sub_id1` a `sub_id5`):
 
 ```bash
@@ -526,6 +531,8 @@ Contrato e formato dos agentes: [agents/LEIA-ME.md](agents/LEIA-ME.md).
 npm test
 ```
 
+Extensão num Chromium de verdade (páginas falsas): `npm run extensao:e2e` e `npm run extensao:sincronia`.
+
 Testa o módulo de etiquetas, o parser e o cliente da Shopee (com respostas de exemplo em `services/shopee/fixtures/`), as novas tentativas, a cifragem, os marcadores, as planilhas e o núcleo da extensão.
 
 Os testes com banco de verdade (serviços, lista, vendas, fila, agentes e painel) rodam só com `TEST_DATABASE_URL` apontando para um Postgres **de teste**.
@@ -566,6 +573,15 @@ Tudo isolado em `services/disparador/whatsapp.ts`, marcado com `TODO(whatsapp-do
 4. Verificação do webhook (`hub.mode`, `hub.verify_token`, `hub.challenge`) e assinatura `X-Hub-Signature-256` (`sha256=` + HMAC do corpo com o segredo do app).
 5. Formato dos avisos: mensagens (`entry[].changes[].value.messages[]`, texto em `text.body`, botões em `button.text` ou `interactive.button_reply.title`) e status (`statuses[]` com `delivered` e `read`).
 6. Como criar o botão "Mandar a lista de hoje" (modelo aprovado com botão de resposta rápida) e se a categoria dele é utilidade.
+
+### Formatos da gravação de 13/nov (extensão → painel)
+
+Isolados em `services/extensao/conversores.ts`, marcados com `TODO(confirmar)`:
+
+1. **Escala do dinheiro da Shopee**: valores inteiros divididos por 100.000 (`item_price` 4800000 = R$ 48,00; taxa 3000 = 3%). Conferir uma venda no painel da Shopee contra o painel do Cofilius.
+2. **Situação "Completed"** da Shopee foi tratada como **validada**. Se na Shopee "Concluído" ainda espera validação, trocar para pendente.
+3. Pedido = `order_sn` (o número que aparece na Shopee); produto = `item_id`; Sub_ids vêm unidos por `-` em `utm_content` (`----` = sem Sub_id).
+4. As páginas seguintes dos relatórios são pedidas com os mesmos cabeçalhos da página (só muda `page_num`). Se a Shopee recusar, o painel fica só com a primeira página: aparece no cartão da extensão.
 
 ### Relatórios recebidos em 12/nov (para o Sincronizador de ganhos)
 

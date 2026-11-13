@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "extensao:e2e": "node extensao/testar-e2e.mjs",
     "painel": "tsx painel/servidor.ts",
-    "webhook": "tsx harness/webhook.ts"
+    "webhook": "tsx harness/webhook.ts",
+    "extensao:sincronia": "node extensao/testar-sincronia-e2e.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

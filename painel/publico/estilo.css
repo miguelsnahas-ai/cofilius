@@ -242,3 +242,4 @@ details.cartao[open] > summary { border-bottom: 1px solid var(--linha); border-r
   .boas-vindas .faixa h1 { font-size: 30px; line-height: 34px; }
 }
 .acoes.sem-margem { margin-top: 0; }
+.codigo-grande { font-size: 16px; user-select: all; word-break: break-all; }

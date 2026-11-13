@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Cofilius · Gravador</title>
+  <title>Cofilius</title>
   <style>
     :root { --borda: #ddd; --texto: #222; --suave: #666; --fundo: #fff; --destaque: #2d3277; --perigo: #c62828; }
     @media (prefers-color-scheme: dark) { :root { --borda: #444; --texto: #eee; --suave: #aaa; --fundo: #1e1e1e; --destaque: #8f97ff; } }
@@ -20,11 +20,38 @@
     ul { list-style: none; padding: 0; margin: 6px 0; max-height: 150px; overflow: auto; font-size: 11px; color: var(--suave); }
     li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--borda); padding: 2px 0; }
     .aviso { color: var(--perigo); font-size: 12px; }
+    h2 { font-size: 13px; margin: 10px 0 4px; }
+    label { display: block; font-size: 12px; margin: 6px 0; }
+    label input:not([type]) { width: 100%; box-sizing: border-box; padding: 6px; margin-top: 2px; border: 1px solid var(--borda); border-radius: 6px; background: transparent; color: var(--texto); font: inherit; }
+    label.check { display: flex; gap: 6px; align-items: center; }
+    details { margin-top: 10px; border-top: 1px solid var(--borda); padding-top: 6px; }
+    summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+    .ok { color: #2e7d32; }
   </style>
 </head>
 <body>
-  <h1>Cofilius · Gravador</h1>
-  <p class="suave">Mercado Livre, Shopee e Amazon. Ligue, navegue pelas páginas de afiliado normalmente, depois baixe o arquivo e envie.</p>
+  <h1>Cofilius</h1>
+
+  <section id="secao-painel">
+    <h2>Painel</h2>
+    <p id="estado-painel" class="suave">Não pareada.</p>
+    <form id="form-parear">
+      <label>Endereço do painel <input id="endereco" value="http://127.0.0.1:3000" autocomplete="off"></label>
+      <label>Código de pareamento <input id="codigo" placeholder="cof-..." autocomplete="off"></label>
+      <button type="submit" class="principal">Parear</button>
+      <p class="suave">O código sai no painel, em Configuração › Extensão do Chrome.</p>
+    </form>
+    <div id="pareada" hidden>
+      <p id="sincronia" class="suave"></p>
+      <label class="check"><input id="busca-auto" type="checkbox"> Buscar sozinha a cada 6 horas (com o Chrome aberto)</label>
+      <button id="buscar" class="principal">Buscar agora</button>
+      <button id="despareada">Trocar de painel ou cliente</button>
+    </div>
+  </section>
+
+  <details id="gravador">
+    <summary>Gravador (para formatos novos)</summary>
+  <p class="suave">Ligue, navegue pelas páginas de afiliado normalmente, depois baixe o arquivo e envie ao Cofilius.</p>
 
   <div class="estado"><span id="ponto" class="ponto"></span><span id="estado">Parado</span></div>
   <p id="contagem" class="suave">Nada gravado.</p>
@@ -37,7 +64,8 @@
 
   <p class="suave">Últimas capturas:</p>
   <ul id="lista"></ul>
-  <p class="suave">E-mails, CPF, telefone, endereço e senhas são mascarados antes de gravar. Nada é enviado pela internet: o arquivo fica no seu computador.</p>
+  </details>
+  <p class="suave">E-mails, CPF, telefone, endereço e senhas são mascarados antes de gravar. Os dados vão só para o painel do Cofilius no endereço acima; a gravação fica no seu computador.</p>
 
   <script src="nucleo.js"></script>
   <script src="popup.js"></script>

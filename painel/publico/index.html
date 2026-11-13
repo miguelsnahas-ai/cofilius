@@ -133,6 +133,15 @@
         </form>
         <div id="resultado-vendas"></div>
       </section>
+      <section class="cartao">
+        <h2>Gravação da extensão</h2>
+        <p class="ajuda">Só se precisar: com a extensão pareada, isto já chega sozinho. Aqui você importa um arquivo <code>cofilius-gravacao-….json</code> baixado pela extensão: entram as vendas e os cliques da Shopee e os links da Amazon que estiverem nele.</p>
+        <form id="form-gravacao" class="grade-form">
+          <label class="largo">Arquivo da gravação <input name="arquivo" type="file" accept=".json,application/json" required></label>
+          <div class="largo"><button type="submit">Importar gravação</button></div>
+        </form>
+        <div id="resultado-gravacao"></div>
+      </section>
     </div>
 
     <!-- ===================== RELATÓRIOS ===================== -->
@@ -198,6 +207,18 @@
           <div class="largo"><button type="submit" class="primario">Salvar configuração</button></div>
         </form>
         <p id="estado-whatsapp" class="ajuda"></p>
+      </section>
+      <section class="cartao">
+        <div class="secao-topo">
+          <h2>Extensão do Chrome</h2>
+          <button id="gerar-pareamento" class="secundario" type="button">Gerar código de pareamento</button>
+        </div>
+        <p class="ajuda">Com a extensão pareada, as vendas e os cliques da Shopee e os links da Amazon chegam sozinhos, sem planilha. Vale para o cliente escolhido no topo.</p>
+        <div id="codigo-pareamento" hidden>
+          <p>Cole este código na extensão (ícone do Cofilius no Chrome › Código de pareamento). Ele aparece só agora.</p>
+          <p><code id="codigo-texto" class="codigo-grande"></code> <button id="copiar-codigo" class="secundario" type="button">Copiar</button></p>
+        </div>
+        <div id="estado-extensao"></div>
       </section>
       <section class="cartao">
         <h2>Testar agentes de IA</h2>
