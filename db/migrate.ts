@@ -6,6 +6,7 @@
  * O controle do que já rodou fica em controle.migracoes (schema à parte, fora do modelo de negócio).
  */
 import 'dotenv/config';
+import { executadoDiretamente } from '../harness/execucao.ts';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,7 +42,7 @@ export async function migrar(sql: Sql, opcoes: { seed?: boolean } = {}): Promise
   return aplicadas;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (executadoDiretamente(import.meta.url)) {
   const sql = conectar();
   try {
     const aplicadas = await migrar(sql, { seed: process.argv.includes('--seed') });

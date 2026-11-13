@@ -10,6 +10,7 @@
  *   uma página maliciosa aberta no navegador não aprova nada por você.
  */
 import 'dotenv/config';
+import { executadoDiretamente } from '../harness/execucao.ts';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, dirname, extname } from 'node:path';
@@ -144,7 +145,7 @@ export function criarServidorPainel(deps: DepsApi & { senha: string }): Server {
   });
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (executadoDiretamente(import.meta.url)) {
   const sql = conectar();
   const temIa = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
   const servidor = criarServidorPainel({

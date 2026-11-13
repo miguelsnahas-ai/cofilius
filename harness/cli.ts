@@ -21,6 +21,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { conectar, type Sql } from './db.ts';
 import { importarChave } from './cripto.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
@@ -528,7 +529,7 @@ async function principal(): Promise<void> {
         const nome = comando === 'testar-redator' ? 'redator' : exigir('agente');
         const contratos = { redator: contratoRedator, curador: contratoCurador, analista: contratoAnalista, atendente: contratoAtendente } as Record<string, () => Promise<any>>;
         if (!contratos[nome]) throw new Error(`Agente sem casos de teste: ${nome} (use ${Object.keys(contratos).join(' ou ')})`);
-        const { casos } = await carregarAgente(new URL(`../agents/${nome}`, import.meta.url).pathname);
+        const { casos } = await carregarAgente(fileURLToPath(new URL(`../agents/${nome}`, import.meta.url)));
         const r = await rodarCasos(sql, {
           contrato: await contratos[nome]!(), casos, modelo: criarModeloClaude(), clienteId: cliente.clienteId, precos: precosDoAmbiente(),
         });

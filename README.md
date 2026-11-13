@@ -66,6 +66,24 @@ npm install
 cp .env.example .env
 ```
 
+### No Windows (PowerShell)
+
+1. Instale o [Git](https://git-scm.com/download/win) e o [Node.js](https://nodejs.org) (versão LTS).
+2. Libere scripts do npm para o seu usuário (uma vez só):
+   ```powershell
+   Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+   ```
+   Alternativa sem mudar nada: use `npm.cmd` no lugar de `npm` (ex.: `npm.cmd run painel`).
+3. Baixe o projeto e entre na pasta:
+   ```powershell
+   git clone -b claude/cofilius-fase0-shopee-e9by0t https://github.com/miguelsnahas-ai/cofilius.git
+   cd cofilius
+   npm install
+   copy .env.example .env
+   notepad .env
+   ```
+4. Siga as seções 2 a 4 abaixo (Supabase, tabelas, credenciais). Todo comando `npm run ...` deve ser rodado dentro da pasta `cofilius`.
+
 ## 2. Configurar o Supabase
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (região São Paulo, `sa-east-1`) e anote a senha do banco.

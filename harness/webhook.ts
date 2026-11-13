@@ -8,6 +8,7 @@
  * Segurança: só aceita avisos com assinatura válida (segredo do app). Responde 200 rápido e trata cada item.
  */
 import 'dotenv/config';
+import { executadoDiretamente } from './execucao.ts';
 import { createServer, type Server } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { conectar, type Sql } from './db.ts';
@@ -86,7 +87,7 @@ export function criarServidorWebhook(deps: DepsWebhook): Server {
   });
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (executadoDiretamente(import.meta.url)) {
   const cfg = configWhatsappDoAmbiente();
   if (!cfg || !cfg.segredoApp || !cfg.tokenVerificacao) {
     console.error('Configure WHATSAPP_TOKEN, WHATSAPP_NUMERO_ID, WHATSAPP_VERSAO_API, WHATSAPP_SEGREDO_APP e WHATSAPP_TOKEN_VERIFICACAO no .env.');
