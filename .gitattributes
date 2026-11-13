@@ -1,0 +1,2 @@
+# Atalhos do Windows: manter as quebras de linha do Windows (CRLF) como estão no repositório.
+*.bat -text

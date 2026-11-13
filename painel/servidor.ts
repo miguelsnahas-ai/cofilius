@@ -1,29 +1,42 @@
 /**
  * Painel do operador: servidor web local (sem dependências além do Node).
  *
- *   npm run painel        → http://127.0.0.1:3000
+ *   Windows: dois cliques em Cofilius.bat   ·   ou: npm run painel   →   http://127.0.0.1:3000
+ *
+ * Dois modos:
+ * - configuração: sem banco ou sem senha no .env, mostra a tela de configuração inicial (só para este computador);
+ * - normal: o painel completo (dia, clientes, importações, relatórios, configuração) e a esteira automática.
  *
  * Segurança:
- * - Escuta só no próprio computador (127.0.0.1), salvo PAINEL_HOST no .env.
- * - Senha obrigatória (PAINEL_SENHA no .env), pedida pelo navegador (usuário: qualquer).
- * - Toda ação (POST) exige JSON e o cabeçalho X-Cofilius, que outro site não consegue enviar:
- *   uma página maliciosa aberta no navegador não aprova nada por você.
+ * - Escuta só no próprio computador (127.0.0.1), salvo PAINEL_HOST no .env (nunca no modo configuração).
+ * - Senha obrigatória no modo normal (pedida pelo navegador; usuário: qualquer).
+ * - Toda ação (POST) exige JSON e o cabeçalho X-Cofilius, que outro site não consegue enviar.
+ * - Chaves e senhas nunca voltam para a tela: só "configurada" ou não.
  */
-import 'dotenv/config';
-import { executadoDiretamente } from '../harness/execucao.ts';
+import { config as carregarEnv } from 'dotenv';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { timingSafeEqual } from 'node:crypto';
-import { conectar, erroDeConexao } from '../harness/db.ts';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { exec } from 'node:child_process';
+import { executadoDiretamente } from '../harness/execucao.ts';
+import { ARQUIVO_ENV, salvarNoEnv } from '../harness/configLocal.ts';
+import { conectar, erroDeConexao, type Sql } from '../harness/db.ts';
 import { log } from '../harness/log.ts';
 import { criarModeloClaude, precosDoAmbiente } from '../harness/modeloClaude.ts';
+import { MODELO_PADRAO } from '../harness/agentes.ts';
+import { migrar } from '../db/migrate.ts';
 import { registrarAcao } from '../services/relatorios/uso.ts';
 import {
   acaoDiretriz, acaoMensagem, confirmarPrecoOferta, ErroPedido, listarClientes, painelDoDia, registrarLinkOferta,
   rodarCurador, rodarRedator, simularRecebida, concluirPedidoAfiliado, type DepsApi,
 } from './api.ts';
+import {
+  ativarCliente, cadastroClientes, diretrizesDoCliente, editarCliente, fechamento, importarOfertas, importarVendasPlanilha,
+  MODELOS_PLANILHA, novaDiretriz, novoCliente, removerNichoCliente, salvarNichoCliente, salvarShopeeCliente, testarAgente, uso,
+} from './apiGestao.ts';
+import { criarEsteiraAutomatica, type EsteiraAutomatica } from './esteiraAutomatica.ts';
 import { canalWhatsapp } from '../services/disparador/disparador.ts';
 import { configWhatsappDoAmbiente } from '../services/disparador/whatsapp.ts';
 import { importarChave } from '../harness/cripto.ts';
@@ -32,7 +45,10 @@ import { criarClienteShopee, ENDPOINT_BRASIL } from '../services/shopee/client.t
 
 const PUBLICO = join(dirname(fileURLToPath(import.meta.url)), 'publico');
 const TIPOS: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
-const LIMITE_CORPO = 20_000;
+const LIMITE_CORPO = 3_000_000; // planilhas importadas vêm no corpo
+const CODIGO = '([a-z0-9]{1,12})';
+
+export type DepsPainel = DepsApi & { senha: string };
 
 function responder(res: ServerResponse, status: number, corpo: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -48,12 +64,14 @@ function senhaConfere(req: IncomingMessage, senha: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+const doProprioComputador = (req: IncomingMessage) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '');
+
 async function lerCorpo(req: IncomingMessage): Promise<Record<string, unknown>> {
   let total = 0;
   const partes: Buffer[] = [];
   for await (const p of req) {
     total += (p as Buffer).length;
-    if (total > LIMITE_CORPO) throw new ErroPedido('Pedido grande demais.');
+    if (total > LIMITE_CORPO) throw new ErroPedido('Pedido grande demais (máximo 3 MB).');
     partes.push(p as Buffer);
   }
   if (!partes.length) return {};
@@ -66,41 +84,220 @@ async function lerCorpo(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
 }
 
-export function criarServidorPainel(deps: DepsApi & { senha: string }): Server {
-  if (!deps.senha) throw new Error('Defina PAINEL_SENHA no .env para usar o painel.');
-  const rotasPost: [RegExp, (m: RegExpMatchArray, corpo: Record<string, unknown>) => Promise<unknown>][] = [
-    [/^\/api\/mensagens\/([0-9a-f-]{36})\/(validar|aprovar|descartar|enviada|whatsapp)$/, (m, c) => acaoMensagem(deps, m[1]!, m[2]!, c)],
-    [/^\/api\/ofertas\/([0-9a-f-]{36})\/preco$/, (m, c) => confirmarPrecoOferta(deps, m[1]!, c)],
-    [/^\/api\/ofertas\/([0-9a-f-]{36})\/link$/, (m, c) => registrarLinkOferta(deps, m[1]!, c)],
-    [/^\/api\/diretrizes\/([0-9a-f-]{36})\/(aprovar|descartar)$/, (m, c) => acaoDiretriz(deps, m[1]!, m[2]!, c)],
-    [/^\/api\/curar$/, (_m, c) => rodarCurador(deps, c)],
-    [/^\/api\/receber$/, (_m, c) => simularRecebida(deps, c)],
-    [/^\/api\/pedidos\/([0-9a-f-]{36})\/concluir$/, (m, c) => concluirPedidoAfiliado(deps, m[1]!, c)],
-    [/^\/api\/redigir$/, (_m, c) => rodarRedator(deps, c)],
-  ];
+async function servirArquivo(res: ServerResponse, arquivo: string): Promise<void> {
+  if (!/^[a-z0-9-]+\.(html|js|css|svg)$/.test(arquivo)) return responder(res, 404, { erro: 'Não encontrado.' });
+  const conteudo = await readFile(join(PUBLICO, arquivo)).catch(() => null);
+  if (!conteudo) return responder(res, 404, { erro: 'Não encontrado.' });
+  res.writeHead(200, {
+    'Content-Type': TIPOS[extname(arquivo)] ?? 'application/octet-stream',
+    'Cache-Control': 'no-store',
+    'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:",
+    'X-Frame-Options': 'DENY',
+  });
+  res.end(conteudo);
+}
+
+/** Monta as dependências do modo normal a partir do ambiente (.env). */
+export function montarDepsDoAmbiente(sql: Sql): DepsPainel {
+  return {
+    sql,
+    senha: process.env.PAINEL_SENHA ?? '',
+    operador: process.env.PAINEL_OPERADOR || 'operador',
+    modelo: process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN ? () => criarModeloClaude() : undefined,
+    precos: precosDoAmbiente(),
+    whatsapp: configWhatsappDoAmbiente() ? canalWhatsapp(configWhatsappDoAmbiente()!) : undefined,
+    // Com a Open API da Shopee do cliente: coleta, links e Atendente gerando link na hora.
+    shopeeDoCliente: async (c) => {
+      try {
+        const chave = await importarChave(process.env.CREDENCIAIS_CHAVE);
+        return criarClienteShopee(await lerCredencialShopee(sql, chave, c.clienteId), { endpoint: process.env.SHOPEE_ENDPOINT || ENDPOINT_BRASIL });
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+export interface OpcoesAplicacao {
+  /** null = modo configuração. */
+  deps: DepsPainel | null;
+  arquivoEnv?: string;
+  /** Como montar as dependências depois da configuração inicial. */
+  montarDeps?: (sql: Sql) => DepsPainel;
+  /** Esteira automática (o principal liga; os testes, não). */
+  criarEsteira?: (deps: DepsPainel) => EsteiraAutomatica;
+  /** Testa a conexão e cria as tabelas (substituível nos testes). */
+  prepararBanco?: (url: string) => Promise<Sql>;
+}
+
+async function prepararBancoPadrao(url: string): Promise<Sql> {
+  const sql = conectar(url);
+  try {
+    await Promise.race([
+      sql`select 1`,
+      new Promise((_r, rej) => setTimeout(() => rej(new Error('o banco não respondeu em 20 segundos')), 20_000)),
+    ]);
+    await migrar(sql);
+    return sql;
+  } catch (erro) {
+    await sql.end({ timeout: 1 }).catch(() => {});
+    throw new ErroPedido(`Não consegui conectar ao banco: ${(erro as Error).message}. Confira o endereço e a senha do Supabase.`);
+  }
+}
+
+export function criarAplicacao(op: OpcoesAplicacao): Server {
+  let deps = op.deps;
+  let esteira = deps && op.criarEsteira ? op.criarEsteira(deps) : null;
+  esteira?.iniciar();
+  const arquivoEnv = op.arquivoEnv ?? ARQUIVO_ENV;
 
   /** Registro de uso: cada ação (e cada abertura do dia) conta para os minutos do operador naquele cliente. */
   const registrar = async (codigo: unknown, acao: string) => {
-    if (typeof codigo !== 'string') return;
+    if (typeof codigo !== 'string' || !deps) return;
     const [c] = await deps.sql`select cliente_id from clientes where codigo = ${codigo}`;
     if (c) await registrarAcao(deps.sql, c.cliente_id, acao, 'painel', deps.operador);
   };
 
+  type Rota = [RegExp, (m: RegExpMatchArray, corpo: Record<string, unknown>, d: DepsPainel) => Promise<unknown>];
+  const rotasPost: Rota[] = [
+    [/^\/api\/mensagens\/([0-9a-f-]{36})\/(validar|aprovar|descartar|enviada|whatsapp)$/, (m, c, d) => acaoMensagem(d, m[1]!, m[2]!, c)],
+    [/^\/api\/ofertas\/([0-9a-f-]{36})\/preco$/, (m, c, d) => confirmarPrecoOferta(d, m[1]!, c)],
+    [/^\/api\/ofertas\/([0-9a-f-]{36})\/link$/, (m, c, d) => registrarLinkOferta(d, m[1]!, c)],
+    [/^\/api\/diretrizes\/([0-9a-f-]{36})\/(aprovar|descartar)$/, (m, c, d) => acaoDiretriz(d, m[1]!, m[2]!, c)],
+    [/^\/api\/diretrizes$/, (_m, c, d) => novaDiretriz(d, c)],
+    [/^\/api\/curar$/, (_m, c, d) => rodarCurador(d, c)],
+    [/^\/api\/redigir$/, (_m, c, d) => rodarRedator(d, c)],
+    [/^\/api\/receber$/, (_m, c, d) => simularRecebida(d, c)],
+    [/^\/api\/pedidos\/([0-9a-f-]{36})\/concluir$/, (m, c, d) => concluirPedidoAfiliado(d, m[1]!, c)],
+    [/^\/api\/gestao\/clientes$/, (_m, c, d) => novoCliente(d, c)],
+    [new RegExp(`^/api/gestao/clientes/${CODIGO}$`), (m, c, d) => editarCliente(d, m[1]!, c)],
+    [new RegExp(`^/api/gestao/clientes/${CODIGO}/ativo$`), (m, c, d) => ativarCliente(d, m[1]!, c)],
+    [new RegExp(`^/api/gestao/clientes/${CODIGO}/nichos$`), (m, c, d) => salvarNichoCliente(d, m[1]!, c)],
+    [new RegExp(`^/api/gestao/clientes/${CODIGO}/nichos/([a-z0-9]+)/remover$`), (m, _c, d) => removerNichoCliente(d, m[1]!, m[2]!)],
+    [new RegExp(`^/api/gestao/clientes/${CODIGO}/shopee$`), (m, c, d) => salvarShopeeCliente(d, m[1]!, c)],
+    [/^\/api\/importar\/ofertas$/, (_m, c, d) => importarOfertas(d, c)],
+    [/^\/api\/importar\/vendas$/, (_m, c, d) => importarVendasPlanilha(d, c)],
+    [/^\/api\/fechamento$/, (_m, c, d) => fechamento(d, c)],
+    [/^\/api\/agentes\/testar$/, (_m, c, d) => testarAgente(d, c)],
+    [/^\/api\/esteira\/rodar$/, async () => {
+      if (!esteira) throw new ErroPedido('Esteira automática indisponível.');
+      await esteira.rodarAgora();
+      return { ok: true, ...(await esteira.status()) };
+    }],
+    [/^\/api\/config$/, (_m, c, d) => salvarConfig(d, c)],
+  ];
+
+  async function salvarConfig(d: DepsPainel, c: Record<string, unknown>) {
+    const valores: Record<string, string | null> = {};
+    const str = (k: string) => (typeof c[k] === 'string' ? (c[k] as string).trim() : undefined);
+    if (str('operador')) valores.PAINEL_OPERADOR = str('operador')!;
+    if (str('novaSenha') !== undefined && str('novaSenha') !== '') {
+      if (str('novaSenha')!.length < 6) throw new ErroPedido('A senha precisa ter pelo menos 6 caracteres.');
+      valores.PAINEL_SENHA = str('novaSenha')!;
+    }
+    if (str('anthropicKey')) valores.ANTHROPIC_API_KEY = str('anthropicKey')!;
+    if (c.removerAnthropicKey === true) valores.ANTHROPIC_API_KEY = null;
+    for (const [campo, chave] of [['modeloPequeno', 'MODELO_IA_PEQUENO'], ['modeloForte', 'MODELO_IA_FORTE']] as const) {
+      if (str(campo) !== undefined) valores[chave] = str(campo) || null;
+    }
+    if (typeof c.esteiraLigada === 'boolean') valores.PAINEL_ESTEIRA = c.esteiraLigada ? 'ligada' : 'desligada';
+    if (!Object.keys(valores).length) throw new ErroPedido('Nada para salvar.');
+    await salvarNoEnv(valores, arquivoEnv);
+    // Vale na hora, sem reiniciar.
+    d.operador = process.env.PAINEL_OPERADOR || 'operador';
+    d.senha = process.env.PAINEL_SENHA ?? d.senha;
+    d.modelo = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN ? () => criarModeloClaude() : undefined;
+    d.precos = precosDoAmbiente();
+    if (typeof c.esteiraLigada === 'boolean') esteira?.definirLigada(c.esteiraLigada);
+    return { ok: true, senhaAlterada: 'PAINEL_SENHA' in valores };
+  }
+
+  function config(d: DepsPainel) {
+    return {
+      operador: d.operador,
+      ia: !!d.modelo,
+      modeloPequeno: process.env.MODELO_IA_PEQUENO || MODELO_PADRAO,
+      modeloForte: process.env.MODELO_IA_FORTE || MODELO_PADRAO,
+      whatsapp: !!d.whatsapp,
+      esteiraLigada: esteira?.estado.ligada ?? false,
+      chaveCredenciais: !!process.env.CREDENCIAIS_CHAVE,
+    };
+  }
+
+  async function configurar(c: Record<string, unknown>) {
+    const url = typeof c.databaseUrl === 'string' ? c.databaseUrl.trim() : '';
+    const senha = typeof c.senha === 'string' ? c.senha : '';
+    if (!/^postgres(ql)?:\/\//.test(url)) throw new ErroPedido('Cole o endereço de conexão do Supabase (começa com postgresql://).');
+    if (/\[YOUR-PASSWORD\]/i.test(url)) throw new ErroPedido('Troque [YOUR-PASSWORD] pela senha do banco no endereço.');
+    if (senha.length < 6) throw new ErroPedido('Escolha uma senha do painel com pelo menos 6 caracteres.');
+    const sql = await (op.prepararBanco ?? prepararBancoPadrao)(url);
+    const valores: Record<string, string> = {
+      DATABASE_URL: url,
+      PAINEL_SENHA: senha,
+      PAINEL_OPERADOR: typeof c.operador === 'string' && c.operador.trim() ? c.operador.trim() : 'operador',
+    };
+    if (!process.env.CREDENCIAIS_CHAVE) valores.CREDENCIAIS_CHAVE = randomBytes(32).toString('base64');
+    if (typeof c.anthropicKey === 'string' && c.anthropicKey.trim()) valores.ANTHROPIC_API_KEY = c.anthropicKey.trim();
+    await salvarNoEnv(valores, arquivoEnv);
+    deps = (op.montarDeps ?? montarDepsDoAmbiente)(sql);
+    esteira = op.criarEsteira ? op.criarEsteira(deps) : null;
+    esteira?.iniciar();
+    log.info('painel.configurado');
+    return { ok: true };
+  }
+
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://painel');
     try {
-      if (!senhaConfere(req, deps.senha)) {
+      // ---------------- modo configuração ----------------
+      if (!deps) {
+        if (!doProprioComputador(req)) return responder(res, 403, { erro: 'Configuração só pelo próprio computador.' });
+        if (req.method === 'GET' && url.pathname === '/api/estado') return responder(res, 200, { modo: 'configuracao' });
+        if (req.method === 'POST' && url.pathname === '/api/configurar') {
+          if (req.headers['x-cofilius'] !== '1' || !(req.headers['content-type'] ?? '').startsWith('application/json')) {
+            return responder(res, 403, { erro: 'Pedido recusado (origem não confirmada).' });
+          }
+          return responder(res, 200, await configurar(await lerCorpo(req)));
+        }
+        if (req.method === 'GET' && !url.pathname.startsWith('/api/')) {
+          return servirArquivo(res, url.pathname === '/' ? 'configurar.html' : url.pathname.slice(1));
+        }
+        return responder(res, 503, { erro: 'O painel ainda não foi configurado.' });
+      }
+
+      // ---------------- modo normal ----------------
+      const d = deps;
+      if (!senhaConfere(req, d.senha)) {
         res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Cofilius", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Senha necessária.');
         return;
       }
-      if (req.method === 'GET' && url.pathname === '/api/clientes') return responder(res, 200, await listarClientes(deps));
-      if (req.method === 'GET' && url.pathname === '/api/dia') {
-        const cliente = url.searchParams.get('cliente');
-        if (!cliente) throw new ErroPedido('Falta "cliente".');
-        const dia = await painelDoDia(deps, cliente, url.searchParams.get('data') ?? undefined);
-        await registrar(cliente, 'abrir_dia');
-        return responder(res, 200, dia);
+      if (req.method === 'GET') {
+        const q = url.searchParams;
+        switch (url.pathname) {
+          case '/api/estado': return responder(res, 200, { modo: 'normal' });
+          case '/api/clientes': return responder(res, 200, await listarClientes(d));
+          case '/api/gestao/clientes': return responder(res, 200, await cadastroClientes(d));
+          case '/api/config': return responder(res, 200, config(d));
+          case '/api/esteira': return responder(res, 200, esteira ? await esteira.status() : { ligada: false, rodando: false, ultima: null, tarefas: [] });
+          case '/api/uso': return responder(res, 200, await uso(d, q.get('de'), q.get('ate')));
+          case '/api/diretrizes': return responder(res, 200, await diretrizesDoCliente(d, q.get('cliente') ?? ''));
+          case '/api/dia': {
+            const cliente = q.get('cliente');
+            if (!cliente) throw new ErroPedido('Falta "cliente".');
+            const dia = await painelDoDia(d, cliente, q.get('data') ?? undefined);
+            await registrar(cliente, 'abrir_dia');
+            return responder(res, 200, dia);
+          }
+        }
+        const modelo = url.pathname.match(/^\/modelos\/([a-z-]+\.csv)$/);
+        if (modelo && MODELOS_PLANILHA[modelo[1]!]) {
+          res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${modelo[1]}"` });
+          res.end(await readFile(MODELOS_PLANILHA[modelo[1]!]!));
+          return;
+        }
+        if (!url.pathname.startsWith('/api/')) return servirArquivo(res, url.pathname === '/' ? 'index.html' : url.pathname.slice(1));
+        return responder(res, 404, { erro: 'Rota desconhecida.' });
       }
       if (req.method === 'POST' && url.pathname.startsWith('/api/')) {
         if (req.headers['x-cofilius'] !== '1' || !(req.headers['content-type'] ?? '').startsWith('application/json')) {
@@ -110,27 +307,13 @@ export function criarServidorPainel(deps: DepsApi & { senha: string }): Server {
         for (const [re, fn] of rotasPost) {
           const m = url.pathname.match(re);
           if (m) {
-            const r = await fn(m, corpo);
+            const r = await fn(m, corpo, d);
             log.info('painel.acao', { rota: url.pathname });
             await registrar(corpo.cliente, url.pathname.replace(/[0-9a-f-]{36}\//, '').replace(/^\/api\//, ''));
             return responder(res, 200, r);
           }
         }
         return responder(res, 404, { erro: 'Rota desconhecida.' });
-      }
-      if (req.method === 'GET') {
-        const arquivo = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-        if (!/^[a-z0-9-]+\.(html|js|css|svg)$/.test(arquivo)) return responder(res, 404, { erro: 'Não encontrado.' });
-        const conteudo = await readFile(join(PUBLICO, arquivo)).catch(() => null);
-        if (!conteudo) return responder(res, 404, { erro: 'Não encontrado.' });
-        res.writeHead(200, {
-          'Content-Type': TIPOS[extname(arquivo)] ?? 'application/octet-stream',
-          'Cache-Control': 'no-store',
-          'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:",
-          'X-Frame-Options': 'DENY',
-        });
-        res.end(conteudo);
-        return;
       }
       responder(res, 405, { erro: 'Método não permitido.' });
     } catch (erro) {
@@ -145,29 +328,31 @@ export function criarServidorPainel(deps: DepsApi & { senha: string }): Server {
   });
 }
 
+/** Compatível com os testes e usos anteriores: painel já configurado, sem esteira automática. */
+export function criarServidorPainel(deps: DepsPainel): Server {
+  if (!deps.senha) throw new Error('Defina PAINEL_SENHA no .env para usar o painel.');
+  return criarAplicacao({ deps });
+}
+
+function abrirNavegador(endereco: string): void {
+  const comando = process.platform === 'win32' ? `start "" "${endereco}"` : process.platform === 'darwin' ? `open "${endereco}"` : `xdg-open "${endereco}"`;
+  exec(comando, () => { /* sem navegador disponível: o endereço fica no terminal */ });
+}
+
 if (executadoDiretamente(import.meta.url)) {
-  const sql = conectar();
-  const temIa = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
-  const servidor = criarServidorPainel({
-    sql,
-    senha: process.env.PAINEL_SENHA ?? '',
-    operador: process.env.PAINEL_OPERADOR || 'operador',
-    modelo: temIa ? () => criarModeloClaude() : undefined,
-    precos: precosDoAmbiente(),
-    whatsapp: configWhatsappDoAmbiente() ? canalWhatsapp(configWhatsappDoAmbiente()!) : undefined,
-    // Com a Open API da Shopee do cliente, o Atendente gera o link na hora; sem ela, vira tarefa sua.
-    shopeeDoCliente: async (c) => {
-      try {
-        const chave = await importarChave(process.env.CREDENCIAIS_CHAVE);
-        return criarClienteShopee(await lerCredencialShopee(sql, chave, c.clienteId), { endpoint: process.env.SHOPEE_ENDPOINT || ENDPOINT_BRASIL });
-      } catch {
-        return null;
-      }
-    },
+  carregarEnv({ path: ARQUIVO_ENV, quiet: true });
+  const configurado = !!(process.env.DATABASE_URL && process.env.PAINEL_SENHA);
+  const deps = configurado ? montarDepsDoAmbiente(conectar()) : null;
+  const servidor = criarAplicacao({
+    deps, montarDeps: montarDepsDoAmbiente, criarEsteira: (d) => criarEsteiraAutomatica(d),
   });
   const porta = Number(process.env.PAINEL_PORTA || 3000);
-  const host = process.env.PAINEL_HOST || '127.0.0.1';
+  const host = configurado ? process.env.PAINEL_HOST || '127.0.0.1' : '127.0.0.1';
   servidor.listen(porta, host, () => {
-    console.log(`Painel do Cofilius em http://${host}:${porta} (IA ${temIa ? 'ligada' : 'desligada: falta ANTHROPIC_API_KEY'})`);
+    const endereco = `http://127.0.0.1:${porta}`;
+    console.log(configurado
+      ? `Painel do Cofilius em ${endereco} (IA ${deps!.modelo ? 'ligada' : 'desligada'}). Deixe esta janela aberta enquanto usa.`
+      : `Painel do Cofilius em ${endereco}: abra no navegador para a configuração inicial. Deixe esta janela aberta.`);
+    if (process.env.PAINEL_ABRIR_NAVEGADOR !== '0') abrirNavegador(endereco);
   });
 }

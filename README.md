@@ -24,6 +24,34 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - **Analista e fechamento semanal**: indicadores calculados em código, 3 leituras ligadas aos dados e propostas de diretriz que só valem com aprovação;
 - **extensão de Chrome (etapa 1: gravador para Mercado Livre, Shopee e Amazon)**: grava os dados que as páginas de afiliado carregam, para mapear o formato real. Instalação e uso em [extensao/LEIA-ME.md](extensao/LEIA-ME.md).
 
+## Começar sem terminal (Windows)
+
+1. Instale o **Node.js** (versão LTS) em https://nodejs.org/pt (avançar, avançar, concluir).
+2. Baixe o Cofilius: no GitHub, branch `claude/cofilius-fase0-shopee-e9by0t`, botão **Code → Download ZIP**.
+   Descompacte numa pasta sua (ex.: `Documentos\Cofilius`).
+3. Dentro da pasta, dê **dois cliques em `Cofilius.bat`**. Na primeira vez ele instala o que falta (alguns minutos)
+   e abre o navegador. Deixe a janela preta aberta enquanto usa.
+4. No navegador, a **configuração inicial** pede o endereço do banco (Supabase, com o passo a passo na própria tela),
+   seu nome e uma senha para o painel. Ao clicar em "Conectar e criar as tabelas", o painel cria tudo sozinho.
+5. Pronto: o navegador pede a senha (usuário: qualquer) e abre o painel.
+
+Do dia a dia em diante, tudo é pelo painel:
+
+| Aba | O que tem |
+|---|---|
+| **Dia** | escolhas do Curador, links, mensagens (validar, aprovar, enviar), pedidos da afiliada, propostas de diretriz |
+| **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
+| **Importar** | planilha de ofertas e planilha de vendas (com modelos para baixar) |
+| **Relatórios** | fechamento do período (com a leitura do Analista), uso por cliente, esteira automática |
+| **Configuração** | seu nome, senha, chave da API do Claude, modelos, esteira ligada/desligada, testar os agentes |
+
+**Esteira automática:** enquanto o painel estiver aberto, a cada 5 minutos ele roda as etapas do dia sozinho
+(Curador às 6h, Redator às 6h30, validação às 6h45, fechamento aos domingos às 20h). Sem a chave da IA, essas etapas
+aparecem como "puladas".
+
+**Atualizar o Cofilius:** baixe o ZIP de novo, descompacte numa pasta nova e **copie o arquivo `.env`** da pasta antiga
+para a nova (é nele que ficam a conexão com o banco e as chaves). Depois, use o `Cofilius.bat` da pasta nova.
+
 ## Estrutura
 
 ```
@@ -40,7 +68,8 @@ services/
   clientes/  cadastro de clientes e nichos
   atendimento/ Atendente e entrada de mensagens
   disparador/ envio (manual e WhatsApp) e cliente da WhatsApp Cloud API
-painel/      tela de aprovação do operador (servidor local + página)
+painel/      painel do operador (servidor local + páginas): dia, clientes, importar, relatórios, configuração
+Cofilius.bat atalho do Windows: instala, abre o painel e o navegador
 harness/     o que roda os serviços: config, log, novas tentativas, cifragem, banco, fila, esteira, agentes, comandos
 testes/      apoio aos testes com banco
 db/          migrations, seed, script de migração, acesso a clientes e credenciais
@@ -66,7 +95,7 @@ npm install
 cp .env.example .env
 ```
 
-### No Windows (PowerShell)
+### No Windows pelo PowerShell (alternativa ao Cofilius.bat)
 
 1. Instale o [Git](https://git-scm.com/download/win) e o [Node.js](https://nodejs.org) (versão LTS).
 2. Libere scripts do npm para o seu usuário (uma vez só):

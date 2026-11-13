@@ -148,13 +148,13 @@ describe.skipIf(!BANCO_HABILITADO)('fila de tarefas', () => {
     expect(res['lista.validar']).toEqual({ validadas: 3, barradas: 0 });
   });
 
-  it('etapa de agente sem modelo configurado falha com aviso, sem travar as outras', async () => {
+  it('etapa de agente sem modelo configurado é pulada com aviso, sem travar as outras', async () => {
     await enfileirar(sql, { clienteId: cliente.clienteId, tipo: 'curadoria.curar', entrada: { dataLista: '2026-11-12' }, agendadaPara: T0, maxTentativas: 0 });
     await enfileirar(sql, { clienteId: cliente.clienteId, tipo: 'lista.validar', entrada: { dataLista: '2026-11-12' }, agendadaPara: T0 });
     const executores = criarExecutores({ sql, shopeeDoCliente: async () => { throw new Error('sem shopee'); } });
     const r = await processarFila(sql, executores, { agora: () => T0 });
-    expect(r).toMatchObject({ concluidas: 1, falharam: 1 });
-    const [t] = await sql`select erro from tarefas where tipo = 'curadoria.curar'`;
-    expect(t!.erro).toContain('modelo de IA não configurado');
+    expect(r).toMatchObject({ concluidas: 2, falharam: 0 });
+    const status = await statusFila(sql, T0);
+    expect(status.find((x) => x.tipo === 'curadoria.curar')).toMatchObject({ estado: 'concluida', pulada: expect.stringContaining('IA não configurada') });
   });
 });

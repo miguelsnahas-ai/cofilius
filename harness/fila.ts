@@ -149,13 +149,15 @@ export interface LinhaStatus {
   tentativas: number;
   agendadaPara: Date;
   erro: string | null;
+  /** Etapa que não rodou por falta de algo (ex.: IA não configurada). */
+  pulada: string | null;
 }
 
 export async function statusFila(sql: Sql, desde: Date): Promise<LinhaStatus[]> {
   const r = await sql`
-    select t.id, c.codigo, t.tipo, t.estado, t.tentativas, t.agendada_para, t.erro
+    select t.id, c.codigo, t.tipo, t.estado, t.tentativas, t.agendada_para, t.erro, t.resultado ->> 'pulada' as pulada
     from tarefas t join clientes c on c.cliente_id = t.cliente_id
     where t.criado_em >= ${desde} or t.estado in ('pendente', 'executando', 'falhou')
     order by t.agendada_para`;
-  return r.map((x) => ({ id: x.id, cliente: x.codigo, tipo: x.tipo, estado: x.estado, tentativas: x.tentativas, agendadaPara: x.agendada_para, erro: x.erro }));
+  return r.map((x) => ({ id: x.id, cliente: x.codigo, tipo: x.tipo, estado: x.estado, tentativas: x.tentativas, agendadaPara: x.agendada_para, erro: x.erro, pulada: x.pulada }));
 }

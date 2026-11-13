@@ -27,7 +27,7 @@ export interface DepsApi {
   precos?: Record<string, PrecoModelo>;
   /** Canal do WhatsApp, quando configurado (sem ele, o envio é manual). */
   whatsapp?: Canal;
-  shopeeDoCliente?: (cliente: Cliente) => Promise<Pick<ClienteShopee, 'gerarLinkCurto'> | null>;
+  shopeeDoCliente?: (cliente: Cliente) => Promise<Pick<ClienteShopee, 'gerarLinkCurto' | 'buscarOfertas'> | null>;
 }
 
 /** Erro de uso (vira HTTP 400 com a mensagem para a tela). */

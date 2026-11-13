@@ -1,7 +1,8 @@
-/* Painel do operador do Cofilius. Sem framework: monta a tela com textContent (nunca HTML com dados). */
+/* Cofilius · aba Dia: escolhidas do Curador, mensagens, pedidos da afiliada e propostas de diretriz. */
 'use strict';
 
-const $ = (id) => document.getElementById(id);
+(() => {
+const { $, el, avisar, api, agir, estado, reais } = window.Cofilius;
 
 const ESTADOS = {
   rascunho: ['Rascunho', 'alerta'],
@@ -13,66 +14,7 @@ const ESTADOS = {
 };
 const REGRAS = { texto: 'Texto', link: 'Link', preco: 'Preço', repeticao: 'Repetição', limite: 'Limite do dia' };
 
-let estado = { cliente: '', data: '' };
 let dados = null;
-
-/** Cria um elemento com classe, texto e filhos. */
-function el(tag, opcoes = {}, ...filhos) {
-  const e = document.createElement(tag);
-  if (opcoes.classe) e.className = opcoes.classe;
-  if (opcoes.texto !== undefined) e.textContent = opcoes.texto;
-  if (opcoes.attrs) for (const [k, v] of Object.entries(opcoes.attrs)) e.setAttribute(k, v);
-  if (opcoes.onclick) e.addEventListener('click', opcoes.onclick);
-  for (const f of filhos) if (f) e.append(f);
-  return e;
-}
-
-let temporizador;
-function avisar(texto, erro = false) {
-  const t = $('aviso');
-  t.textContent = texto;
-  t.className = erro ? 'toast erro' : 'toast';
-  t.hidden = false;
-  clearTimeout(temporizador);
-  temporizador = setTimeout(() => { t.hidden = true; }, erro ? 7000 : 3500);
-}
-
-async function api(caminho, corpo) {
-  const opcoes = corpo === undefined
-    ? {}
-    : { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Cofilius': '1' }, body: JSON.stringify({ cliente: estado.cliente, ...corpo }) };
-  const r = await fetch(caminho, opcoes);
-  const json = await r.json().catch(() => ({ erro: `Erro ${r.status}` }));
-  if (!r.ok) throw new Error(json.erro || `Erro ${r.status}`);
-  return json;
-}
-
-/** Executa uma ação com o botão travado, avisa o resultado e recarrega a tela. */
-async function agir(botao, fn, sucesso) {
-  if (botao) botao.disabled = true;
-  try {
-    const r = await fn();
-    avisar(typeof sucesso === 'function' ? sucesso(r) : sucesso);
-    await carregar();
-  } catch (e) {
-    avisar(e.message, true);
-  } finally {
-    if (botao) botao.disabled = false;
-  }
-}
-
-function hojeLocal() {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
-
-function reais(v) {
-  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function salvarPreferencias() {
-  try { localStorage.setItem('cofilius-painel', JSON.stringify({ cliente: estado.cliente })); } catch { /* sem armazenamento */ }
-}
 
 // ---------------------------------------------------------------------------
 // Seção 1: escolhidas do Curador
@@ -247,48 +189,31 @@ function desenhar() {
 }
 
 async function carregar() {
-  if (!estado.cliente) return;
-  try {
-    dados = await api(`/api/dia?cliente=${encodeURIComponent(estado.cliente)}&data=${encodeURIComponent(estado.data)}`);
-    desenhar();
-  } catch (e) {
-    avisar(e.message, true);
-  }
+  if (!$('data').value) $('data').value = window.Cofilius.dataLocal();
+  dados = await api(`/api/dia?cliente=${encodeURIComponent(estado.cliente)}&data=${encodeURIComponent($('data').value)}`);
+  desenhar();
 }
 
-async function iniciar() {
-  let pref = {};
-  try { pref = JSON.parse(localStorage.getItem('cofilius-painel') || '{}'); } catch { /* sem armazenamento */ }
-  const clientes = await api('/api/clientes');
-  const select = $('cliente');
-  select.replaceChildren(...clientes.map((c) => el('option', { texto: `${c.nome} (${c.codigo})`, attrs: { value: c.codigo } })));
-  if (clientes.some((c) => c.codigo === pref.cliente)) select.value = pref.cliente;
-  $('data').value = hojeLocal();
-  estado = { cliente: select.value, data: $('data').value };
-
-  $('filtros').addEventListener('submit', (ev) => {
-    ev.preventDefault();
-    estado = { cliente: select.value, data: $('data').value };
-    salvarPreferencias();
-    carregar();
-  });
-  $('rodar-curador').addEventListener('click', (ev) => agir(ev.currentTarget, () => api('/api/curar', { data: estado.data }),
-    (r) => `Curador escolheu ${r.escolhidas} de ${r.candidatas} candidatas`));
-  $('rodar-redator').addEventListener('click', (ev) => agir(ev.currentTarget, () => api('/api/redigir', { data: estado.data }),
-    (r) => `${r.redigidas} mensagens redigidas${r.falhas.length ? `, ${r.falhas.length} falharam` : ''}`));
-  $('simular').addEventListener('submit', (ev) => {
-    ev.preventDefault();
-    const campo = $('simular-texto');
-    const botao = ev.currentTarget.querySelector('button');
-    agir(botao, () => api('/api/receber', { texto: campo.value }), (r) => {
-      campo.value = '';
-      const resp = r.respostas && r.respostas.length ? ` Resposta para ela: "${r.respostas.join(' / ')}"` : '';
-      if (r.tipo === 'lista') return `Pedido da lista: ${r.enviadas} enviadas.${resp}`;
-      if (r.tipo === 'atendimento') return `${INTENCOES[r.intencao] || r.intencao}: ${r.situacao === 'resolvido' ? 'resolvido' : 'ficou para você'}.${resp}`;
-      return 'Mensagem processada.';
+window.Cofilius.registrar('dia', {
+  mostrar: carregar,
+  iniciar() {
+    $('data').value = window.Cofilius.dataLocal();
+    $('data').addEventListener('change', () => carregar().catch((e) => avisar(e.message, true)));
+    $('rodar-curador').addEventListener('click', (ev) => agir(ev.currentTarget, () => api('/api/curar', { data: $('data').value }),
+      (r) => `Curador escolheu ${r.escolhidas} de ${r.candidatas} candidatas`));
+    $('rodar-redator').addEventListener('click', (ev) => agir(ev.currentTarget, () => api('/api/redigir', { data: $('data').value }),
+      (r) => `${r.redigidas} mensagens redigidas${r.falhas.length ? `, ${r.falhas.length} falharam` : ''}`));
+    $('simular').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const campo = $('simular-texto');
+      agir(ev.currentTarget.querySelector('button'), () => api('/api/receber', { texto: campo.value }), (r) => {
+        campo.value = '';
+        const resp = r.respostas && r.respostas.length ? ` Resposta para ela: "${r.respostas.join(' / ')}"` : '';
+        if (r.tipo === 'lista') return `Pedido da lista: ${r.enviadas} enviadas.${resp}`;
+        if (r.tipo === 'atendimento') return `${INTENCOES[r.intencao] || r.intencao}: ${r.situacao === 'resolvido' ? 'resolvido' : 'ficou para você'}.${resp}`;
+        return 'Mensagem processada.';
+      });
     });
-  });
-  await carregar();
-}
-
-document.addEventListener('DOMContentLoaded', () => { iniciar().catch((e) => avisar(e.message, true)); });
+  },
+});
+})();

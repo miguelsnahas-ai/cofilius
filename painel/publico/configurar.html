@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cofilius · Configuração inicial</title>
+  <link rel="stylesheet" href="estilo.css">
+  <script src="configurar.js" defer></script>
+</head>
+<body>
+  <header class="topo"><h1>Cofilius <span class="suave">· configuração inicial</span></h1></header>
+  <main>
+    <section class="cartao">
+      <h2>Bem-vindo! Falta só ligar o banco de dados.</h2>
+      <ol class="passos">
+        <li>Crie uma conta em <strong>supabase.com</strong> e um projeto novo (região <strong>South America (São Paulo)</strong>). Anote a senha do banco que você escolher.</li>
+        <li>No projeto, clique em <strong>Connect</strong> (no topo) → <strong>Connection string</strong> → <strong>Session pooler</strong> e copie o endereço.</li>
+        <li>Cole abaixo, trocando <code>[YOUR-PASSWORD]</code> pela senha do banco.</li>
+      </ol>
+      <form id="form-configurar" class="grade-form">
+        <label class="largo">Endereço do banco (Supabase)
+          <input name="databaseUrl" required placeholder="postgresql://postgres.xxxx:SUA-SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres" autocomplete="off">
+        </label>
+        <label>Seu nome <input name="operador" placeholder="Miguel"></label>
+        <label>Senha do painel <input name="senha" type="password" required minlength="6" autocomplete="new-password"><small>o navegador vai pedir esta senha para abrir o painel</small></label>
+        <label>Repita a senha <input name="senha2" type="password" required minlength="6" autocomplete="new-password"></label>
+        <label class="largo">Chave da API do Claude (opcional, pode colocar depois)
+          <input name="anthropicKey" type="password" placeholder="sk-ant-..." autocomplete="off">
+        </label>
+        <div class="largo"><button type="submit">Conectar e criar as tabelas</button></div>
+      </form>
+      <p id="mensagem" class="ajuda"></p>
+    </section>
+  </main>
+  <div id="aviso" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
