@@ -29,11 +29,18 @@ export interface Resultados {
     plataforma: string; pedidoId: string; nome: string | null; valor: string | null; comissao: string | null;
     situacao: string; data: string | null; atribuida: boolean;
   }[];
+  /**
+   * Comparação por canal (links.canal: "wa" WhatsApp, "ig" Instagram). Venda ou clique sem link do
+   * Cofilius fica em "sem" (link genérico, sem os sub_ids). Pendente + validada, sem as canceladas.
+   */
+  porCanal: { canal: string; rotulo: string; cliques: number; pedidos: number; comissao: string }[];
   /** Quando a última venda e o último clique chegaram (de qualquer origem). */
   atualizado: { vendas: string | null; cliques: string | null; extensao: string | null };
 }
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+export const ROTULOS_CANAL: Record<string, string> = { wa: 'WhatsApp', ig: 'Instagram', sem: 'Sem postagem identificada' };
 
 export async function resultadosPeriodo(sql: Sql, cliente: Cliente, inicio: string, fim: string, plataforma: FiltroPlataforma = null): Promise<Resultados> {
   if (!DATA.test(inicio) || !DATA.test(fim)) throw new Error('Período no formato AAAA-MM-DD.');
@@ -88,6 +95,22 @@ export async function resultadosPeriodo(sql: Sql, cliente: Cliente, inicio: stri
            (select max(atualizado_em) from cliques where cliente_id = ${id}) as cliques,
            (select max(criado_em) from recebimentos_extensao where cliente_id = ${id} and erro is null) as extensao`;
 
+  const canais = await sql`
+    with v as (
+      select coalesce(l.canal, 'sem') as canal,
+             count(distinct (v.plataforma, v.pedido_id)) filter (where v.situacao <> 'cancelada')::int as pedidos,
+             coalesce(sum(v.comissao) filter (where v.situacao <> 'cancelada'), 0) as comissao
+      from vendas v left join links l on l.cliente_id = v.cliente_id and l.id = v.link_id
+      where ${noPeriodo} group by 1),
+    c as (
+      select coalesce(l.canal, 'sem') as canal, sum(k.cliques)::int as cliques
+      from cliques k left join links l on l.cliente_id = k.cliente_id and l.id = k.link_id
+      where k.cliente_id = ${id} and k.dia between ${inicio} and ${fim} ${daPlataforma('k')} group by 1)
+    select coalesce(v.canal, c.canal) as canal, coalesce(c.cliques, 0)::int as cliques, coalesce(v.pedidos, 0)::int as pedidos,
+           coalesce(v.comissao, 0)::numeric(12,2)::text as comissao
+    from v full join c on c.canal = v.canal
+    order by (coalesce(v.canal, c.canal) = 'sem'), coalesce(v.comissao, 0) desc, 1`;
+
   const [cl] = await sql`
     select coalesce(sum(cliques), 0)::int as n from cliques k
     where k.cliente_id = ${id} and dia between ${inicio} and ${fim} ${daPlataforma('k')}`;
@@ -99,6 +122,7 @@ export async function resultadosPeriodo(sql: Sql, cliente: Cliente, inicio: stri
       pedidos: t!.pedidos, pedidosCancelados: t!.cancelados, cliques: cl!.n, vendido: t!.vendido, naoAtribuidas: t!.nao_atribuidas,
     },
     dias: dias.map((d) => ({ dia: d.dia, pendente: d.pendente, validada: d.validada, pedidos: d.pedidos, cliques: d.cliques })),
+    porCanal: canais.map((c) => ({ canal: c.canal, rotulo: ROTULOS_CANAL[c.canal] ?? c.canal, cliques: c.cliques, pedidos: c.pedidos, comissao: c.comissao })),
     produtos: produtos.map((p) => ({ plataforma: p.plataforma, produtoId: p.produto_id, nome: p.nome, pedidos: p.pedidos, comissao: p.comissao })),
     recentes: recentes.map((r) => ({
       plataforma: r.plataforma, pedidoId: r.pedido_id, nome: r.produto_nome, valor: r.valor, comissao: r.comissao,

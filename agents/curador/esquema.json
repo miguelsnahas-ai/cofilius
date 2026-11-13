@@ -208,6 +208,37 @@
             "items": {
               "type": "object"
             }
+          },
+          "por_canal": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "grupo",
+                "postagens",
+                "cliques_por_postagem",
+                "pedidos",
+                "comissao"
+              ],
+              "properties": {
+                "grupo": {
+                  "type": "string"
+                },
+                "postagens": {
+                  "type": "integer"
+                },
+                "cliques_por_postagem": {
+                  "type": "number"
+                },
+                "pedidos": {
+                  "type": "integer"
+                },
+                "comissao": {
+                  "type": "number"
+                }
+              }
+            }
           }
         }
       }

@@ -123,6 +123,10 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     const img = await get('/api/imagem?url=' + encodeURIComponent('https://exemplo.com/x.jpg'));
     expect(img.status).toBe(400);
     expect(img.json.erro).toContain('não permitido');
+    expect((await post('/api/criativos/00000000-0000-0000-0000-000000000000/link', { cliente: 'c1', link: 'https://s.shopee.com.br/x', quando: '2026-11-13 10:00' })).json.erro).toContain('não encontrado');
+    expect((await post('/api/criativos/00000000-0000-0000-0000-000000000000/link', { cliente: 'c1', automatico: true })).json.erro).toContain('API da Shopee');
+    expect((await get('/api/resultados?cliente=c1&de=2026-03-01&ate=2026-03-31')).json.porCanal).toEqual([
+      { canal: 'sem', rotulo: 'Sem postagem identificada', cliques: 0, pedidos: 0, comissao: '0.00' }]); // P1 foi cancelada acima
     // Conformidade: lista com fonte, itens marcados, identificação validada e aviso no Dia.
     let conf = (await get('/api/conformidade?cliente=c1')).json;
     expect(conf.identificacao).toBe('#publi');

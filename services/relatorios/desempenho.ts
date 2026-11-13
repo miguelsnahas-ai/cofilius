@@ -80,6 +80,8 @@ export interface DesempenhoRecente {
   amostra_pequena: boolean;
   por_nicho: Grupo[];
   por_faixa_preco: Grupo[];
+  /** WhatsApp (mensagens enviadas) contra Instagram (criativos publicados), pelo link de cada postagem. */
+  por_canal: Grupo[];
   melhores: { titulo: string; nicho: string | null; preco: number | null; cliques: number; pedidos: number; comissao: number }[];
   sem_resultado: { titulo: string; nicho: string | null; preco: number | null; cliques: number }[];
 }
@@ -116,15 +118,33 @@ export async function desempenhoParaCurador(sql: Sql, cliente: Cliente, data: st
   const de = diaAntes(data, DIAS_APRENDIZADO);
   const ate = diaAntes(data, 1);
   const posts = (await desempenhoPostagens(sql, cliente, { de, ate })).filter((p) => p.medivel && p.titulo);
-  if (!posts.length) return null;
+  const criativos = await sql`
+    select k.id,
+           coalesce((select sum(q.cliques) from cliques q where q.cliente_id = k.cliente_id and q.link_id = k.link_id), 0)::int as cliques,
+           (select count(distinct v.pedido_id) from vendas v
+             where v.cliente_id = k.cliente_id and v.link_id = k.link_id and v.situacao <> 'cancelada')::int as pedidos,
+           coalesce((select sum(v.comissao) from vendas v
+             where v.cliente_id = k.cliente_id and v.link_id = k.link_id and v.situacao <> 'cancelada'), 0)::float8 as comissao
+    from criativos k
+    where k.cliente_id = ${cliente.clienteId} and k.estado = 'publicado' and k.link_id is not null
+      and (k.publicado_em at time zone ${cliente.fusoHorario})::date between ${de} and ${ate}`;
+  if (!posts.length && !criativos.length) return null;
+  const porCanal: Grupo[] = [];
+  if (posts.length) porCanal.push(...agrupar(posts, () => 'WhatsApp'));
+  if (criativos.length) {
+    const n = criativos.length;
+    const soma = (f: (c: (typeof criativos)[number]) => number) => criativos.reduce((t, c) => t + f(c), 0);
+    porCanal.push({ grupo: 'Instagram', postagens: n, cliques_por_postagem: arred(soma((c) => c.cliques) / n), pedidos: soma((c) => c.pedidos), comissao: arred(soma((c) => c.comissao)) });
+  }
   const comissao = (p: DesempenhoPostagem) => arred(p.comissaoPendente + p.comissaoValidada);
   const ordenados = [...posts].sort((a, b) => comissao(b) - comissao(a) || b.cliques - a.cliques || a.mensagemId.localeCompare(b.mensagemId));
   return {
     periodo: { de, ate },
-    postagens: posts.length,
-    amostra_pequena: posts.length < AMOSTRA_MINIMA,
+    postagens: posts.length + criativos.length,
+    amostra_pequena: posts.length + criativos.length < AMOSTRA_MINIMA,
     por_nicho: agrupar(posts, (p) => p.nicho ?? 'sem nicho'),
     por_faixa_preco: agrupar(posts, (p) => faixaDe(p.preco)),
+    por_canal: porCanal,
     melhores: ordenados.filter((p) => p.pedidos > 0).slice(0, 5).map((p) => ({
       titulo: p.titulo!.slice(0, 120), nicho: p.nicho, preco: p.preco, cliques: p.cliques, pedidos: p.pedidos, comissao: comissao(p),
     })),

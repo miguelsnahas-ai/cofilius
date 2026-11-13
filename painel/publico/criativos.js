@@ -374,6 +374,51 @@ async function gravarVideo(c, botao, saida) {
 
 let dados = null;
 
+/**
+ * Link próprio do Instagram (canal "ig" nos sub_ids), para medir o Instagram separado do WhatsApp.
+ * Shopee: gerado pela API (com um clique) ou no painel da Shopee com os sub_ids mostrados aqui.
+ */
+function secaoLink(c) {
+  const caixa = el('div', { classe: 'link-instagram' });
+  if (c.link) {
+    const d = c.desempenho;
+    caixa.append(el('p', { classe: `desempenho ${d && d.pedidos ? 'vendeu' : ''}` },
+      el('span', { classe: 'rotulo', texto: 'Instagram' }),
+      el('span', { classe: 'num', texto: d ? `${d.cliques} ${d.cliques === 1 ? 'clique' : 'cliques'} · ${d.pedidos} ${d.pedidos === 1 ? 'pedido' : 'pedidos'}${d.comissao ? ` · ${window.Cofilius.reais(d.comissao)}` : ''}` : 'link próprio registrado' })));
+    return caixa;
+  }
+  if (!c.preparoLink) {
+    caixa.append(el('p', { classe: 'aviso', texto: c.plataforma === 'amazon'
+      ? 'Amazon: para medir o Instagram separado, crie no painel de Associados um tracking ID só para o Instagram e gere o link do produto com ele.'
+      : 'Link próprio do Instagram ainda não disponível para esta plataforma.' }));
+    return caixa;
+  }
+  const p = c.preparoLink;
+  caixa.append(el('p', { classe: 'aviso', texto: 'Este criativo precisa de um link só do Instagram (não use o link do WhatsApp), para saber o que vendeu em cada canal.' }));
+  if (dados && dados.linkAutomatico) {
+    const gerar = el('button', { texto: 'Gerar link do Instagram', attrs: { type: 'button' } });
+    gerar.addEventListener('click', () => agir(gerar, () => api(`/api/criativos/${c.id}/link`, { automatico: true }), 'Link do Instagram gerado'));
+    caixa.append(el('div', { classe: 'acoes' }, gerar));
+    return caixa;
+  }
+  const subids = el('div', { classe: 'subids' });
+  p.subIds.forEach((v, i) => {
+    subids.append(el('span', { classe: 'subid' }, `Sub_id${i + 1}: ${v}`,
+      el('button', { classe: 'secundario', texto: 'copiar', attrs: { type: 'button', 'aria-label': `Copiar Sub_id${i + 1}` },
+        onclick: () => copiar(v, `Sub_id${i + 1} copiado`) })));
+  });
+  const campo = el('input', { attrs: { type: 'url', placeholder: 'Cole o link gerado no painel (https://s.shopee.com.br/...)', 'aria-label': 'Link do Instagram' } });
+  const registrar = el('button', { texto: 'Registrar link do Instagram', attrs: { type: 'button' } });
+  registrar.addEventListener('click', () => agir(registrar,
+    () => api(`/api/criativos/${c.id}/link`, { link: campo.value, quando: p.quando }), 'Link do Instagram registrado'));
+  caixa.append(
+    el('p', { classe: 'motivo' }, 'No painel da Shopee, gere o link personalizado deste produto com estes Sub_ids (o segundo é "ig", de Instagram): ',
+      el('a', { texto: 'abrir o produto', attrs: { href: p.urlProduto, target: '_blank', rel: 'noopener noreferrer' } })),
+    subids,
+    el('div', { classe: 'linha-form' }, campo, registrar));
+  return caixa;
+}
+
 async function desenharMiniaturas(c, alvo) {
   await fontesProntas();
   const foto = await fotoDo(c);
@@ -405,7 +450,7 @@ function cartao(c) {
   if (c.formato === 'reels') botao('Gerar vídeo', '', (b) => gravarVideo(c, b, saidaVideo));
   else botao(`Baixar ${telasDo(c).length} imagens`, '', (b) => baixarImagens(c, b));
   botao('Copiar legenda', 'secundario', () => copiar(c.roteiro.legenda, 'Legenda copiada.'));
-  if (c.link) botao(c.formato === 'stories' ? 'Copiar link (sticker)' : 'Copiar link (bio)', 'secundario', () => copiar(c.link, 'Link copiado.'));
+  if (c.link) botao(c.formato === 'stories' ? 'Copiar link do Instagram (sticker)' : 'Copiar link do Instagram (bio)', 'secundario', () => copiar(c.link, 'Link do Instagram copiado.'));
   if (c.estado === 'rascunho') botao('Aprovar', 'secundario', (b) => agir(b, () => api(`/api/criativos/${c.id}/aprovar`, {}), 'Criativo aprovado'));
   if (c.estado !== 'publicado') botao('Marcar como publicado', 'secundario', (b) => agir(b, () => api(`/api/criativos/${c.id}/publicado`, {}), 'Marcado como publicado'));
   if (c.estado !== 'publicado') botao('Descartar', 'perigo', (b) => { if (window.confirm('Descartar este criativo?')) agir(b, () => api(`/api/criativos/${c.id}/descartar`, {}), 'Descartado'); });
@@ -432,6 +477,7 @@ function cartao(c) {
         : c.plataforma === 'amazon' ? 'Amazon: a foto da loja não pode ser usada. Escolha uma foto sua do produto '
           : 'Sem foto da loja. Escolha uma foto do produto ', trocar),
     el('details', { classe: 'legenda' }, el('summary', { texto: 'Legenda' }), el('div', { classe: 'conversa' }, el('div', { classe: 'balao', texto: c.roteiro.legenda }))),
+    secaoLink(c),
     acoes,
     saidaVideo);
   desenharMiniaturas(c, miniaturas);

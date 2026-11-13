@@ -1,6 +1,7 @@
 /** API da aba Criativos: listar, criar com a IA, mudar o estado. */
 import { buscarCliente } from '../db/clientes.ts';
-import { criarCriativo, criativosDoDia, FORMATOS, mudarEstadoCriativo } from '../services/criativos/criativos.ts';
+import { criarCriativo, criativosDoDia, FORMATOS, gerarLinkCriativo, mudarEstadoCriativo, registrarLinkCriativo } from '../services/criativos/criativos.ts';
+import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import { dataLocal } from '../services/lista/lista.ts';
 import type { FormatoCriativo } from '../agents/criativo/regras.ts';
 import { ErroPedido, type DepsApi } from './api.ts';
@@ -17,9 +18,12 @@ export async function telaCriativos(deps: DepsApi, codigo: string, data: string 
            o.selecionada_em is not null as escolhida
     from ofertas o where o.cliente_id = ${cliente.clienteId} and o.data_coleta = ${dia}
     order by (o.selecionada_em is not null) desc, (o.curadoria ->> 'posicao')::int nulls last, o.titulo limit 60`;
+  const shopee = deps.shopeeDoCliente ? await deps.shopeeDoCliente(cliente).catch(() => null) : null;
   return {
     data: dia,
     iaDisponivel: !!deps.modelo,
+    /** Com a API da Shopee, o link do Instagram sai com um clique; sem ela, pelos sub_ids. */
+    linkAutomatico: !!shopee,
     ofertas: ofertas.map((o) => ({ id: o.id, titulo: o.titulo, plataforma: o.plataforma, temFoto: o.tem_foto, temLink: o.tem_link, escolhida: o.escolhida })),
     criativos: await criativosDoDia(deps.sql, cliente, dia),
   };
@@ -41,6 +45,22 @@ export async function acaoCriativo(deps: DepsApi, id: string, acao: string, corp
   const cliente = await buscarCliente(deps.sql, String(corpo.cliente ?? ''));
   try {
     return { ok: true, estado: await mudarEstadoCriativo(deps.sql, cliente, id, acao) };
+  } catch (e) {
+    throw new ErroPedido((e as Error).message);
+  }
+}
+
+/** Link próprio do Instagram: colado do painel da Shopee (com os sub_ids mostrados) ou gerado pela API. */
+export async function linkCriativo(deps: DepsApi, id: string, corpo: Record<string, unknown>) {
+  const cliente = await buscarCliente(deps.sql, String(corpo.cliente ?? ''));
+  try {
+    if (corpo.automatico === true) {
+      const shopee = deps.shopeeDoCliente ? await deps.shopeeDoCliente(cliente) : null;
+      if (!shopee) throw new Error('A API da Shopee não está configurada para este cliente: gere o link no painel da Shopee com os sub_ids.');
+      return { ok: true, linkId: await gerarLinkCriativo(deps.sql, cliente, id, shopee) };
+    }
+    const quando = horarioLocalParaData(String(corpo.quando ?? ''), cliente.fusoHorario);
+    return { ok: true, linkId: await registrarLinkCriativo(deps.sql, cliente, id, String(corpo.link ?? ''), quando) };
   } catch (e) {
     throw new ErroPedido((e as Error).message);
   }

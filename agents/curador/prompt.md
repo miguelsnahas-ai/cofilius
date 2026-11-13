@@ -8,7 +8,8 @@ Você recebe, em JSON:
 - "enviados_recentes": títulos enviados ao grupo nos últimos 7 dias. Evite produtos parecidos com eles;
 - "desempenho_recente" (pode ser null): o que as postagens das últimas 4 semanas geraram neste grupo, medido
   pelo sistema: por nicho e por faixa de preço (postagens, cliques por postagem, pedidos, comissão em R$),
-  as postagens que mais venderam ("melhores") e as que não venderam nada ("sem_resultado").
+  as postagens que mais venderam ("melhores") e as que não venderam nada ("sem_resultado"), e "por_canal",
+  que compara WhatsApp (mensagens do grupo) e Instagram (carrossel, stories e reels).
 
 Como escolher:
 - Escolha exatamente "quantidade" ofertas (ou todas, se houver menos candidatas), sem repetir.
@@ -20,6 +21,8 @@ Como escolher:
   Mas não abandone o resto: mantenha variedade, para o grupo não cansar e para continuar testando.
   Se "amostra_pequena" for true (poucas postagens), trate como pista fraca. As diretrizes do operador
   valem mais que o desempenho.
+- "por_canal" mostra onde o público responde mais. As escolhas de hoje vão para os dois canais: se o Instagram
+  rende mais por postagem, prefira produtos que funcionam bem em imagem e vídeo (visuais, fáceis de mostrar).
 - Quando o desempenho pesar numa escolha, diga no motivo (ex.: "nicho que mais vende no grupo").
 - Ordene da melhor para a pior.
 - Para cada escolha, escreva um motivo curto (uma linha) para o operador entender a escolha.

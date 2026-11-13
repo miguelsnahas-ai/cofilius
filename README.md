@@ -42,7 +42,7 @@ Do dia a dia em diante, tudo é pelo painel:
 |---|---|
 | **Dia** | avisos de vendas canceladas (o que caiu, de qual postagem, quanto de comissão), fechamento da semana pronto para a afiliada (copiar, enviar pelo WhatsApp, marcar como enviado), escolhas do Curador (com "o que o Curador está aprendendo"), links, mensagens (validar, aprovar, enviar) e o resultado de cada mensagem enviada (cliques, pedidos, comissão), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
 | **Criativos** | carrossel (seis imagens 4:5), stories (quatro telas 9:16 com espaço para o sticker do link) e reels (vídeo de uns quinze segundos, 9:16) de uma oferta: a IA escreve o roteiro e a legenda, o sistema põe preço e desconto do banco, o navegador desenha as imagens (PNG) e grava o vídeo (MP4); tema, cor e @ do perfil; foto da loja ou enviada por você |
-| **Resultados** | comissão validada e pendente (nunca somadas), pedidos, cliques e conversão; comissão e cliques por dia (com tabela), produtos que mais renderam, vendas recentes; 7, 30 ou 90 dias, por plataforma |
+| **Resultados** | comissão validada e pendente (nunca somadas), pedidos, cliques e conversão; comparação por canal (WhatsApp × Instagram × sem postagem identificada); comissão e cliques por dia (com tabela), produtos que mais renderam, vendas recentes; 7, 30 ou 90 dias, por plataforma |
 | **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
 | **Importar** | planilha de ofertas, planilha de vendas (com modelos para baixar) e arquivo de gravação da extensão |
 | **Relatórios** | fechamento de qualquer período (com a leitura do Analista e o texto para a afiliada), uso por cliente, esteira automática |
@@ -239,6 +239,14 @@ Para conferir no Supabase (**Table Editor** ou **SQL Editor**):
 select produto_id, titulo, preco, desconto_pct, comissao_pct, data_coleta from ofertas order by criado_em desc limit 10;
 select url_afiliado, sub_ids, chave_rastreio, criado_em from links order by criado_em desc limit 5;
 ```
+
+### Medir por canal
+
+Cada link carrega o canal no Sub_id2: `wa` para as mensagens do WhatsApp, `ig` para os criativos do Instagram.
+O criativo nunca usa o link do WhatsApp: na aba Criativos, cada um mostra os Sub_ids do canal `ig` para gerar o
+link personalizado no painel da Shopee (ou gera com um clique, se a API da Shopee estiver configurada).
+A aba Resultados compara os canais e o Curador recebe a comparação em `desempenho_recente.por_canal`.
+Na Amazon, o canal vem do tracking ID: crie um só para o Instagram no painel de Associados.
 
 ### Como ficam os sub_ids
 

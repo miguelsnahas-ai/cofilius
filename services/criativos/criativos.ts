@@ -14,6 +14,12 @@ import type { Cliente } from '../../db/clientes.ts';
 import { regrasCriativo, type EntradaCriativo, type FormatoCriativo, type SaidaCriativo } from '../../agents/criativo/regras.ts';
 import { formatarDesconto, formatarPreco, preencherMensagem } from '../lista/marcadores.ts';
 import { aplicarConformidade, lerConformidade } from '../conformidade/regras.ts';
+import { prepararLinks, registrarLinkManual } from '../links/linksManuaisShopee.ts';
+import { gerarLinkShopee } from '../links/gerarLinkShopee.ts';
+import type { ClienteShopee } from '../shopee/client.ts';
+
+/** Canal dos criativos nos sub_ids e em links.canal: o Instagram mede separado do WhatsApp ("wa"). */
+export const CANAL_INSTAGRAM = 'ig';
 
 const PASTA = join(dirname(fileURLToPath(import.meta.url)), '../../agents/criativo');
 
@@ -54,6 +60,10 @@ export interface CriativoPronto {
   imagemUrl: string | null;
   precoConferidoEm: string | null;
   criadoEm: string;
+  /** Sem link próprio do Instagram ainda (Shopee, modo manual): sub_ids para gerar no painel da Shopee. */
+  preparoLink: { subIds: string[]; quando: string; urlProduto: string } | null;
+  /** O que o link do criativo gerou (só depois de ter link próprio). */
+  desempenho: { cliques: number; pedidos: number; comissao: number } | null;
 }
 
 function preencherRoteiro(r: SaidaCriativo, preco: string, desconto: string | null, p: { plataforma: string; conformidade: unknown }): SaidaCriativo {
@@ -76,10 +86,10 @@ export async function criarCriativo(
   const r = await executarAgente(sql, {
     contrato: p.contrato ?? (await contratoCriativo()), clienteId: p.cliente.clienteId, entrada, modelo: p.modelo, precos: p.precos,
   });
-  const [link] = await sql`select id from links where cliente_id = ${p.cliente.clienteId} and oferta_id = ${p.ofertaId} order by criado_em desc limit 1`;
+  // Sem link: o criativo ganha um link próprio do Instagram (canal "ig"), nunca o do WhatsApp.
   const [c] = await sql`
-    insert into criativos (cliente_id, oferta_id, link_id, formato, roteiro, data_lista)
-    values (${p.cliente.clienteId}, ${p.ofertaId}, ${link?.id ?? null}, ${p.formato}, ${sql.json(r.saida as never)}, ${p.dataLista})
+    insert into criativos (cliente_id, oferta_id, formato, roteiro, data_lista)
+    values (${p.cliente.clienteId}, ${p.ofertaId}, ${p.formato}, ${sql.json(r.saida as never)}, ${p.dataLista})
     returning id`;
   log.info('criativo.criado', { cliente: p.cliente.codigo, formato: p.formato, criativo: c!.id });
   return c!.id;
@@ -89,16 +99,27 @@ export async function criarCriativo(
 export async function criativosDoDia(sql: Sql, cliente: Cliente, dataLista: string): Promise<CriativoPronto[]> {
   const linhas = await sql`
     select k.id, k.formato, k.estado, k.oferta_id, k.roteiro, k.criado_em, o.titulo, o.plataforma, o.preco::text as preco,
-           o.desconto_pct::text as desconto, o.imagem_url, o.preco_conferido_em, c.conformidade,
-           coalesce(l.url_afiliado, (select url_afiliado from links x where x.cliente_id = k.cliente_id and x.oferta_id = k.oferta_id
-                                     order by x.criado_em desc limit 1)) as link
+           o.desconto_pct::text as desconto, o.imagem_url, o.preco_conferido_em, c.conformidade, o.url_produto,
+           l.url_afiliado as link, k.link_id,
+           coalesce((select sum(q.cliques) from cliques q where q.cliente_id = k.cliente_id and q.link_id = k.link_id), 0)::int as cliques,
+           (select count(distinct v.pedido_id) from vendas v
+             where v.cliente_id = k.cliente_id and v.link_id = k.link_id and v.situacao <> 'cancelada')::int as pedidos,
+           coalesce((select sum(v.comissao) from vendas v
+             where v.cliente_id = k.cliente_id and v.link_id = k.link_id and v.situacao <> 'cancelada'), 0)::float8 as comissao
     from criativos k
     join clientes c on c.cliente_id = k.cliente_id
     join ofertas o on o.cliente_id = k.cliente_id and o.id = k.oferta_id
     left join links l on l.cliente_id = k.cliente_id and l.id = k.link_id
     where k.cliente_id = ${cliente.clienteId} and k.data_lista = ${dataLista} and k.estado <> 'descartado'
     order by k.criado_em desc`;
+  // Criativos da Shopee ainda sem link: sub_ids do canal "ig" para gerar no painel da Shopee (um horário só).
+  const agora = new Date();
+  const semLink = linhas.filter((k) => !k.link_id && k.plataforma === 'shopee').map((k) => k.oferta_id as string);
+  const preparo = semLink.length
+    ? new Map((await prepararLinks(sql, cliente, { quando: agora, canal: CANAL_INSTAGRAM, ofertaIds: [...new Set(semLink)] })).map((x) => [x.ofertaId, x]))
+    : new Map();
   return linhas.map((k) => {
+    const pr = !k.link_id ? preparo.get(k.oferta_id) : undefined;
     const desconto = k.desconto !== null && Number(k.desconto) > 0 ? k.desconto : null;
     return {
       id: k.id, formato: k.formato, estado: k.estado, ofertaId: k.oferta_id, titulo: k.titulo, plataforma: k.plataforma,
@@ -108,8 +129,41 @@ export async function criativosDoDia(sql: Sql, cliente: Cliente, dataLista: stri
       link: k.link, imagemUrl: k.plataforma === 'amazon' ? null : k.imagem_url,
       precoConferidoEm: k.preco_conferido_em ? new Date(k.preco_conferido_em).toISOString() : null,
       criadoEm: new Date(k.criado_em).toISOString(),
+      preparoLink: pr ? { subIds: [...pr.subIds], quando: pr.quando, urlProduto: pr.urlProduto } : null,
+      desempenho: k.link_id ? { cliques: k.cliques, pedidos: k.pedidos, comissao: Math.round(k.comissao * 100) / 100 } : null,
     };
   });
+}
+
+async function criativoParaLink(sql: Sql, cliente: Cliente, id: string) {
+  const [k] = await sql`
+    select k.id, k.oferta_id, k.link_id, o.plataforma from criativos k
+    join ofertas o on o.cliente_id = k.cliente_id and o.id = k.oferta_id
+    where k.cliente_id = ${cliente.clienteId} and k.id = ${id}`;
+  if (!k) throw new Error('Criativo não encontrado.');
+  if (k.link_id) throw new Error('Este criativo já tem link próprio.');
+  if (k.plataforma !== 'shopee') throw new Error('Por enquanto, link próprio do Instagram só na Shopee.');
+  return k;
+}
+
+/** Link do Instagram gerado no painel da Shopee com os sub_ids mostrados (canal "ig"), colado no Cofilius. */
+export async function registrarLinkCriativo(sql: Sql, cliente: Cliente, id: string, link: string, quando: Date): Promise<string> {
+  const k = await criativoParaLink(sql, cliente, id);
+  const l = await registrarLinkManual(sql, { cliente, ofertaId: k.oferta_id, link, quando, canal: CANAL_INSTAGRAM });
+  await sql`update criativos set link_id = ${l.id} where cliente_id = ${cliente.clienteId} and id = ${id}`;
+  log.info('criativo.link', { cliente: cliente.codigo, criativo: id, origem: 'painel' });
+  return l.id;
+}
+
+/** Com a API da Shopee configurada: gera o link do Instagram direto. */
+export async function gerarLinkCriativo(
+  sql: Sql, cliente: Cliente, id: string, shopee: Pick<ClienteShopee, 'gerarLinkCurto'>, quando = new Date(),
+): Promise<string> {
+  const k = await criativoParaLink(sql, cliente, id);
+  const l = await gerarLinkShopee({ sql, shopee }, { cliente, ofertaId: k.oferta_id, canal: CANAL_INSTAGRAM, quando, contexto: { origem: 'criativo' } });
+  await sql`update criativos set link_id = ${l.id} where cliente_id = ${cliente.clienteId} and id = ${id}`;
+  log.info('criativo.link', { cliente: cliente.codigo, criativo: id, origem: 'api' });
+  return l.id;
 }
 
 const TRANSICOES: Record<string, { de: string[]; para: string }> = {

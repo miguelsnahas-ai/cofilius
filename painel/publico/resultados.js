@@ -116,6 +116,32 @@ function frescor(a) {
     : `Dados atualizados ${origem} em ${quando}.`;
 }
 
+/** WhatsApp contra Instagram, pelo canal gravado em cada link (sub_id 2: "wa" ou "ig"). */
+function secaoCanais(canais) {
+  const medidos = canais.filter((c) => c.canal !== 'sem');
+  const porMil = (c) => (c.cliques ? `${((c.pedidos / c.cliques) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : '—');
+  let leitura = 'Ainda não há vendas nem cliques ligados a postagens neste período.';
+  const wa = medidos.find((c) => c.canal === 'wa');
+  const ig = medidos.find((c) => c.canal === 'ig');
+  if (wa && ig) {
+    const melhor = Number(ig.comissao) > Number(wa.comissao) ? ig : wa;
+    leitura = `${melhor.rotulo} rendeu mais no período (${reais(melhor.comissao)}).`;
+  } else if (wa && !ig) {
+    leitura = 'Só o WhatsApp tem resultado medido. Para comparar, gere o link próprio do Instagram em cada criativo (aba Criativos).';
+  } else if (ig && !wa) {
+    leitura = 'Só o Instagram tem resultado medido no período.';
+  }
+  return el('section', { classe: 'cartao' },
+    el('h2', { texto: 'Por canal' }),
+    el('p', { classe: 'ajuda', texto: leitura }),
+    canais.length ? el('div', { classe: 'rolagem' }, el('table', {},
+      el('thead', {}, el('tr', {}, el('th', { texto: 'Canal' }), el('th', { classe: 'num', texto: 'Cliques' }), el('th', { classe: 'num', texto: 'Pedidos' }),
+        el('th', { classe: 'num', texto: 'Pedidos por clique' }), el('th', { classe: 'num', texto: 'Comissão' }))),
+      el('tbody', {}, ...canais.map((c) => el('tr', {},
+        el('td', { texto: c.rotulo }), el('td', { classe: 'num', texto: inteiro(c.cliques) }), el('td', { classe: 'num', texto: inteiro(c.pedidos) }),
+        el('td', { classe: 'num', texto: porMil(c) }), el('td', { classe: 'num', texto: reais(c.comissao) })))))) : null);
+}
+
 async function carregar() {
   const alvo = $('resultados-conteudo');
   if (!estado.cliente) { alvo.replaceChildren(); return; }
@@ -139,6 +165,7 @@ async function carregar() {
       tile('Pedidos', inteiro(t.pedidos), conversao),
       tile('Cliques', inteiro(t.cliques), null),
       tile('Cancelados', inteiro(t.pedidosCancelados), Number(t.comissaoCancelada) ? `${reais(t.comissaoCancelada)} que não entram` : null)),
+    secaoCanais(r.porCanal),
     el('section', { classe: 'cartao' },
       el('h2', { texto: 'Comissão por dia' }),
       el('p', { classe: 'ajuda', texto: 'Pendente + validada, sem as canceladas. Passe o mouse num dia para ver o detalhe.' }),

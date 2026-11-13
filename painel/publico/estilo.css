@@ -346,3 +346,6 @@ details.cartao[open] > summary { border-bottom: 1px solid var(--linha); border-r
 .lista-conformidade li.feito strong { color: var(--tinta-suave); }
 .linha-aviso { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
 .linha-aviso[hidden] { display: none; }
+
+.criativo .link-instagram { margin-bottom: var(--space-3); }
+.criativo .link-instagram .subids { margin: var(--space-2) 0; }

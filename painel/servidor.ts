@@ -40,7 +40,7 @@ import { criarEsteiraAutomatica, type EsteiraAutomatica } from './esteiraAutomat
 import { clientePareado, gerarPareamento, receberCapturas, ultimosRecebimentos } from '../services/extensao/receber.ts';
 import { buscarCliente } from '../db/clientes.ts';
 import { resultadosPeriodo, type FiltroPlataforma } from '../services/relatorios/resultados.ts';
-import { acaoCriativo, novoCriativo, telaCriativos } from './apiCriativos.ts';
+import { acaoCriativo, linkCriativo, novoCriativo, telaCriativos } from './apiCriativos.ts';
 import { conformidadeDoCliente, definirIdentificacao, marcarItem } from '../services/conformidade/cliente.ts';
 import { buscarImagem } from '../services/criativos/imagem.ts';
 import { canalWhatsapp } from '../services/disparador/disparador.ts';
@@ -182,6 +182,7 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
       catch (e) { throw new ErroPedido((e as Error).message); }
     }],
     [/^\/api\/criativos$/, (_m, c, d) => novoCriativo(d, c)],
+    [/^\/api\/criativos\/([0-9a-f-]{36})\/link$/, (m, c, d) => linkCriativo(d, m[1]!, c)],
     [/^\/api\/criativos\/([0-9a-f-]{36})\/(aprovar|publicado|descartar)$/, (m, c, d) => acaoCriativo(d, m[1]!, m[2]!, c)],
     [/^\/api\/cancelamentos\/vistos$/, (_m, c, d) => verCancelamentos(d, c)],
     [/^\/api\/fechamentos\/([0-9a-f-]{36})\/(enviado|whatsapp)$/, (m, c, d) => acaoFechamento(d, m[1]!, m[2]!, c)],
