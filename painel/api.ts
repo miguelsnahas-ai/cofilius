@@ -7,7 +7,7 @@ import type { ModeloIA, PrecoModelo } from '../harness/agentes.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import { desempenhoParaCurador, desempenhoPostagens } from '../services/relatorios/desempenho.ts';
-import { enviarFechamento, fechamentoPronto } from '../services/relatorios/fechamentoAfiliada.ts';
+import { diaAnterior, enviarFechamento, fechamentoPronto, prepararFechamento } from '../services/relatorios/fechamentoAfiliada.ts';
 import { avisosCancelamento, marcarAvisosVistos } from '../services/vendas/avisos.ts';
 import { conformidadeDoCliente } from '../services/conformidade/cliente.ts';
 import {
@@ -85,7 +85,18 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const extra = new Map(extras.map((e) => [e.id, e]));
   const desempenho = new Map((await desempenhoPostagens(sql, cliente, { ids: mensagens.map((m) => m.id) })).map((d) => [d.mensagemId, d]));
   const aprendizado = await desempenhoParaCurador(sql, cliente, dia);
+  // Fechamento diário: o de ontem é (re)montado a cada abertura do dia de hoje, com as vendas que já
+  // chegaram; depois de enviado, não muda mais.
+  const hoje = dataLocal(new Date(), cliente.fusoHorario);
+  if (dia === hoje) await prepararFechamento(sql, cliente, diaAnterior(hoje), diaAnterior(hoje));
   const fechamento = await fechamentoPronto(sql, cliente, dia);
+  // Quando as vendas foram atualizadas pela última vez (extensão ou planilha): antes do fim do dia do
+  // fechamento, as vendas daquele dia podem não ter chegado ainda.
+  const [atual] = await sql`
+    select greatest(
+      (select max(criado_em) from recebimentos_extensao where cliente_id = ${cliente.clienteId} and tipo = 'shopee.conversoes' and erro is null),
+      (select max(atualizado_em) from vendas where cliente_id = ${cliente.clienteId})) as em`;
+  const vendasAtualizadasEm: Date | null = atual?.em ?? null;
   const cancelamentos = await avisosCancelamento(sql, cliente);
   const conformidade = await conformidadeDoCliente(sql, cliente);
 
@@ -111,8 +122,14 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
     extensao: ext ? { ultimoRecebimento: ext.ultimo ?? null, ultimoErro: ext.ultimo_erro ?? null } : null,
     /** O mesmo resumo de desempenho que o Curador recebe (null sem postagens medidas). */
     aprendizado,
-    /** Fechamento semanal pronto para mandar (null se não há ou já foi enviado). */
-    fechamento,
+    /** Fechamento do dia anterior pronto para mandar (null se não há ou já foi enviado). */
+    fechamento: fechamento ? {
+      ...fechamento,
+      vendasAtualizadasEm,
+      // As vendas só valem completas se foram atualizadas depois que o dia do fechamento acabou.
+      vendasDoDiaCompletas: !!vendasAtualizadasEm
+        && dataLocal(vendasAtualizadasEm, cliente.fusoHorario) > fechamento.fim,
+    } : null,
     /** Vendas que caíram (pendente/validada → cancelada) e o operador ainda não viu. */
     cancelamentos,
     /** Itens da lista de conferência dos programas que a afiliada ainda não marcou como feitos. */

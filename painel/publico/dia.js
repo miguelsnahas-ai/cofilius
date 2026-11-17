@@ -152,9 +152,12 @@ function desenharFechamento(d) {
   acoes.append(enviado);
   caixa.replaceChildren(
     el('div', { classe: 'secao-topo' },
-      el('div', {}, el('span', { classe: 'rotulo', texto: `Fechamento · ${dataCurta(f.inicio)} a ${dataCurta(f.fim)}` }),
-        el('h2', { texto: `Resumo da semana pronto para ${primeiro}` }))),
-    el('p', { classe: 'ajuda', texto: 'Montado pelo sistema com os números das vendas e cliques. Confira e mande.' }),
+      el('div', {}, el('span', { classe: 'rotulo', texto: f.inicio === f.fim ? `Fechamento · ${dataCurta(f.fim)}` : `Fechamento · ${dataCurta(f.inicio)} a ${dataCurta(f.fim)}` }),
+        el('h2', { texto: `${f.inicio === f.fim ? 'Resumo de ontem' : 'Resumo do período'} pronto para ${primeiro}` }))),
+    f.vendasDoDiaCompletas === false
+      ? el('p', { classe: 'aviso', texto: `As vendas de ${dataCurta(f.fim)} podem não ter chegado todas: a última atualização foi ${f.vendasAtualizadasEm
+        ? `em ${new Date(f.vendasAtualizadasEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'nunca'}. Abra o relatório de conversões da Shopee (com a extensão) e recarregue esta página antes de mandar.` })
+      : el('p', { classe: 'ajuda', texto: 'Montado pelo sistema com os números das vendas e cliques, e atualizado até você mandar. Confira e mande.' }),
     el('div', { classe: 'conversa' }, el('div', { classe: 'balao', texto: f.texto })),
     acoes);
 }

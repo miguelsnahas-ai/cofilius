@@ -24,7 +24,10 @@ export interface DadosFechamento {
   pedidos: number;
   cancelados: number;
   cliques: number;
-  /** Comissão não cancelada da semana anterior (mesmo tamanho de período). */
+  /**
+   * Base de comparação da comissão não cancelada. Fechamento de um dia: média diária dos 7 dias anteriores
+   * (um dia contra o anterior oscila demais). Período maior: o período anterior de mesmo tamanho.
+   */
   anterior: number;
   porPlataforma: { plataforma: string; comissao: number }[];
   maisVendidos: { nome: string; pedidos: number; comissao: number }[];
@@ -48,7 +51,9 @@ function deslocar(data: string, dias: number): string {
 export async function dadosFechamento(sql: Sql, cliente: Cliente, inicio: string, fim: string): Promise<DadosFechamento> {
   const r = await resultadosPeriodo(sql, cliente, inicio, fim);
   const dias = Math.round((Date.parse(`${fim}T12:00:00Z`) - Date.parse(`${inicio}T12:00:00Z`)) / 864e5) + 1;
-  const ant = await resultadosPeriodo(sql, cliente, deslocar(inicio, -dias), deslocar(inicio, -1));
+  // Um dia: compara com a média diária dos 7 dias anteriores. Período maior: com o período anterior.
+  const diasBase = dias === 1 ? 7 : dias;
+  const ant = await resultadosPeriodo(sql, cliente, deslocar(inicio, -diasBase), deslocar(inicio, -1));
   const porPlataforma = await sql`
     select plataforma, coalesce(sum(comissao), 0)::float8 as comissao from vendas v
     where v.cliente_id = ${cliente.clienteId} and situacao <> 'cancelada'
@@ -73,7 +78,7 @@ export async function dadosFechamento(sql: Sql, cliente: Cliente, inicio: string
     inicio, fim,
     comissaoValidada: Number(t.comissaoValidada), comissaoPendente: Number(t.comissaoPendente), comissaoCancelada: Number(t.comissaoCancelada),
     pedidos: t.pedidos, cancelados: t.pedidosCancelados, cliques: t.cliques,
-    anterior: arred(Number(ant.totais.comissaoValidada) + Number(ant.totais.comissaoPendente)),
+    anterior: arred((Number(ant.totais.comissaoValidada) + Number(ant.totais.comissaoPendente)) / (dias === 1 ? diasBase : 1)),
     porPlataforma: porPlataforma.map((p) => ({ plataforma: p.plataforma, comissao: arred(p.comissao) })),
     maisVendidos: r.produtos.slice(0, 3).map((p) => ({ nome: (p.nome ?? `Produto ${p.produtoId}`).slice(0, 60), pedidos: p.pedidos, comissao: Number(p.comissao) })),
     canceladosAnteriores: await canceladosDePedidosAnteriores(sql, cliente, inicio, fim),
@@ -81,10 +86,24 @@ export async function dadosFechamento(sql: Sql, cliente: Cliente, inicio: string
   };
 }
 
+const DIAS_SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+/** Palavras do texto conforme o período: um dia ou vários. */
+function vocabulario(d: DadosFechamento) {
+  const diario = d.inicio === d.fim;
+  const diaSemana = DIAS_SEMANA[new Date(`${d.inicio}T12:00:00Z`).getUTCDay()]!;
+  return diario
+    ? { diario, titulo: `Seu resumo de ${diaSemana}, ${dataCurta(d.inicio)}`, periodo: 'o dia', nesse: 'nesse dia',
+        comissao: 'Comissão do dia', anteriores: 'dias anteriores', despedida: 'Até amanhã! 💜', proxima: 'Para os próximos dias' }
+    : { diario, titulo: `Seu resumo de ${dataCurta(d.inicio)} a ${dataCurta(d.fim)}`, periodo: 'o período', nesse: 'nesse período',
+        comissao: 'Comissão do período', anteriores: 'períodos anteriores', despedida: 'Até a próxima! 💜', proxima: 'Para a próxima semana' };
+}
+
 function linhaCanceladosAnteriores(d: DadosFechamento): string | null {
   const ant = d.canceladosAnteriores;
   if (!ant || ant.pedidos === 0) return null;
-  const quem = ant.pedidos === 1 ? '1 pedido de semanas anteriores foi cancelado' : `${ant.pedidos} pedidos de semanas anteriores foram cancelados`;
+  const v = vocabulario(d);
+  const quem = ant.pedidos === 1 ? `1 pedido de ${v.anteriores} foi cancelado` : `${ant.pedidos} pedidos de ${v.anteriores} foram cancelados`;
   return `↩️ ${quem}${ant.comissao > 0 ? ` (${reais(ant.comissao)} saem do pendente)` : ''}`;
 }
 
@@ -93,31 +112,31 @@ export function textoFechamentoAfiliada(nome: string, d: DadosFechamento, leitur
   const primeiro = nome.trim().split(/\s+/)[0] || nome;
   const total = arred(d.comissaoValidada + d.comissaoPendente);
   const plural = (n: number, um: string, varios: string) => `${n.toLocaleString('pt-BR')} ${n === 1 ? um : varios}`;
+  const v = vocabulario(d);
   const l: string[] = [];
-  l.push(`Oi, ${primeiro}! 👋 Seu resumo da semana (${dataCurta(d.inicio)} a ${dataCurta(d.fim)}):`, '');
+  l.push(`Oi, ${primeiro}! 👋 ${v.titulo}:`, '');
 
   if (total === 0 && d.pedidos === 0) {
-    l.push('Essa semana ainda não entrou nenhuma venda pelo grupo.');
+    l.push(`${v.diario ? 'Nesse dia' : 'Nesse período'} não entrou venda pelo grupo.`);
     if (d.cliques > 0) l.push(`Mas teve ${plural(d.cliques, 'clique', 'cliques')} nos links: o pessoal está olhando! 👀`);
     const linha = linhaCanceladosAnteriores(d);
     if (linha) l.push('', linha);
-    l.push('', 'Seguimos ajustando as ofertas para o gosto do grupo. Até a próxima semana! 💜');
+    l.push('', `Seguimos ajustando as ofertas para o gosto do grupo. ${v.despedida}`);
     return l.join('\n');
   }
 
-  l.push(`💰 *Comissão da semana: ${reais(total)}*`);
+  l.push(`💰 *${v.comissao}: ${reais(total)}*`);
   if (d.comissaoValidada > 0) l.push(`✅ ${reais(d.comissaoValidada)} já confirmada`);
   if (d.comissaoPendente > 0) l.push(`⏳ ${reais(d.comissaoPendente)} pendente (confirma depois que o pedido é entregue)`);
   if (d.porPlataforma.length > 1) l.push(d.porPlataforma.map((p) => `${NOMES_PLATAFORMA[p.plataforma] ?? p.plataforma} ${reais(p.comissao)}`).join(' · '));
   l.push(`📦 ${plural(d.pedidos, 'pedido', 'pedidos')}${d.cliques ? ` · 👆 ${plural(d.cliques, 'clique', 'cliques')}` : ''}`);
 
   const diferenca = arred(total - d.anterior);
+  const base = v.diario ? `da sua média dos últimos 7 dias (${reais(d.anterior)} por dia)` : 'do período anterior';
   if (d.anterior > 0 && Math.abs(diferenca) >= 0.01) {
-    l.push(diferenca > 0
-      ? `📈 ${reais(diferenca)} a mais que na semana anterior`
-      : `📉 ${reais(-diferenca)} a menos que na semana anterior`);
+    l.push(diferenca > 0 ? `📈 ${reais(diferenca)} acima ${base}` : `📉 ${reais(-diferenca)} abaixo ${base}`);
   } else if (d.anterior === 0 && total > 0) {
-    l.push('📈 Melhor que a semana anterior, que não teve vendas');
+    l.push(v.diario ? '📈 Primeiras vendas depois de uma semana parada' : '📈 Melhor que o período anterior, que não teve vendas');
   }
 
   if (d.maisVendidos.length) {
@@ -135,10 +154,10 @@ export function textoFechamentoAfiliada(nome: string, d: DadosFechamento, leitur
   if (ant && ant.pedidos > 0) l.push(linhaCanceladosAnteriores(d)!);
   const dicas = leituras.map((x) => x.trim()).filter(Boolean).slice(0, 2);
   if (dicas.length) {
-    l.push('', '💡 *Para a próxima semana*');
+    l.push('', `💡 *${v.proxima}*`);
     for (const dica of dicas) l.push(`• ${dica}`);
   }
-  l.push('', 'Até a próxima semana! 💜');
+  l.push('', v.despedida);
   return l.join('\n');
 }
 
@@ -178,13 +197,21 @@ export async function prepararFechamento(
   return paraFechamento(f!);
 }
 
-/** O fechamento mais recente ainda não enviado (dos últimos 14 dias), ou null. */
+/**
+ * O fechamento mais recente (dos últimos 14 dias), se ainda não foi enviado. Com fechamento diário, um dia
+ * antigo esquecido não fica aparecendo: só o último conta.
+ */
 export async function fechamentoPronto(sql: Sql, cliente: Cliente, hoje: string): Promise<Fechamento | null> {
   const [f] = await sql`
     select ${COLUNAS(sql)} from fechamentos
-    where cliente_id = ${cliente.clienteId} and situacao = 'pronto' and fim >= ${deslocar(hoje, -14)}::date
-    order by fim desc limit 1`;
-  return f ? paraFechamento(f) : null;
+    where cliente_id = ${cliente.clienteId} and fim >= ${deslocar(hoje, -14)}::date and fim < ${hoje}::date
+    order by fim desc, criado_em desc limit 1`;
+  return f && f.situacao === 'pronto' ? paraFechamento(f) : null;
+}
+
+/** Ontem (no fuso do cliente), em relação ao dia informado. */
+export function diaAnterior(dia: string): string {
+  return deslocar(dia, -1);
 }
 
 /** Envia pelo canal (manual = só registra) e marca como enviado. */

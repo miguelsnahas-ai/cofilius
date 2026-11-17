@@ -29,7 +29,7 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 
 Passo a passo em [`docs/vercel.md`](docs/vercel.md): conectar o GitHub ao Vercel (plano grátis), colar
 quatro variáveis (banco, senha, chave mestra, segredo do agendador) e parear a extensão com o endereço novo.
-A esteira roda todo dia por volta das 6h e o fechamento aos domingos por volta das 20h.
+A esteira roda todo dia por volta das 6h (com o resumo de ontem para a afiliada) e o Analista aos domingos por volta das 20h.
 
 ## Começar sem terminal (Windows)
 
@@ -46,7 +46,7 @@ Do dia a dia em diante, tudo é pelo painel:
 
 | Aba | O que tem |
 |---|---|
-| **Dia** | avisos de vendas canceladas (o que caiu, de qual postagem, quanto de comissão), fechamento da semana pronto para a afiliada (copiar, enviar pelo WhatsApp, marcar como enviado), escolhas do Curador (com "o que o Curador está aprendendo"), links, mensagens (validar, aprovar, enviar) e o resultado de cada mensagem enviada (cliques, pedidos, comissão), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
+| **Dia** | avisos de vendas canceladas (o que caiu, de qual postagem, quanto de comissão), resumo de ontem pronto para a afiliada (com aviso se as vendas de ontem ainda não chegaram) (copiar, enviar pelo WhatsApp, marcar como enviado), escolhas do Curador (com "o que o Curador está aprendendo"), links, mensagens (validar, aprovar, enviar) e o resultado de cada mensagem enviada (cliques, pedidos, comissão), pedidos da afiliada, propostas de diretriz; aviso quando a extensão para de mandar vendas |
 | **Criativos** | carrossel (seis imagens 4:5), stories (quatro telas 9:16 com espaço para o sticker do link) e reels (vídeo de uns quinze segundos, 9:16) de uma oferta: a IA escreve o roteiro e a legenda, o sistema põe preço e desconto do banco, o navegador desenha as imagens (PNG) e grava o vídeo (MP4); tema, cor e @ do perfil; foto da loja ou enviada por você |
 | **Resultados** | comissão validada e pendente (nunca somadas), pedidos, cliques e conversão; comparação por canal (WhatsApp × Instagram × sem postagem identificada); comissão e cliques por dia (com tabela), produtos que mais renderam, vendas recentes; 7, 30 ou 90 dias, por plataforma |
 | **Clientes** | cadastrar e editar clientes, nichos e palavras de busca, credenciais da Shopee, diretrizes; pausar e reativar |
@@ -59,7 +59,7 @@ ficam em `painel/publico/`; as cores estão no topo de `painel/publico/estilo.cs
 Na aba Dia, o bloco **Próximo passo** diz o que fazer agora, e a linha de andamento mostra onde o dia está.
 
 **Esteira automática:** enquanto o painel estiver aberto, a cada 5 minutos ele roda as etapas do dia sozinho
-(Curador às 6h, Redator às 6h30, validação às 6h45, fechamento aos domingos às 20h: o resumo da semana para a afiliada fica pronto no Dia, mesmo sem IA; com IA, entra também a leitura do Analista). Sem a chave da IA, essas etapas
+(Curador às 6h, Redator às 6h30, validação às 6h45 e, às 6h50, o resumo de ontem para a afiliada, que fica pronto no Dia e se atualiza com as vendas que chegarem até ser enviado; aos domingos às 20h, com IA, o Analista lê a semana e propõe diretrizes). Sem a chave da IA, essas etapas
 aparecem como "puladas".
 
 **Atualizar o Cofilius:** baixe o ZIP de novo, descompacte numa pasta nova e **copie o arquivo `.env`** da pasta antiga
