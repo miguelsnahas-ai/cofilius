@@ -39,6 +39,10 @@ function itemSelecionada(s) {
         onclick: () => navigator.clipboard.writeText(s.linkUrl).then(() => avisar('Link copiado')) })));
     return li;
   }
+  if (s.faltaTrackingAmazon) {
+    li.append(el('p', { classe: 'aviso', texto: 'Para o link da Amazon sair pronto, cadastre o tracking ID do WhatsApp em Clientes › Amazon.' }));
+    return li;
+  }
   if (!s.preparoLink) return li;
 
   // Sem link ainda: a extensão gera sozinha. O caminho à mão fica recolhido, só para quando ela não estiver neste Chrome.

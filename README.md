@@ -423,7 +423,15 @@ validada ou aprovada a devolve para rascunho.
 as vendas e os cliques chegam quando ela abre os relatórios no painel de afiliados da Shopee; as ofertas, quando
 ela navega pela lista de ofertas; e o link personalizado, quando ela o gera com os Sub_ids do Cofilius (vai sozinho
 para a oferta, no canal WhatsApp, ou para o criativo, no canal Instagram).
-Os links curtos que você gera pela barra SiteStripe da Amazon também chegam. Passo a passo em [`extensao/LEIA-ME.md`](extensao/LEIA-ME.md).
+Os links curtos que você gera pela barra SiteStripe da Amazon também chegam.
+
+**Amazon no Curador:** a Amazon não tem página de ofertas para afiliados, então cada **página de produto**
+que ela abre em `amazon.com.br` (com a extensão pareada) vira oferta candidata do dia. Quando o Curador
+escolhe uma, o link sai pronto: `https://www.amazon.com.br/dp/ASIN?tag=TRACKING`, com o tracking ID do
+canal cadastrado em **Clientes › Amazon** (o do WhatsApp se preenche sozinho no primeiro link gerado pela
+barra SiteStripe; o do Instagram precisa ser criado no painel de Associados). Os textos e criativos da
+Amazon não mostram preço nem desconto (as Políticas do Programa só permitem preço vindo da própria Amazon):
+chamam para conferir o preço no link, e por isso não precisam da conferência de preço de 30 minutos. Passo a passo em [`extensao/LEIA-ME.md`](extensao/LEIA-ME.md).
 Um arquivo de gravação da extensão também pode ser importado em **Importar › Gravação da extensão**.
 
 Para o resto (Mercado Livre, pedidos da Amazon), as vendas entram pela planilha
@@ -553,7 +561,7 @@ Operacional e Políticas da Amazon, Guia do CONAR de 2026; Mercado Livre por res
 
 O que o Cofilius faz sozinho:
 - **Identificação de publicidade** (padrão `#publi`, editável por cliente) no começo de toda mensagem e legenda.
-- **Amazon:** declaração de Associado exata e aviso de preço em toda mensagem e legenda; nenhuma foto da Amazon nos criativos (a foto da loja não pode ser guardada).
+- **Amazon:** declaração de Associado exata em toda mensagem e legenda; textos e criativos sem preço nem desconto; nenhuma foto da Amazon nos criativos (a foto da loja não pode ser guardada).
 - **Links:** só domínios oficiais (sem encurtador de terceiros); preço só do banco e conferido antes do envio; a IA não escreve valores nem o nome da loja nos criativos.
 - **Extensão:** sem automação por padrão (a Shopee proíbe extração automatizada, 4.3(d)); os dados chegam quando ela abre os relatórios.
 

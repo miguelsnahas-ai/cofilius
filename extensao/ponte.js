@@ -18,7 +18,7 @@
   window.addEventListener('message', function (ev) {
     if (ev.source !== window || !ev.data || ev.data.cofilius !== 'captura') return;
     const c = ev.data.captura;
-    if (!c || (c.tipo !== 'resposta' && c.tipo !== 'visita')) return;
+    if (!c || (c.tipo !== 'resposta' && c.tipo !== 'visita' && c.tipo !== 'oferta')) return;
     chrome.runtime.sendMessage({ cofilius: 'captura', captura: c }).catch(function () {});
   });
 

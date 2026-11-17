@@ -127,3 +127,35 @@ describe('sincronia com o painel', () => {
     expect(N.proximaPagina('https://www.amazon.com.br/associates/sitestripe/getShortUrl', undefined, dados(1, 50))).toBeNull();
   });
 });
+
+describe('página de produto da Amazon', () => {
+  // Documento falso com os seletores conferidos na gravação de 13/11/2026.
+  function doc(campos: Record<string, { texto?: string; attrs?: Record<string, string> }>, migalhas: string[] = []) {
+    const no = (c?: { texto?: string; attrs?: Record<string, string> }) => c && ({ textContent: c.texto ?? '', getAttribute: (k: string) => c.attrs?.[k] ?? null });
+    return {
+      querySelector: (s: string) => no(campos[s]) ?? null,
+      querySelectorAll: (s: string) => (s === '#wayfinding-breadcrumbs_feature_div li a' ? migalhas.map((t) => ({ textContent: `  ${t} ` })) : []),
+    };
+  }
+  const completo = doc({
+    '#productTitle': { texto: '  Garrafa Térmica\n Inox 1L ' },
+    '#corePrice_feature_div .priceToPay .a-offscreen': { texto: 'R$69,99' },
+    '#corePrice_feature_div .basisPrice .a-offscreen': { texto: 'R$94,99' },
+    '#corePrice_feature_div .savingsPercentage': { texto: '-26%' },
+    '#acrPopover': { attrs: { title: '4,8 de 5 estrelas' } },
+    '#acrCustomerReviewText': { texto: '(5.944)', attrs: { 'aria-label': '5.944 Análises' } },
+  }, ['Casa', 'Cozinha']);
+
+  it('lê título, preço, nota e categoria; ASIN pela URL', () => {
+    expect(N.extrairProdutoAmazon(completo, 'https://www.amazon.com.br/Garrafa-Termica/dp/B0HDVZQPT6/ref=sr_1_1?th=1')).toEqual({
+      asin: 'B0HDVZQPT6', titulo: 'Garrafa Térmica Inox 1L', preco: 'R$69,99', precoAntes: 'R$94,99', desconto: '-26%',
+      nota: '4,8 de 5 estrelas', avaliacoes: '5.944 Análises', categoria: ['Casa', 'Cozinha'],
+    });
+  });
+
+  it('fora de página de produto, outro site ou sem preço: nada', () => {
+    expect(N.extrairProdutoAmazon(completo, 'https://www.amazon.com.br/s?k=garrafa')).toBeNull();
+    expect(N.extrairProdutoAmazon(completo, 'https://www.exemplo.com/dp/B0HDVZQPT6')).toBeNull();
+    expect(N.extrairProdutoAmazon(doc({ '#productTitle': { texto: 'Garrafa' } }), 'https://www.amazon.com.br/dp/B0HDVZQPT6')).toBeNull();
+  });
+});

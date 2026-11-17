@@ -3,6 +3,7 @@
  * da Shopee, importação de planilhas, fechamento, uso, diretrizes e teste dos agentes.
  * Só chama os serviços existentes; as regras continuam neles.
  */
+import { definirTrackingAmazon } from '../services/ofertas/ofertasAmazon.ts';
 import { join } from 'node:path';
 import { importarChave } from '../harness/cripto.ts';
 import { RAIZ } from '../harness/configLocal.ts';
@@ -63,7 +64,8 @@ export async function cadastroClientes(deps: DepsApi) {
   const comShopee = new Set((await deps.sql`
     select c.codigo from credenciais k join clientes c on c.cliente_id = k.cliente_id
     where k.plataforma = 'shopee' and k.nome = 'open_api'`).map((r) => r.codigo));
-  return clientes.map((c) => ({ ...c, clienteId: undefined, shopeeApi: comShopee.has(c.codigo) }));
+  const tracking = new Map((await deps.sql`select codigo, amazon_tracking from clientes`).map((r) => [r.codigo, r.amazon_tracking ?? {}]));
+  return clientes.map((c) => ({ ...c, clienteId: undefined, shopeeApi: comShopee.has(c.codigo), amazonTracking: tracking.get(c.codigo) ?? {} }));
 }
 
 export async function novoCliente(deps: DepsApi, corpo: Record<string, unknown>) {
@@ -96,6 +98,17 @@ export async function salvarShopeeCliente(deps: DepsApi, codigo: string, corpo: 
   const chave = await importarChave(process.env.CREDENCIAIS_CHAVE);
   await salvarCredencialShopee(deps.sql, chave, cliente.clienteId, { appId: texto(corpo, 'appId')!, secret: texto(corpo, 'secret')! });
   return { ok: true };
+}
+
+/** Tracking IDs da Amazon por canal (WhatsApp e Instagram). Vazio apaga. */
+export async function salvarAmazonCliente(deps: DepsApi, codigo: string, corpo: Record<string, unknown>) {
+  const cliente = await buscarCliente(deps.sql, codigo);
+  const valor = (k: string) => (typeof corpo[k] === 'string' ? (corpo[k] as string) : undefined);
+  try {
+    return { ok: true, tracking: await definirTrackingAmazon(deps.sql, cliente, { wa: valor('wa'), ig: valor('ig') }) };
+  } catch (e) {
+    throw new ErroPedido((e as Error).message);
+  }
 }
 
 // ---------------------------------------------------------------------------

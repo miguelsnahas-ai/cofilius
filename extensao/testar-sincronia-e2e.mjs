@@ -163,6 +163,25 @@ const linkNoPainel = recebidas.find((c) => c.pedido && c.pedido.json && c.pedido
 assert.ok(linkNoPainel, 'o link gerado chegou ao painel');
 await paginaDia.close();
 
+// Página de produto da Amazon (sem página de ofertas para afiliados): a oferta chega ao painel sozinha.
+recebidas.length = 0;
+await contexto.route('https://www.amazon.com.br/**', (rota) => rota.fulfill({ contentType: 'text/html; charset=utf-8', body: `<!doctype html><title>Garrafa</title>
+  <div id="wayfinding-breadcrumbs_feature_div"><ul><li><a>Casa</a></li><li><a>Cozinha</a></li></ul></div>
+  <span id="productTitle"> Garrafa Térmica Inox 1L </span>
+  <div id="corePrice_feature_div"><span class="savingsPercentage">-26%</span>
+    <span class="priceToPay"><span class="a-offscreen">R$69,99</span></span>
+    <span class="basisPrice"><span class="a-offscreen">R$94,99</span></span></div>
+  <span id="acrPopover" title="4,8 de 5 estrelas"></span><span id="acrCustomerReviewText" aria-label="5.944 Análises">(5.944)</span>` }));
+const pagAmz = await contexto.newPage();
+await pagAmz.goto('https://www.amazon.com.br/Garrafa-Termica/dp/B0HDVZQPT6/ref=sr_1_1');
+const limiteAmz = Date.now() + 15000;
+while (!recebidas.some((c) => c.tipo === 'oferta') && Date.now() < limiteAmz) await new Promise((r) => setTimeout(r, 200));
+const oferta = recebidas.find((c) => c.tipo === 'oferta');
+assert.ok(oferta, 'a oferta da Amazon chegou ao painel');
+assert.equal(oferta.plataforma, 'amazon');
+assert.deepEqual({ asin: oferta.dados.asin, preco: oferta.dados.preco, titulo: oferta.dados.titulo }, { asin: 'B0HDVZQPT6', preco: 'R$69,99', titulo: 'Garrafa Térmica Inox 1L' });
+await pagAmz.close();
+
 // Painel fechado: fica na fila.
 await new Promise((ok) => { painel.close(ok); painel.closeAllConnections(); });
 const pagFila = await contexto.newPage();
@@ -177,6 +196,6 @@ assert.ok(fila.length >= 1, 'com o painel fechado, a captura fica na fila');
 await popup.reload();
 assert.match(await popup.textContent('#sincronia'), /fila/);
 
-console.log(`ok: pareamento, paginação só quando ligada, link personalizado capturado, fila com painel fechado (${fila.length})`);
+console.log(`ok: pareamento, paginação só quando ligada, link personalizado capturado, produto da Amazon, fila com painel fechado (${fila.length})`);
 await contexto.close();
 await rm(perfil, { recursive: true, force: true });

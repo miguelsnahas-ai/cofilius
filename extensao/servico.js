@@ -83,7 +83,9 @@ async function chamarPainel(painel, caminho, corpo) {
 function enfileirar(captura) {
   return emSerie(async () => {
     const { pendentes = [] } = await chrome.storage.local.get('pendentes');
-    pendentes.push(N.mascarar({ tipo: 'resposta', url: captura.url, quando: captura.quando, pedido: captura.pedido || null, resposta: captura.resposta }));
+    pendentes.push(N.mascarar(captura.tipo === 'oferta'
+      ? { tipo: 'oferta', plataforma: captura.plataforma, url: captura.url, quando: captura.quando, dados: captura.dados }
+      : { tipo: 'resposta', url: captura.url, quando: captura.quando, pedido: captura.pedido || null, resposta: captura.resposta }));
     await chrome.storage.local.set({ pendentes: pendentes.slice(-LIMITE_FILA) });
   }).then(enviarPendentes);
 }
@@ -255,6 +257,8 @@ chrome.runtime.onMessage.addListener((msg, remetente, responder) => {
     if (!daExtensao && !(remetente.url && N.deveGravarPagina(remetente.url))) return;
     const c = msg.captura;
     if (!daExtensao && c.tipo === 'resposta' && c.status === 200 && N.tipoSincronia(c.url, undefined, c.pedido)) enfileirar(c);
+    // Produto da Amazon aberto: vira oferta candidata no painel (com ou sem gravação).
+    if (!daExtensao && c.tipo === 'oferta' && c.plataforma === 'amazon' && c.dados) { enfileirar(c); return; }
     // "Salvar esta página" (vem do popup) grava mesmo com a gravação desligada.
     guardar(c, daExtensao && c.tipo === 'pagina');
     return;

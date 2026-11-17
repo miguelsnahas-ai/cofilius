@@ -17,6 +17,7 @@ import { DIAS_SEM_REPETIR } from '../lista/lista.ts';
 import { diretrizesVigentes } from './diretrizes.ts';
 import { desempenhoParaCurador } from '../relatorios/desempenho.ts';
 import { RAIZ } from '../../harness/configLocal.ts';
+import { linkAmazonDaOferta } from '../ofertas/ofertasAmazon.ts';
 
 const PASTA = join(RAIZ, 'agents', 'curador');
 export const QUANTIDADE_PADRAO = 5;
@@ -104,6 +105,12 @@ export async function curarDia(
                where cliente_id = ${p.cliente.clienteId} and id = ${e.ofertaId}`;
     }
   });
+  // Amazon: o link do WhatsApp sai na hora (endereço do produto com o tracking ID do canal).
+  for (const e of escolhas) {
+    if (entrada.candidatas.find((c) => c.id === e.ofertaId)?.plataforma === 'amazon') {
+      await linkAmazonDaOferta(sql, p.cliente, e.ofertaId, 'wa').catch((erro) => log.warn('curadoria.link_amazon', { erro: (erro as Error).message }));
+    }
+  }
   log.info('curadoria.feita', { cliente: p.cliente.codigo, data: p.data, escolhidas: escolhas.length });
   return { data: p.data, candidatas: entrada.candidatas.length, escolhas };
 }

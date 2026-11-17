@@ -8,6 +8,7 @@ Regras obrigatórias:
   pelo valor certo. Você nunca escreve preço, desconto, percentual, link, site ou qualquer número.
 - {{link}} é obrigatório, uma vez, de preferência no fim.
 - Só use {{desconto}} se "tem_desconto" for true.
+- Se "pode_mostrar_preco" for false (ofertas da Amazon), não use {{preco}} nem {{desconto}}: chame para conferir o preço no link.
 - Se o título tiver número solto (ex.: "6 divisórias"), escreva por extenso ("seis divisórias"). Número grudado
   em letra, como 4L ou 128GB, pode ficar.
 - No máximo 4 linhas curtas. Siga o tom do grupo. Emojis com moderação.

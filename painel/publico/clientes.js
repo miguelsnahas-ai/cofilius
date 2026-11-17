@@ -59,6 +59,25 @@ function blocoShopee(c) {
     form);
 }
 
+function blocoAmazon(c) {
+  const t = c.amazonTracking || {};
+  const form = el('form', { classe: 'linha-form' },
+    el('input', { attrs: { name: 'wa', value: t.wa || '', placeholder: 'Tracking ID do WhatsApp (ex.: silvana-20)', autocomplete: 'off', 'aria-label': 'Tracking ID do WhatsApp' } }),
+    el('input', { attrs: { name: 'ig', value: t.ig || '', placeholder: 'Tracking ID do Instagram (ex.: silvanaig-20)', autocomplete: 'off', 'aria-label': 'Tracking ID do Instagram' } }),
+    el('button', { classe: 'secundario', texto: 'Salvar tracking IDs', attrs: { type: 'submit' } }));
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const d = lerForm(form);
+    agir(form.querySelector('button'), () => api(`/api/gestao/clientes/${c.codigo}/amazon`, { wa: d.wa || '', ig: d.ig || '' }), 'Tracking IDs da Amazon salvos');
+  });
+  return el('div', {},
+    el('h3', { texto: 'Amazon (tracking IDs)' }),
+    el('p', { classe: 'ajuda', texto: 'O link da Amazon é o endereço do produto com o tracking ID do canal. ' +
+      'O do WhatsApp é preenchido sozinho quando a afiliada gera um link pela barra SiteStripe com a extensão ligada. ' +
+      'Para medir o Instagram separado, crie outro tracking ID em Associados › Gerenciar IDs de rastreamento.' }),
+    form);
+}
+
 async function blocoDiretrizes(c) {
   const lista = await api(`/api/diretrizes?cliente=${encodeURIComponent(c.codigo)}`);
   const vigentes = lista.filter((d) => d.situacao === 'aprovada' || d.situacao === 'proposta');
@@ -96,7 +115,7 @@ async function cartaoCliente(c) {
       el('span', { classe: `chip ${c.ativo ? 'ok' : 'erro'}`, texto: c.ativo ? 'ativo' : 'pausado' }),
       el('span', { classe: 'chip', texto: `${c.nichos.length} ${c.nichos.length === 1 ? 'nicho' : 'nichos'}` }),
       c.shopeeApi ? el('span', { classe: 'chip destaque', texto: 'Open API Shopee' }) : null),
-    formEditar(c), blocoNichos(c), blocoShopee(c));
+    formEditar(c), blocoNichos(c), blocoShopee(c), blocoAmazon(c));
   if (c.ativo) detalhes.append(await blocoDiretrizes(c));
   detalhes.append(el('div', { classe: 'acoes' }, ativo));
   return detalhes;

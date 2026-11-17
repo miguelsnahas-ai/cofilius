@@ -2,6 +2,7 @@
  * API do painel do operador. Só chama os serviços que já existem: as regras (estados, validadores,
  * preço conferido antes do envio, links só da Shopee) são as mesmas do terminal e do banco.
  */
+import { linkAmazonDaOferta, trackingAmazon } from '../services/ofertas/ofertasAmazon.ts';
 import type { Sql } from '../harness/db.ts';
 import type { ModeloIA, PrecoModelo } from '../harness/agentes.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
@@ -92,7 +93,14 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const dia = data(diaPedido, cliente);
   const envio = await horarioDoEnvio(sql, cliente, dia);
 
-  const selecionadas = await selecionadasDoDia(sql, cliente, dia);
+  let selecionadas = await selecionadasDoDia(sql, cliente, dia);
+  // Amazon: o link é o endereço do produto com o tracking ID do WhatsApp; sai na hora, sem extensão.
+  const amazonSemLink = selecionadas.filter((s) => !s.linkId && s.plataforma === 'amazon');
+  const trackingAmazonCliente = amazonSemLink.length ? await trackingAmazon(sql, cliente) : {};
+  if (amazonSemLink.length && trackingAmazonCliente.wa) {
+    for (const s of amazonSemLink) await linkAmazonDaOferta(sql, cliente, s.ofertaId, 'wa');
+    selecionadas = await selecionadasDoDia(sql, cliente, dia);
+  }
   const semLink = selecionadas.filter((s) => !s.linkId && s.plataforma === 'shopee').map((s) => s.ofertaId);
   const preparo = semLink.length ? await prepararLinks(sql, cliente, { quando: envio.quando, ofertaIds: semLink }) : [];
   const porOferta = new Map(preparo.map((p) => [p.ofertaId, p]));
@@ -161,6 +169,8 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
       return {
         ...s,
         preparoLink: p ? { urlProduto: p.urlProduto, subIds: p.subIds, quando: p.quando } : null,
+        /** Amazon sem link porque falta o tracking ID do WhatsApp no cadastro do cliente. */
+        faltaTrackingAmazon: s.plataforma === 'amazon' && !s.linkId && !trackingAmazonCliente.wa,
       };
     }),
     mensagens: mensagens.map((m) => {
