@@ -11,7 +11,78 @@ import { conectarTransacao, type Sql } from '../../harness/db.ts';
 import { log } from '../../harness/log.ts';
 import { buscarCliente, type Cliente } from '../../db/clientes.ts';
 import { importarVendas, registrarCliques } from '../vendas/atribuicao.ts';
-import { cliquesShopee, conversoesShopee, linkAmazon, tipoPelaUrl, type TipoRecebido } from './conversores.ts';
+import { cliquesShopee, conversoesShopee, linkAmazon, linksPersonalizados, ofertasShopee, tipoDaCaptura, type TipoRecebido } from './conversores.ts';
+import { gravarOfertas } from '../ofertas/coletarOfertasShopee.ts';
+import { extrairIdsDaUrl } from '../shopee/parser.ts';
+import { horarioLocalParaData } from '../etiquetas/etiquetas.ts';
+import { dataLocal } from '../lista/lista.ts';
+import { chaveShopee } from '../vendas/atribuicao.ts';
+
+const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/** Ofertas que ela viu na lista do painel da Shopee: gravadas no dia, com o nicho achado pelas palavras-chave. */
+async function gravarOfertasDaLista(sql: Sql, cliente: Cliente, json: unknown) {
+  const { ofertas, descartadas, total } = ofertasShopee(json);
+  const [c] = await sql`select nichos from clientes where cliente_id = ${cliente.clienteId}`;
+  const nichos = ((c?.nichos ?? []) as { slug: string; palavras_chave?: string[] }[])
+    .map((n) => ({ slug: n.slug, palavras: (n.palavras_chave ?? []).map(semAcento).filter(Boolean) }));
+  const itens = ofertas.map((o) => {
+    const titulo = semAcento(o.titulo);
+    const achado = nichos.map((n) => ({ n, p: n.palavras.find((p) => titulo.includes(p)) })).find((x) => x.p);
+    return { oferta: o, nicho: achado?.n.slug ?? null, palavraChave: achado?.p ?? null };
+  });
+  const gravadas = itens.length ? await gravarOfertas(sql, cliente, itens, dataLocal(new Date(), cliente.fusoHorario)) : [];
+  const doNicho = itens.filter((i) => i.nicho).length;
+  return {
+    detalhe: `${gravadas.length} ofertas gravadas para hoje (${doNicho} de algum nicho do cliente)${descartadas ? `, ${descartadas} fora do formato` : ''}`,
+    resultado: { ofertas: gravadas.length, doNicho, descartadas, totalNaShopee: total },
+  };
+}
+
+/**
+ * Link personalizado gerado por ela no painel da Shopee. Só registra quando os sub_ids seguem o padrão
+ * do Cofilius (sub_id1 = código do cliente, canal, data, produto, horário): é o que liga a venda à postagem.
+ * Canal "ig": o link vai para o criativo mais recente desse produto que ainda não tem link.
+ */
+async function registrarLinksPersonalizados(sql: Sql, cliente: Cliente, pedido: unknown, json: unknown) {
+  const links = linksPersonalizados(pedido, json);
+  const feitos: string[] = [];
+  const ignorados: string[] = [];
+  for (const l of links) {
+    const [c1, canal, data, produto, hora] = l.subIds;
+    if (c1 !== cliente.codigo || !/^[a-z0-9]{1,12}$/.test(canal ?? '') || !/^\d{8}$/.test(data ?? '') || !/^\d{4}$/.test(hora ?? '')) {
+      ignorados.push(`${l.linkCurto}: sub_ids fora do padrão do Cofilius`);
+      continue;
+    }
+    if (!/^https:\/\/s\.shopee\.com\.br\/\w+$/.test(l.linkCurto)) { ignorados.push(`${l.linkCurto}: link fora do domínio da Shopee`); continue; }
+    const [existe] = await sql`select id from links where cliente_id = ${cliente.clienteId} and url_afiliado = ${l.linkCurto}`;
+    if (existe) { ignorados.push(`${l.linkCurto}: já registrado`); continue; }
+    const ids = extrairIdsDaUrl(l.urlOrigem);
+    const produtoId = ids?.produtoId ?? (produto && /^\d+$/.test(produto) ? produto : null);
+    const [oferta] = produtoId
+      ? await sql`select id, url_produto, nicho from ofertas where cliente_id = ${cliente.clienteId} and plataforma = 'shopee' and produto_id = ${produtoId}
+                  order by data_coleta desc, criado_em desc limit 1`
+      : [];
+    const quando = horarioLocalParaData(`${data!.slice(0, 4)}-${data!.slice(4, 6)}-${data!.slice(6, 8)} ${hora!.slice(0, 2)}:${hora!.slice(2, 4)}`, cliente.fusoHorario);
+    const [novo] = await sql`
+      insert into links (cliente_id, oferta_id, plataforma, url_origem, url_afiliado, sub_ids, chave_rastreio, canal, nicho, produto_id, contexto, criado_em)
+      values (${cliente.clienteId}, ${oferta?.id ?? null}, 'shopee', ${oferta?.url_produto ?? l.urlOrigem}, ${l.linkCurto}, ${l.subIds},
+              ${chaveShopee(l.subIds)!}, ${canal!}, ${oferta?.nicho ?? null}, ${produtoId}, ${sql.json({ origem: 'extensao.link_personalizado' })},
+              ${new Date(Math.min(quando.getTime(), Date.now()))})
+      returning id`;
+    if (canal === 'ig' && oferta) {
+      await sql`
+        update criativos set link_id = ${novo!.id}
+        where id = (select id from criativos where cliente_id = ${cliente.clienteId} and oferta_id = ${oferta.id}
+                      and link_id is null and estado <> 'descartado' order by criado_em desc limit 1)`;
+    }
+    feitos.push(`${l.linkCurto} (${canal === 'ig' ? 'Instagram' : canal === 'wa' ? 'WhatsApp' : canal}${oferta ? '' : ', produto fora das ofertas'})`);
+  }
+  return {
+    detalhe: feitos.length ? `link registrado: ${feitos.join(', ')}` : `nenhum link registrado (${ignorados.join('; ') || 'nada gerado'})`,
+    resultado: { registrados: feitos.length, ignorados: ignorados.length },
+  };
+}
 
 const hash = (codigo: string) => createHash('sha256').update(codigo.trim()).digest('hex');
 
@@ -35,7 +106,7 @@ export async function clientePareado(sql: Sql, codigo: string | undefined): Prom
   return p ? buscarCliente(sql, p.codigo) : null;
 }
 
-export interface Captura { url: string; resposta?: { json?: unknown } | null }
+export interface Captura { url: string; pedido?: { json?: unknown } | null; resposta?: { json?: unknown } | null }
 
 export interface ResultadoRecebido {
   tipo: TipoRecebido | null;
@@ -95,7 +166,7 @@ async function gravarLinkAmazon(sql: Sql, cliente: Cliente, url: string, json: u
 
 /** Processa uma captura. Nunca lança: o erro volta no resultado e fica registrado. */
 export async function receberCaptura(sql: Sql, cliente: Cliente, c: Captura): Promise<ResultadoRecebido> {
-  const tipo = typeof c?.url === 'string' ? tipoPelaUrl(c.url) : null;
+  const tipo = typeof c?.url === 'string' ? tipoDaCaptura(c.url, c.pedido?.json) : null;
   if (!tipo) return { tipo: null, ok: false, detalhe: 'Dado que o painel não usa.' };
   const json = c.resposta?.json;
   try {
@@ -111,6 +182,10 @@ export async function receberCaptura(sql: Sql, cliente: Cliente, c: Captura): Pr
       };
     } else if (tipo === 'shopee.cliques') {
       r = await gravarCliquesShopee(sql, cliente, json);
+    } else if (tipo === 'shopee.ofertas') {
+      r = await gravarOfertasDaLista(sql, cliente, json);
+    } else if (tipo === 'shopee.link') {
+      r = await registrarLinksPersonalizados(sql, cliente, c.pedido?.json, json);
     } else {
       r = await gravarLinkAmazon(sql, cliente, c.url, json);
     }

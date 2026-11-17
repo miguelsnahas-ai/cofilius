@@ -183,6 +183,10 @@
     { tipo: 'shopee.conversoes', host: 'affiliate.shopee.com.br', caminho: '/api/v3/report/list', paginas: true },
     { tipo: 'shopee.cliques', host: 'affiliate.shopee.com.br', caminho: '/api/v1/click_report/list', paginas: true },
     { tipo: 'amazon.link', host: 'www.amazon.com.br', caminho: '/associates/sitestripe/getShortUrl', paginas: false },
+    // Lista de ofertas que ela navega no painel (sem leitura automática de páginas).
+    { tipo: 'shopee.ofertas', host: 'affiliate.shopee.com.br', caminho: '/api/v3/offer/product/list', paginas: false },
+    // Link personalizado gerado por ela: GraphQL, só a operação que cria o link com os sub_ids.
+    { tipo: 'shopee.link', host: 'affiliate.shopee.com.br', caminho: '/api/v3/gql', paginas: false, operacao: 'batchGetCustomLink' },
   ];
 
   /** Páginas que a busca automática abre (escondidas) para os relatórios carregarem. */
@@ -192,15 +196,20 @@
   ];
   const MAX_PAGINAS = 25;
 
-  function regraSincronia(url, base) {
+  function regraSincronia(url, base, pedido) {
     const u = urlAbsoluta(url, base);
     if (!u || u.protocol !== 'https:') return null;
-    return SINCRONIA.find(function (r) { return r.host === u.hostname && r.caminho === u.pathname; }) || null;
+    return SINCRONIA.find(function (r) {
+      if (r.host !== u.hostname || r.caminho !== u.pathname) return false;
+      if (!r.operacao) return true;
+      const j = pedido && pedido.json;
+      return !!j && j.operationName === r.operacao;
+    }) || null;
   }
 
-  /** Tipo do dado para o painel, ou null se o painel não usa. */
-  function tipoSincronia(url, base) {
-    const r = regraSincronia(url, base);
+  /** Tipo do dado para o painel, ou null se o painel não usa. `pedido` (corpo interpretado) só para o GraphQL. */
+  function tipoSincronia(url, base, pedido) {
+    const r = regraSincronia(url, base, pedido);
     return r ? r.tipo : null;
   }
 

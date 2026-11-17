@@ -58,6 +58,7 @@ describe.skipIf(!BANCO_HABILITADO)('criativos', () => {
 
     expect(await mudarEstadoCriativo(sql, cliente, id, 'aprovar')).toBe('aprovado');
     expect(await mudarEstadoCriativo(sql, cliente, id, 'publicado')).toBe('publicado');
+    await sql`update criativos set publicado_em = '2026-11-13T16:00:00Z' where id = ${id}`; // data fixa: o teste não depende do dia em que roda
     await expect(mudarEstadoCriativo(sql, cliente, id, 'descartar')).rejects.toThrow('outro estado');
 
     // Vendas e cliques chegam pela chave de cada link: Instagram e WhatsApp separados.

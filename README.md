@@ -414,7 +414,9 @@ validada ou aprovada a devolve para rascunho.
 ### Vendas e resumo
 
 **Shopee, sem arquivo:** com a extensão do Chrome pareada (painel › Configuração › Extensão do Chrome),
-as vendas e os cliques chegam sozinhos do painel de afiliados da Shopee, a cada 6 horas ou quando você abre os relatórios.
+as vendas e os cliques chegam quando ela abre os relatórios no painel de afiliados da Shopee; as ofertas, quando
+ela navega pela lista de ofertas; e o link personalizado, quando ela o gera com os Sub_ids do Cofilius (vai sozinho
+para a oferta, no canal WhatsApp, ou para o criativo, no canal Instagram).
 Os links curtos que você gera pela barra SiteStripe da Amazon também chegam. Passo a passo em [`extensao/LEIA-ME.md`](extensao/LEIA-ME.md).
 Um arquivo de gravação da extensão também pode ser importado em **Importar › Gravação da extensão**.
 
@@ -609,7 +611,9 @@ Isolados em `services/extensao/conversores.ts`, marcados com `TODO(confirmar)`:
 1. **Escala do dinheiro da Shopee**: valores inteiros divididos por 100.000 (`item_price` 4800000 = R$ 48,00; taxa 3000 = 3%). Conferir uma venda no painel da Shopee contra o painel do Cofilius.
 2. **Situação "Completed"** da Shopee foi tratada como **validada**. Se na Shopee "Concluído" ainda espera validação, trocar para pendente.
 3. Pedido = `order_sn` (o número que aparece na Shopee); produto = `item_id`; Sub_ids vêm unidos por `-` em `utm_content` (`----` = sem Sub_id).
-4. As páginas seguintes dos relatórios são pedidas com os mesmos cabeçalhos da página (só muda `page_num`). Se a Shopee recusar, o painel fica só com a primeira página: aparece no cartão da extensão.
+4. Ofertas da lista do painel: comissão = taxa padrão da Shopee + taxa do vendedor (`default_commission_rate` + `seller_commission_rate`); foto em `down-br.img.susercontent.com/file/<código>`. Conferir com o selo "comissão" do painel.
+5. Link personalizado: só é registrado quando os Sub_ids seguem o padrão do Cofilius (Sub_id1 = código do cliente).
+6. As páginas seguintes dos relatórios são pedidas com os mesmos cabeçalhos da página (só muda `page_num`). Se a Shopee recusar, o painel fica só com a primeira página: aparece no cartão da extensão.
 
 ### Relatórios recebidos em 12/nov (para o Sincronizador de ganhos)
 

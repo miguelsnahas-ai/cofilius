@@ -82,7 +82,7 @@ async function chamarPainel(painel, caminho, corpo) {
 function enfileirar(captura) {
   return emSerie(async () => {
     const { pendentes = [] } = await chrome.storage.local.get('pendentes');
-    pendentes.push(N.mascarar({ tipo: 'resposta', url: captura.url, quando: captura.quando, resposta: captura.resposta }));
+    pendentes.push(N.mascarar({ tipo: 'resposta', url: captura.url, quando: captura.quando, pedido: captura.pedido || null, resposta: captura.resposta }));
     await chrome.storage.local.set({ pendentes: pendentes.slice(-LIMITE_FILA) });
   }).then(enviarPendentes);
 }
@@ -176,7 +176,7 @@ chrome.runtime.onMessage.addListener((msg, remetente, responder) => {
     // Captura vinda de aba precisa ser de página permitida (painel de afiliados ou produto).
     if (!daExtensao && !(remetente.url && N.deveGravarPagina(remetente.url))) return;
     const c = msg.captura;
-    if (!daExtensao && c.tipo === 'resposta' && c.status === 200 && N.tipoSincronia(c.url)) enfileirar(c);
+    if (!daExtensao && c.tipo === 'resposta' && c.status === 200 && N.tipoSincronia(c.url, undefined, c.pedido)) enfileirar(c);
     // "Salvar esta página" (vem do popup) grava mesmo com a gravação desligada.
     guardar(c, daExtensao && c.tipo === 'pagina');
     return;

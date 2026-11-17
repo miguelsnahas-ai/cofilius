@@ -90,6 +90,7 @@ window.Cofilius.registrar('importar', {
   },
 });
 
-const USADAS = /^https:\/\/(affiliate\.shopee\.com\.br\/api\/(v3\/report|v1\/click_report)\/list|www\.amazon\.com\.br\/associates\/sitestripe\/getShortUrl)\b/;
-const NOMES = { 'shopee.conversoes': 'Vendas da Shopee', 'shopee.cliques': 'Cliques da Shopee', 'amazon.link': 'Link da Amazon' };
+const USADAS = /^https:\/\/(affiliate\.shopee\.com\.br\/api\/(v3\/report\/list|v1\/click_report\/list|v3\/offer\/product\/list|v3\/gql)|www\.amazon\.com\.br\/associates\/sitestripe\/getShortUrl)\b/;
+const NOMES = { 'shopee.conversoes': 'Vendas da Shopee', 'shopee.cliques': 'Cliques da Shopee', 'amazon.link': 'Link da Amazon',
+  'shopee.ofertas': 'Ofertas da Shopee', 'shopee.link': 'Link personalizado da Shopee' };
 })();

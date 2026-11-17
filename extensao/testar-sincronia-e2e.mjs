@@ -49,6 +49,17 @@ const contexto = await chromium.launchPersistentContext(perfil, {
 const cabecalhosVistos = [];
 await contexto.route('https://affiliate.shopee.com.br/**', (rota) => {
   const u = new URL(rota.request().url());
+  if (u.pathname === '/offer/custom_link') {
+    return rota.fulfill({ contentType: 'text/html', body: `<!doctype html><title>Link</title><script>
+      const gql = (op) => fetch('/api/v3/gql', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ operationName: op, query: 'query', variables: { linkParams: [{ originalLink: 'https://shopee.com.br/x-i.9.555',
+          advancedLinkParams: { subId1: 'c1', subId2: 'ig', subId3: '20261117', subId4: '555', subId5: '1000' } }] } }) });
+      gql('productsRankList'); gql('batchGetCustomLink');
+    </script>` });
+  }
+  if (u.pathname === '/api/v3/gql') {
+    return rota.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: { batchCustomLink: [{ shortLink: 'https://s.shopee.com.br/IG1', longLink: 'x', failCode: 0 }] } }) });
+  }
   if (u.pathname === '/report/conversion_report') {
     return rota.fulfill({ contentType: 'text/html', body: `<!doctype html><title>Relatório</title><script>
       fetch('/api/v3/report/list?page_size=2&page_num=1&version=1', { headers: { 'x-csrftoken': 'abc' }, credentials: 'include' });
@@ -105,6 +116,18 @@ assert.ok(recebidas.every((c) => c.resposta && c.resposta.json && c.resposta.jso
 const { capturas = [] } = await sw.evaluate(() => chrome.storage.local.get('capturas'));
 assert.equal(capturas.length, 0, 'com a gravação desligada, nada é guardado no gravador');
 
+// Link personalizado: do GraphQL, só a operação que gera o link vai para o painel (com o pedido, para ler os sub_ids).
+recebidas.length = 0;
+const pagLink = await contexto.newPage();
+await pagLink.goto('https://affiliate.shopee.com.br/offer/custom_link');
+const limiteLink = Date.now() + 10000;
+while (recebidas.length < 1 && Date.now() < limiteLink) await new Promise((r) => setTimeout(r, 200));
+await new Promise((r) => setTimeout(r, 1500));
+assert.equal(recebidas.length, 1, 'só o batchGetCustomLink');
+assert.equal(recebidas[0].pedido.json.operationName, 'batchGetCustomLink');
+assert.equal(recebidas[0].pedido.json.variables.linkParams[0].advancedLinkParams.subId2, 'ig');
+await pagLink.close();
+
 // Painel fechado: fica na fila.
 await new Promise((ok) => painel.close(ok));
 await pag.reload();
@@ -118,6 +141,6 @@ assert.ok(fila.length >= 1, 'com o painel fechado, a captura fica na fila');
 await popup.reload();
 assert.match(await popup.textContent('#sincronia'), /fila/);
 
-console.log(`ok: pareamento, ${recebidas.length} páginas enviadas, cabeçalhos repetidos, fila com painel fechado (${fila.length})`);
+console.log(`ok: pareamento, paginação só quando ligada, link personalizado capturado, fila com painel fechado (${fila.length})`);
 await contexto.close();
 await rm(perfil, { recursive: true, force: true });

@@ -412,7 +412,7 @@ function secaoLink(c) {
   registrar.addEventListener('click', () => agir(registrar,
     () => api(`/api/criativos/${c.id}/link`, { link: campo.value, quando: p.quando }), 'Link do Instagram registrado'));
   caixa.append(
-    el('p', { classe: 'motivo' }, 'No painel da Shopee, gere o link personalizado deste produto com estes Sub_ids (o segundo é "ig", de Instagram): ',
+    el('p', { classe: 'motivo' }, 'No painel da Shopee (Link personalizado), gere o link deste produto com estes Sub_ids; o segundo é "ig", de Instagram. Com a extensão pareada, o link entra aqui sozinho; sem ela, cole abaixo. ',
       el('a', { texto: 'abrir o produto', attrs: { href: p.urlProduto, target: '_blank', rel: 'noopener noreferrer' } })),
     subids,
     el('div', { classe: 'linha-form' }, campo, registrar));

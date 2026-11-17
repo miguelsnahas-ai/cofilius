@@ -9,7 +9,8 @@ function mostrarCamposDoProvedor(provedor) {
   for (const campo of document.querySelectorAll('[data-provedor]')) campo.hidden = campo.dataset.provedor !== provedor;
 }
 
-const NOMES_EXTENSAO = { 'shopee.conversoes': 'Vendas da Shopee', 'shopee.cliques': 'Cliques da Shopee', 'amazon.link': 'Links da Amazon' };
+const NOMES_EXTENSAO = { 'shopee.conversoes': 'Vendas da Shopee', 'shopee.cliques': 'Cliques da Shopee', 'amazon.link': 'Links da Amazon',
+  'shopee.ofertas': 'Ofertas da Shopee', 'shopee.link': 'Links personalizados da Shopee' };
 
 function quando(iso) {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });

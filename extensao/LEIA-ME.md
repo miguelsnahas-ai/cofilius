@@ -9,6 +9,8 @@ Com a extensão **pareada** com o painel, não há arquivo para subir:
 | Vendas (conversões) | Shopee Afiliados › Relatório de conversões | Vendas, ligadas à postagem pelos Sub_ids; a situação (pendente, concluída, cancelada) se atualiza a cada busca |
 | Cliques | Shopee Afiliados › Relatório de cliques | Cliques por dia e por Sub_id |
 | Links curtos | Barra SiteStripe na página de produto da Amazon | Link da Amazon (produto + tracking ID), para atribuir as vendas depois |
+| Ofertas | Shopee Afiliados › Ofertas de produtos (as listas que você navega) | Ofertas do dia, com preço, desconto, comissão, vendas, nota e foto; o nicho vem das palavras-chave do cliente |
+| Link personalizado | Shopee Afiliados › Link personalizado, gerado com os Sub_ids que o Cofilius mostra | Link registrado sozinho na oferta (canal WhatsApp) ou no criativo (canal Instagram), sem colar nada |
 
 Como chega:
 - **Quando você abre os relatórios** de conversões e de cliques da Shopee (ou pelo botão **Abrir os relatórios agora**). Passe pelas páginas da tabela: cada página que a Shopee carrega vai para o painel.
@@ -25,8 +27,6 @@ O painel e o Chrome precisam estar **no mesmo computador** (o painel só aceita 
 
 ### Ainda não automatizado (falta gravar)
 
-- **Lista de ofertas da Shopee** (busca de produtos no painel de afiliados): ainda importada pela planilha.
-- **Link personalizado da Shopee** (o que preenche os Sub_ids): ainda colado à mão no painel.
 - **Ganhos e pedidos da Amazon**: a gravação trouxe só totais por produto, sem os pedidos. Grave o relatório de **pedidos** e o de **ganhos** por dia.
 
 ## Etapa 1: gravador (Mercado Livre, Shopee e Amazon)

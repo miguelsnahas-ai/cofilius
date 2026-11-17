@@ -6,8 +6,26 @@
  * marcado com TODO(confirmar).
  */
 import { chaveShopee, type Situacao, type VendaNormalizada } from '../vendas/atribuicao.ts';
+import type { OfertaShopee } from '../shopee/parser.ts';
 
-export type TipoRecebido = 'shopee.conversoes' | 'shopee.cliques' | 'amazon.link';
+export type TipoRecebido = 'shopee.conversoes' | 'shopee.cliques' | 'amazon.link' | 'shopee.ofertas' | 'shopee.link';
+
+/** Operação GraphQL do painel da Shopee que gera o link personalizado (com os 5 sub_ids). */
+export const OPERACAO_LINK_SHOPEE = 'batchGetCustomLink';
+
+/**
+ * Tipo da captura pelo endereço e, no GraphQL da Shopee (um endereço para tudo), pela operação do pedido.
+ * null = não interessa ao painel.
+ */
+export function tipoDaCaptura(endereco: string, pedidoJson?: unknown): TipoRecebido | null {
+  const pelaUrl = tipoPelaUrl(endereco);
+  if (pelaUrl) return pelaUrl;
+  let u: URL;
+  try { u = new URL(endereco); } catch { return null; }
+  if (u.protocol === 'https:' && u.hostname === 'affiliate.shopee.com.br' && u.pathname === '/api/v3/gql'
+      && obj(pedidoJson)?.operationName === OPERACAO_LINK_SHOPEE) return 'shopee.link';
+  return null;
+}
 
 /** Qual dado é, pelo endereço da chamada. null = não interessa ao painel. */
 export function tipoPelaUrl(endereco: string): TipoRecebido | null {
@@ -17,6 +35,7 @@ export function tipoPelaUrl(endereco: string): TipoRecebido | null {
   if (u.hostname === 'affiliate.shopee.com.br') {
     if (u.pathname === '/api/v3/report/list') return 'shopee.conversoes';
     if (u.pathname === '/api/v1/click_report/list') return 'shopee.cliques';
+    if (u.pathname === '/api/v3/offer/product/list') return 'shopee.ofertas';
   }
   if (u.hostname === 'www.amazon.com.br' && u.pathname === '/associates/sitestripe/getShortUrl') return 'amazon.link';
   return null;
@@ -154,4 +173,90 @@ export function linkAmazon(endereco: string, json: unknown): LinkAmazon | null {
   }
   if (!tracking) return null;
   return { asin, urlProduto: `https://www.amazon.com.br/dp/${asin}`, urlCurta: curta, trackingId: tracking };
+}
+
+// ---------------------------------------------------------------------------
+// Lista de ofertas do painel de afiliados (api/v3/offer/product/list)
+// ---------------------------------------------------------------------------
+
+/** Endereço da foto a partir do código da imagem. TODO(confirmar): domínio das imagens no Brasil. */
+export const BASE_IMAGEM_SHOPEE = 'https://down-br.img.susercontent.com/file/';
+
+function pct(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v !== 'string') return null;
+  const n = Number(v.replace('%', '').replace(',', '.').trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Ofertas da lista do painel. Preços na mesma escala dos relatórios (÷ 100000).
+ * Comissão = taxa padrão da Shopee + taxa do vendedor (TODO(confirmar): se o painel soma as duas, como
+ * no selo "comissão até X%"; max_commission_rate veio 0% na gravação).
+ */
+export function ofertasShopee(json: unknown): { ofertas: OfertaShopee[]; descartadas: number; total: number } {
+  const data = obj(obj(json)?.data);
+  if (obj(json)?.code !== 0 || !data || !Array.isArray(data.list)) throw new Error('Resposta da Shopee fora do formato esperado (ofertas).');
+  const ofertas: OfertaShopee[] = [];
+  let descartadas = 0;
+  for (const x of data.list) {
+    const o = obj(x);
+    const i = obj(o?.batch_item_for_item_card_full);
+    const produtoId = String(i?.itemid ?? o?.item_id ?? '').trim();
+    const lojaId = String(i?.shopid ?? '').trim();
+    const preco = dinheiroShopee(i?.price_min ?? i?.price);
+    if (!o || !i || !/^\d+$/.test(produtoId) || !/^\d+$/.test(lojaId) || !preco || typeof i.name !== 'string') { descartadas++; continue; }
+    const base = pct(o.default_commission_rate) ?? 0;
+    const vendedor = pct(o.seller_commission_rate) ?? 0;
+    const comissao = base + vendedor > 0 ? base + vendedor : null;
+    const desconto = pct(i.raw_discount ?? i.show_discount ?? i.discount);
+    const nota = typeof obj(i.item_rating)?.rating_star === 'number' ? Number(obj(i.item_rating)!.rating_star) : null;
+    ofertas.push({
+      produtoId,
+      lojaId,
+      titulo: i.name.slice(0, 300),
+      urlProduto: `https://shopee.com.br/product/${lojaId}/${produtoId}`,
+      urlOferta: null,
+      imagemUrl: typeof i.image === 'string' && /^[\w-]+$/.test(i.image) ? BASE_IMAGEM_SHOPEE + i.image : null,
+      lojaNome: typeof i.shop_name === 'string' ? i.shop_name.slice(0, 120) : null,
+      preco,
+      precoMaximo: dinheiroShopee(i.price_max),
+      descontoPct: desconto && desconto > 0 && desconto <= 100 ? desconto.toFixed(2) : null,
+      comissaoPct: comissao !== null ? comissao.toFixed(2) : null,
+      comissaoValor: comissao !== null ? ((Number(preco) * comissao) / 100).toFixed(2) : null,
+      vendas: Number.isInteger(i.historical_sold) ? Number(i.historical_sold) : null,
+      // Sem avaliações a Shopee manda 0 estrelas: vira "sem avaliação", não nota zero.
+      avaliacao: nota !== null && nota > 0 && nota <= 5 ? nota.toFixed(2) : null,
+      validadeInicio: null,
+      validadeFim: null,
+      bruto: { fonte: 'extensao', taxa_padrao: o.default_commission_rate ?? null, taxa_vendedor: o.seller_commission_rate ?? null,
+        estoque: i.stock ?? null, oficial: i.is_official_shop ?? null },
+    });
+  }
+  return { ofertas, descartadas, total: Number(data.total_count) || 0 };
+}
+
+// ---------------------------------------------------------------------------
+// Link personalizado (GraphQL batchGetCustomLink): o que ela gerou no painel da Shopee
+// ---------------------------------------------------------------------------
+
+export interface LinkPersonalizado { urlOrigem: string; subIds: string[]; linkCurto: string }
+
+export function linksPersonalizados(pedidoJson: unknown, respostaJson: unknown): LinkPersonalizado[] {
+  const params = obj(obj(pedidoJson)?.variables)?.linkParams;
+  const resps = obj(obj(respostaJson)?.data)?.batchCustomLink;
+  if (!Array.isArray(params) || !Array.isArray(resps)) throw new Error('Resposta da Shopee fora do formato esperado (link personalizado).');
+  const saida: LinkPersonalizado[] = [];
+  params.forEach((p, i) => {
+    const r = obj(resps[i]);
+    const a = obj(obj(p)?.advancedLinkParams);
+    const origem = obj(p)?.originalLink;
+    if (!r || r.failCode !== 0 || typeof r.shortLink !== 'string' || typeof origem !== 'string' || !a) return;
+    saida.push({
+      urlOrigem: origem,
+      subIds: [a.subId1, a.subId2, a.subId3, a.subId4, a.subId5].map((v) => (typeof v === 'string' ? v.trim() : '')),
+      linkCurto: r.shortLink,
+    });
+  });
+  return saida;
 }
