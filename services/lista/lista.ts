@@ -36,6 +36,11 @@ export interface ResultadoValidacao {
 /** Domínios aceitos para o link de afiliado de cada plataforma. */
 const HOSTS_LINK = HOSTS_OFICIAIS;
 
+/** O texto mostra preço ou desconto? (Na Amazon não mostra: as Políticas do Programa de Associados restringem.) */
+export function textoMostraPreco(textoModelo: string): boolean {
+  return /\{\{\s*(preco|desconto)\s*\}\}/i.test(textoModelo);
+}
+
 /**
  * Texto final que a afiliada envia: o modelo preenchido com os valores do banco, mais a conformidade
  * (identificação de publicidade; na Amazon, aviso de preço e declaração de Associado).
@@ -217,8 +222,10 @@ async function regras(sql: Sql, m: Carregada, op: OpcoesValidacao): Promise<Resu
       : { regra: 'link', ok: true, detalhe: `link do cliente e do produto certos; ${detalheAbre}` });
   }
 
-  // preço: o usado no texto ainda é o da oferta
-  saida.push(m.oferta_preco !== null && mesmoNumero(m.preco_usado, m.oferta_preco) && mesmoNumero(m.desconto_usado, m.oferta_desconto)
+  // preço: o usado no texto ainda é o da oferta (só quando o texto mostra preço ou desconto; na Amazon não mostra)
+  saida.push(!textoMostraPreco(m.texto_modelo)
+    ? { regra: 'preco', ok: true, detalhe: 'o texto não mostra preço nem desconto' }
+    : m.oferta_preco !== null && mesmoNumero(m.preco_usado, m.oferta_preco) && mesmoNumero(m.desconto_usado, m.oferta_desconto)
     ? { regra: 'preco', ok: true, detalhe: 'preço e desconto iguais aos da oferta' }
     : { regra: 'preco', ok: false, detalhe: `preço mudou: texto com ${m.preco_usado}, oferta com ${m.oferta_preco}` });
 
@@ -299,8 +306,9 @@ export interface ConferenciaEnvio {
 export async function conferirAntesDoEnvio(sql: Sql, cliente: Cliente, mensagemId: string, agora = new Date()): Promise<ConferenciaEnvio> {
   await exigirEstado(sql, mensagemId, cliente, ['aprovada']);
   const m = await carregar(sql, mensagemId);
+  const mostraPreco = textoMostraPreco(m.texto_modelo);
   const idadeMin = (agora.getTime() - new Date(m.preco_conferido_em).getTime()) / 60_000;
-  if (!(mesmoNumero(m.preco_usado, m.oferta_preco) && mesmoNumero(m.desconto_usado, m.oferta_desconto))) {
+  if (mostraPreco && !(mesmoNumero(m.preco_usado, m.oferta_preco) && mesmoNumero(m.desconto_usado, m.oferta_desconto))) {
     const motivo = `preço mudou antes do envio: texto com ${m.preco_usado}, oferta com ${m.oferta_preco}`;
     await descartar(sql, cliente, mensagemId, motivo);
     return { podeEnviar: false, motivo, descartada: true };
@@ -310,7 +318,7 @@ export async function conferirAntesDoEnvio(sql: Sql, cliente: Cliente, mensagemI
     await descartar(sql, cliente, mensagemId, repeticao.detalhe);
     return { podeEnviar: false, motivo: repeticao.detalhe, descartada: true };
   }
-  if (idadeMin > MINUTOS_PRECO_VALIDO) {
+  if (mostraPreco && idadeMin > MINUTOS_PRECO_VALIDO) {
     return { podeEnviar: false, motivo: `preço conferido há ${Math.round(idadeMin)} minutos (máximo ${MINUTOS_PRECO_VALIDO}); confira de novo`, descartada: false };
   }
   return { podeEnviar: true, motivo: 'ok', descartada: false };

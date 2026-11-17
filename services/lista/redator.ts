@@ -25,7 +25,7 @@ export async function contratoRedator(
 
 export async function montarEntradaRedator(sql: Sql, cliente: Cliente, ofertaId: string): Promise<EntradaRedator> {
   const [o] = await sql`
-    select o.titulo, o.nicho, o.desconto_pct, c.tom_grupo
+    select o.titulo, o.nicho, o.desconto_pct, o.plataforma, c.tom_grupo
     from ofertas o join clientes c on c.cliente_id = o.cliente_id
     where o.cliente_id = ${cliente.clienteId} and o.id = ${ofertaId}`;
   if (!o) throw new Error(`Oferta ${ofertaId} não encontrada para este cliente.`);
@@ -43,7 +43,8 @@ export async function montarEntradaRedator(sql: Sql, cliente: Cliente, ofertaId:
     oferta: {
       titulo: o.titulo.slice(0, 300),
       nicho: o.nicho ?? 'geral',
-      tem_desconto: o.desconto_pct !== null && Number(o.desconto_pct) > 0,
+      tem_desconto: o.plataforma !== 'amazon' && o.desconto_pct !== null && Number(o.desconto_pct) > 0,
+      pode_mostrar_preco: o.plataforma !== 'amazon',
     },
     tom: (o.tom_grupo ?? '').slice(0, 500),
     exemplos: exemplos.map((e) => e.texto_modelo.slice(0, 1000)),

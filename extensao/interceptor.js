@@ -69,6 +69,21 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', registrarVisita);
   else registrarVisita();
 
+  // Página de produto da Amazon: a oferta vai ao painel (o Curador pode escolher). A Amazon não tem página
+  // de ofertas para afiliados; a afiliada navega pelo site e cada produto aberto vira candidata do dia.
+  function ofertaAmazon() {
+    try {
+      const dados = N.extrairProdutoAmazon(document, location.href);
+      if (!dados) return;
+      enviar({ tipo: 'oferta', plataforma: 'amazon', quando: new Date().toISOString(), url: N.limparUrl(location.href), dados: dados });
+    } catch (e) { /* nunca quebra a página */ }
+  }
+  if (N.idPlataforma(location.href) === 'amazon' && N.deveGravarPagina(location.href)) {
+    // O preço às vezes chega depois do HTML: espera a página terminar de carregar.
+    if (document.readyState === 'complete') setTimeout(ofertaAmazon, 1500);
+    else window.addEventListener('load', function () { setTimeout(ofertaAmazon, 1500); });
+  }
+
   function copiarCabecalhos(h) {
     const saida = {};
     try {

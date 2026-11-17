@@ -9,6 +9,8 @@ import { criarCriativo, criativosDoDia } from '../criativos/criativos.ts';
 import type { ModeloIA } from '../../harness/agentes.ts';
 import { linksPendentes } from '../../painel/api.ts';
 import { curarDia } from '../curadoria/curador.ts';
+import { precoDoTexto, produtoAmazonValido, definirTrackingAmazon, linkAmazonDaOferta, trackingAmazon } from '../ofertas/ofertasAmazon.ts';
+import { painelDoDia } from '../../painel/api.ts';
 import { clientePareado, gerarPareamento, receberCapturas, ultimosRecebimentos } from './receber.ts';
 
 // Formato da gravação de 13/11/2026, com valores inventados.
@@ -104,6 +106,21 @@ describe('conversores da extensão', () => {
       .toEqual({ asin: 'B0DMTGP55X', urlProduto: 'https://www.amazon.com.br/dp/B0DMTGP55X', urlCurta: 'https://link.amazon/B04ld', trackingId: 'loja-20' });
     expect(linkAmazon(URL_AMZ, { ok: false })).toBeNull();
     expect(linkAmazon(URL_AMZ, { ok: true, longUrl: 'https://www.amazon.com.br/x', shortUrl: 'https://link.amazon/a' })).toBeNull();
+  });
+});
+
+describe('produto da Amazon (página do site)', () => {
+  it('lê preço em reais e valida o que a extensão mandou', () => {
+    expect(precoDoTexto('R$69,99')).toBe('69.99');
+    expect(precoDoTexto('R$ 1.234,56')).toBe('1234.56');
+    expect(precoDoTexto('grátis')).toBeNull();
+    expect(produtoAmazonValido({ asin: 'b0hdvzqpt6', titulo: 'Garrafa Térmica 1L', preco: 'R$69,99', precoAntes: 'R$94,99', desconto: '-26%',
+      nota: '4,8 de 5 estrelas', avaliacoes: '5.944 Análises', categoria: ['Casa', ' Cozinha '] }))
+      .toEqual({ asin: 'B0HDVZQPT6', titulo: 'Garrafa Térmica 1L', preco: '69.99', precoAntes: '94.99', descontoPct: '26.00', nota: '4.80', avaliacoes: 5944, categoria: ['Casa', 'Cozinha'] });
+    // Desconto calculado quando a página não mostra a porcentagem.
+    expect(produtoAmazonValido({ asin: 'B0HDVZQPT6', titulo: 'Garrafa', preco: 'R$75,00', precoAntes: 'R$100,00' })?.descontoPct).toBe('25.00');
+    expect(produtoAmazonValido({ asin: 'curto', titulo: 'Garrafa', preco: 'R$1,00' })).toBeNull();
+    expect(produtoAmazonValido({ asin: 'B0HDVZQPT6', titulo: 'Garrafa' })).toBeNull();
   });
 });
 
@@ -220,5 +237,43 @@ describe.skipIf(!BANCO_HABILITADO)('extensão → painel (banco)', () => {
     expect(r.falhas[0]).toMatch(/formato/);
     const [e] = await sql`select erro from recebimentos_extensao where erro is not null`;
     expect(e!.erro).toMatch(/formato/);
+  });
+
+  it('Amazon: produto aberto vira oferta; Curador escolhe; link com o tracking ID do canal; texto sem preço', async () => {
+    await sql`update clientes set amazon_tracking = '{}' where cliente_id = ${cliente.clienteId}`;
+    const dados = { asin: 'B0HDVZQPT6', titulo: 'Garrafa Térmica Inox 1L', preco: 'R$69,99', precoAntes: 'R$94,99', desconto: '-26%', nota: '4,8 de 5 estrelas', avaliacoes: '(5.944)', categoria: ['Cozinha'] };
+    const cap = { tipo: 'oferta', plataforma: 'amazon', url: 'https://www.amazon.com.br/dp/B0HDVZQPT6', quando: new Date().toISOString(), dados };
+    const r = await receberCapturas(sql, cliente, [cap, cap, { ...cap, dados: { asin: 'X' } }]);
+    expect(r.usados).toBe(2);
+    expect(r.falhas).toHaveLength(1);
+    const ofertas = await sql`select id, plataforma, produto_id, preco::text, desconto_pct::text, url_produto, imagem_url from ofertas`;
+    expect(ofertas).toHaveLength(1);
+    expect(ofertas[0]).toMatchObject({ plataforma: 'amazon', produto_id: 'B0HDVZQPT6', preco: '69.99', desconto_pct: '26.0000', url_produto: 'https://www.amazon.com.br/dp/B0HDVZQPT6', imagem_url: null });
+
+    // Sem tracking ID: o Curador escolhe, mas o link fica esperando o cadastro.
+    const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const modelo: ModeloIA = { async gerar(pp) {
+      const e = JSON.parse(pp.entrada) as { candidatas: { id: string; plataforma: string }[] };
+      expect(e.candidatas[0]!.plataforma).toBe('amazon');
+      return { texto: JSON.stringify({ escolhas: e.candidatas.map((c) => ({ oferta_id: c.id, motivo: 'ok' })) }), tokensEntrada: 1, tokensSaida: 1 };
+    } };
+    await curarDia(sql, { cliente, data: hoje, modelo, quantidade: 1 });
+    expect(await sql`select id from links`).toHaveLength(0);
+    let dia = await painelDoDia({ sql } as never, 'c1');
+    expect(dia.selecionadas[0]).toMatchObject({ plataforma: 'amazon', linkUrl: null, faltaTrackingAmazon: true });
+
+    // Tracking ID inválido é recusado; o válido gera o link na abertura do Dia.
+    await expect(definirTrackingAmazon(sql, cliente, { wa: 'sem-sufixo' })).rejects.toThrow(/-20/);
+    await definirTrackingAmazon(sql, cliente, { wa: 'Silvana-20' });
+    expect(await trackingAmazon(sql, cliente)).toEqual({ wa: 'silvana-20' });
+    dia = await painelDoDia({ sql } as never, 'c1');
+    expect(dia.selecionadas[0]).toMatchObject({ linkUrl: 'https://www.amazon.com.br/dp/B0HDVZQPT6?tag=silvana-20', faltaTrackingAmazon: false });
+    // Sem repetir o link; Instagram só com o tracking próprio.
+    await painelDoDia({ sql } as never, 'c1');
+    expect(await sql`select canal from links`).toEqual([{ canal: 'wa' }]);
+    expect(await linkAmazonDaOferta(sql, cliente, ofertas[0]!.id, 'ig')).toBeNull();
+    await definirTrackingAmazon(sql, cliente, { ig: 'silvanaig-20' });
+    expect((await linkAmazonDaOferta(sql, cliente, ofertas[0]!.id, 'ig'))?.url).toBe('https://www.amazon.com.br/dp/B0HDVZQPT6?tag=silvanaig-20');
+    await sql`update clientes set amazon_tracking = '{}' where cliente_id = ${cliente.clienteId}`;
   });
 });

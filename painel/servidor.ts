@@ -35,7 +35,7 @@ import {
 } from './api.ts';
 import {
   ativarCliente, cadastroClientes, diretrizesDoCliente, editarCliente, fechamento, importarOfertas, importarVendasPlanilha,
-  MODELOS_PLANILHA, novaDiretriz, novoCliente, removerNichoCliente, salvarNichoCliente, salvarShopeeCliente, testarAgente, uso,
+  MODELOS_PLANILHA, novaDiretriz, novoCliente, removerNichoCliente, salvarAmazonCliente, salvarNichoCliente, salvarShopeeCliente, testarAgente, uso,
 } from './apiGestao.ts';
 import { criarEsteiraAutomatica, type EsteiraAutomatica } from './esteiraAutomatica.ts';
 import { clientePareado, gerarPareamento, receberCapturas, ultimosRecebimentos } from '../services/extensao/receber.ts';
@@ -229,6 +229,7 @@ export function criarManipulador(op: OpcoesAplicacao): (req: IncomingMessage, re
     [new RegExp(`^/api/gestao/clientes/${CODIGO}/nichos$`), (m, c, d) => salvarNichoCliente(d, m[1]!, c)],
     [new RegExp(`^/api/gestao/clientes/${CODIGO}/nichos/([a-z0-9]+)/remover$`), (m, _c, d) => removerNichoCliente(d, m[1]!, m[2]!)],
     [new RegExp(`^/api/gestao/clientes/${CODIGO}/shopee$`), (m, c, d) => salvarShopeeCliente(d, m[1]!, c)],
+    [new RegExp(`^/api/gestao/clientes/${CODIGO}/amazon$`), (m, c, d) => salvarAmazonCliente(d, m[1]!, c)],
     [/^\/api\/importar\/ofertas$/, (_m, c, d) => importarOfertas(d, c)],
     [/^\/api\/importar\/vendas$/, (_m, c, d) => importarVendasPlanilha(d, c)],
     [/^\/api\/fechamento$/, (_m, c, d) => fechamento(d, c)],

@@ -6,7 +6,10 @@ import { importarPlanilhaShopee } from '../ofertas/importarPlanilhaShopee.ts';
 import { registrarLinkManual } from '../links/linksManuaisShopee.ts';
 import {
   aprovar, conferirAntesDoEnvio, confirmarPreco, criarRascunho, descartar, listarDia, registrarEnvio, validarDia, validarMensagem,
+  textoMostraPreco,
 } from './lista.ts';
+import { definirTrackingAmazon, gravarOfertaAmazon, linkAmazonDaOferta, produtoAmazonValido } from '../ofertas/ofertasAmazon.ts';
+import { regrasRedator } from '../../agents/redator/regras.ts';
 
 const quando = new Date('2026-11-12T11:15:00Z');
 const DIA = '2026-11-12';
@@ -143,6 +146,28 @@ describe.skipIf(!BANCO_HABILITADO)('lista diária', () => {
     const lista = await listarDia(sql, cliente, DIA);
     expect(lista.map((l) => l.estado)).toEqual(['enviada', 'descartada']);
     expect(lista[1]!.motivoDescarte).toContain('preço mudou');
+  });
+
+  it('Amazon: texto sem preço passa na validação e no envio mesmo com o preço mudando', async () => {
+    expect(textoMostraPreco('Só hoje {{ preco }} {{link}}')).toBe(true);
+    expect(textoMostraPreco('Confira no link {{link}}')).toBe(false);
+    const entrada = { oferta: { titulo: 'Garrafa', nicho: 'casa', tem_desconto: false, pode_mostrar_preco: false } } as never;
+    expect(regrasRedator(entrada, { texto_modelo: 'Garrafa por {{preco}} {{link}}' } as never).join()).toMatch(/preco/);
+    expect(regrasRedator(entrada, { texto_modelo: 'Garrafa que mantém gelado o dia todo. Confira o preço no link: {{link}}' } as never)).toEqual([]);
+
+    const produto = produtoAmazonValido({ asin: 'B0HDVZQPT6', titulo: 'Garrafa Térmica', preco: 'R$69,99' })!;
+    const { id: ofertaId } = await gravarOfertaAmazon(sql, cliente, produto, quando);
+    await definirTrackingAmazon(sql, cliente, { wa: 'silvana-20' });
+    await linkAmazonDaOferta(sql, cliente, ofertaId, 'wa');
+    const m = await criarRascunho(sql, { cliente, ofertaId, textoModelo: 'Garrafa que mantém gelado o dia todo. Confira o preço no link: {{link}}', dataLista: DIA });
+    expect(m.textoFinal).toContain('https://www.amazon.com.br/dp/B0HDVZQPT6?tag=silvana-20');
+    expect(m.textoFinal).not.toMatch(/R\$/);
+    await confirmarPreco(sql, cliente, ofertaId, '59.90');
+    const v = await validarMensagem(sql, m.id, { agora: quando, linkAbre: async () => true });
+    expect(v.regras.filter((r) => !r.ok)).toEqual([]);
+    await aprovar(sql, cliente, m.id, 'op');
+    expect(await conferirAntesDoEnvio(sql, cliente, m.id, new Date(Date.now() + 3_600_000))).toMatchObject({ podeEnviar: true });
+    await sql`update clientes set amazon_tracking = '{}' where cliente_id = ${cliente.clienteId}`;
   });
 
   it('descartar', async () => {

@@ -52,7 +52,7 @@ describe.skipIf(!BANCO_HABILITADO)('Redator', () => {
   it('entrada do agente não leva preço nem link', async () => {
     const e = await montarEntradaRedator(sql, cliente, ofertaId);
     expect(e).toEqual({
-      oferta: { titulo: 'Organizador de Gaveta 6 Divisórias', nicho: 'casa', tem_desconto: true },
+      oferta: { titulo: 'Organizador de Gaveta 6 Divisórias', nicho: 'casa', tem_desconto: true, pode_mostrar_preco: true },
       tom: 'Próximo e animado, sem exagero. Frases curtas.',
       exemplos: [],
     });

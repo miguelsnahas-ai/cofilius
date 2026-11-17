@@ -5,6 +5,7 @@
  * Na hora de mostrar, o código preenche os marcadores com os valores ATUAIS do banco e devolve também
  * preço, desconto, link e foto à parte, para o painel desenhar as imagens e o vídeo.
  */
+import { linkAmazonDaOferta } from '../ofertas/ofertasAmazon.ts';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Sql } from '../../harness/db.ts';
@@ -34,13 +35,17 @@ export async function contratoCriativo(ambiente: Record<string, string | undefin
 
 export async function montarEntradaCriativo(sql: Sql, cliente: Cliente, ofertaId: string, formato: FormatoCriativo): Promise<EntradaCriativo> {
   const [o] = await sql`
-    select o.titulo, o.nicho, o.desconto_pct, c.tom_grupo
+    select o.titulo, o.nicho, o.desconto_pct, o.plataforma, c.tom_grupo
     from ofertas o join clientes c on c.cliente_id = o.cliente_id
     where o.cliente_id = ${cliente.clienteId} and o.id = ${ofertaId}`;
   if (!o) throw new Error('Oferta não encontrada para este cliente.');
   return {
     formato,
-    oferta: { titulo: o.titulo.slice(0, 300), nicho: o.nicho ?? 'geral', tem_desconto: o.desconto_pct !== null && Number(o.desconto_pct) > 0 },
+    oferta: {
+      titulo: o.titulo.slice(0, 300), nicho: o.nicho ?? 'geral',
+      tem_desconto: o.plataforma !== 'amazon' && o.desconto_pct !== null && Number(o.desconto_pct) > 0,
+      pode_mostrar_preco: o.plataforma !== 'amazon',
+    },
     tom: (o.tom_grupo ?? '').slice(0, 500),
     telas: TELAS_POR_FORMATO[formato],
   };
@@ -98,6 +103,16 @@ export async function criarCriativo(
 
 /** Criativos do dia (menos os descartados), com os valores atuais do banco. */
 export async function criativosDoDia(sql: Sql, cliente: Cliente, dataLista: string): Promise<CriativoPronto[]> {
+  // Amazon: com o tracking ID do Instagram cadastrado, o link próprio do criativo sai na hora.
+  const amazonSemLink = await sql<{ id: string; oferta_id: string }[]>`
+    select k.id, k.oferta_id from criativos k join ofertas o on o.cliente_id = k.cliente_id and o.id = k.oferta_id
+    where k.cliente_id = ${cliente.clienteId} and k.data_lista = ${dataLista} and k.estado <> 'descartado'
+      and k.link_id is null and o.plataforma = 'amazon'`;
+  for (const k of amazonSemLink) {
+    const l = await linkAmazonDaOferta(sql, cliente, k.oferta_id, CANAL_INSTAGRAM);
+    if (!l) break; // sem tracking ID do Instagram
+    await sql`update criativos set link_id = ${l.id} where cliente_id = ${cliente.clienteId} and id = ${k.id}`;
+  }
   const linhas = await sql`
     select k.id, k.formato, k.estado, k.oferta_id, k.roteiro, k.criado_em, o.titulo, o.plataforma, o.preco::text as preco,
            o.desconto_pct::text as desconto, o.imagem_url, o.preco_conferido_em, c.conformidade, o.url_produto,
@@ -121,7 +136,8 @@ export async function criativosDoDia(sql: Sql, cliente: Cliente, dataLista: stri
     : new Map();
   return linhas.map((k) => {
     const pr = !k.link_id ? preparo.get(k.oferta_id) : undefined;
-    const desconto = k.desconto !== null && Number(k.desconto) > 0 ? k.desconto : null;
+    // Amazon: nem preço nem desconto na arte (Políticas do Programa de Associados).
+    const desconto = k.plataforma !== 'amazon' && k.desconto !== null && Number(k.desconto) > 0 ? k.desconto : null;
     return {
       id: k.id, formato: k.formato, estado: k.estado, ofertaId: k.oferta_id, titulo: k.titulo, plataforma: k.plataforma,
       roteiro: preencherRoteiro(k.roteiro as SaidaCriativo, k.preco, desconto, { plataforma: k.plataforma, conformidade: k.conformidade }),

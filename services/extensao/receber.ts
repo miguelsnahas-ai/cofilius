@@ -13,6 +13,7 @@ import { buscarCliente, type Cliente } from '../../db/clientes.ts';
 import { importarVendas, registrarCliques } from '../vendas/atribuicao.ts';
 import { cliquesShopee, conversoesShopee, linkAmazon, linksPersonalizados, ofertasShopee, tipoDaCaptura, type TipoRecebido } from './conversores.ts';
 import { gravarOfertas } from '../ofertas/coletarOfertasShopee.ts';
+import { gravarOfertaAmazon, produtoAmazonValido, trackingAmazon, definirTrackingAmazon } from '../ofertas/ofertasAmazon.ts';
 import { extrairIdsDaUrl } from '../shopee/parser.ts';
 import { horarioLocalParaData } from '../etiquetas/etiquetas.ts';
 import { dataLocal } from '../lista/lista.ts';
@@ -107,10 +108,18 @@ export async function clientePareado(sql: Sql, codigo: string | undefined, exten
   return p ? buscarCliente(sql, p.codigo) : null;
 }
 
-export interface Captura { url: string; pedido?: { json?: unknown } | null; resposta?: { json?: unknown } | null }
+export interface Captura {
+  url: string;
+  tipo?: string;
+  plataforma?: string;
+  /** Captura "oferta": dados lidos da página do produto (Amazon). */
+  dados?: unknown;
+  pedido?: { json?: unknown } | null;
+  resposta?: { json?: unknown } | null;
+}
 
 export interface ResultadoRecebido {
-  tipo: TipoRecebido | null;
+  tipo: TipoRecebido | 'amazon.oferta' | null;
   ok: boolean;
   detalhe: string;
   /** Shopee: a página tem continuação? (a extensão busca as próximas) */
@@ -157,6 +166,8 @@ async function gravarLinkAmazon(sql: Sql, cliente: Cliente, url: string, json: u
   if (!l) throw new Error('Link da Amazon fora do formato esperado.');
   const [existe] = await sql`
     select id from links where cliente_id = ${cliente.clienteId} and plataforma = 'amazon' and url_afiliado = ${l.urlCurta}`;
+  // O tracking ID usado na SiteStripe vira o do canal WhatsApp, se o cliente ainda não tiver um.
+  if (!(await trackingAmazon(sql, cliente)).wa) await definirTrackingAmazon(sql, cliente, { wa: l.trackingId }).catch(() => {});
   if (existe) return { detalhe: `link ${l.urlCurta} já registrado`, resultado: { novo: false, asin: l.asin } };
   await sql`
     insert into links (cliente_id, plataforma, url_origem, url_afiliado, chave_rastreio, canal, produto_id, contexto)
@@ -167,6 +178,19 @@ async function gravarLinkAmazon(sql: Sql, cliente: Cliente, url: string, json: u
 
 /** Processa uma captura. Nunca lança: o erro volta no resultado e fica registrado. */
 export async function receberCaptura(sql: Sql, cliente: Cliente, c: Captura): Promise<ResultadoRecebido> {
+  if (c?.tipo === 'oferta' && c.plataforma === 'amazon') {
+    const p = produtoAmazonValido(c.dados);
+    if (!p) return { tipo: 'amazon.oferta', ok: false, detalhe: 'página de produto sem título, ASIN ou preço' };
+    try {
+      const r = await gravarOfertaAmazon(sql, cliente, p);
+      await registrarRecebimento(sql, cliente, 'amazon.oferta', c.url ?? '', { asin: p.asin, nova: r.nova, nicho: r.nicho }, null);
+      return { tipo: 'amazon.oferta', ok: true, detalhe: `oferta da Amazon ${r.nova ? 'gravada' : 'atualizada'}: ${p.titulo.slice(0, 60)}${r.nicho ? ` (${r.nicho})` : ''}` };
+    } catch (erro) {
+      const msg = (erro as Error).message;
+      await registrarRecebimento(sql, cliente, 'amazon.oferta', c.url ?? '', {}, msg).catch(() => {});
+      return { tipo: 'amazon.oferta', ok: false, detalhe: msg };
+    }
+  }
   const tipo = typeof c?.url === 'string' ? tipoDaCaptura(c.url, c.pedido?.json) : null;
   if (!tipo) return { tipo: null, ok: false, detalhe: 'Dado que o painel não usa.' };
   const json = c.resposta?.json;
@@ -206,7 +230,7 @@ export async function receberCapturas(sql: Sql, cliente: Cliente, capturas: unkn
   const resultados: ResultadoRecebido[] = [];
   for (const c of capturas) {
     const cap = c as Captura & { tipo?: string };
-    if (!cap || (cap.tipo !== undefined && cap.tipo !== 'resposta')) continue;
+    if (!cap || (cap.tipo !== undefined && cap.tipo !== 'resposta' && cap.tipo !== 'oferta')) continue;
     const r = await receberCaptura(sql, cliente, cap);
     if (r.tipo) resultados.push(r);
   }

@@ -36,7 +36,7 @@ afiliados da Shopee num Chrome de computador (qualquer um) com a extensão parea
    usuário qualquer, senha = `PAINEL_SENHA`.
 7. **Configuração.** Na aba Configuração, confira a chave da IA, o provedor e deixe a **esteira ligada**.
    Na nuvem, o que você salva ali fica no banco (as chaves cifradas). A senha do painel só se troca no Vercel.
-8. **Extensão.** Atualize a pasta `extensao` (versão 0.6.0) e recarregue em `chrome://extensions`.
+8. **Extensão.** Atualize a pasta `extensao` (versão 0.8.0) e recarregue em `chrome://extensions`.
    No painel novo, **Configuração › Extensão do Chrome › Gerar código de pareamento**. No ícone do
    Cofilius, **Trocar de painel ou cliente**, cole `https://<nome-do-projeto>.vercel.app` e o código, e **Parear**.
 9. **Pronto.** Pode fechar o painel do notebook. Se ele continuar ligado também, não há conflito

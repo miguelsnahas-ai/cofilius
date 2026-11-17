@@ -277,7 +277,46 @@
     return u.toString();
   }
 
+  /**
+   * Dados de uma página de produto da Amazon (www.amazon.com.br/.../dp/ASIN), lidos do que a página já
+   * mostra. Seletores conferidos na gravação de 13/11/2026 (produto B0HDVZQPT6). Devolve null fora de
+   * página de produto ou sem título/preço. Nada pessoal: só título, preço, nota e categoria.
+   */
+  function extrairProdutoAmazon(doc, url) {
+    const u = urlAbsoluta(url);
+    if (!u || !/(^|\.)amazon\.com\.br$/i.test(u.hostname)) return null;
+    const porUrl = u.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
+    const el = function (sel) { try { return doc.querySelector(sel); } catch (e) { return null; } };
+    const texto = function (sel) { const e = el(sel); return e ? String(e.textContent || '').replace(/\s+/g, ' ').trim() : ''; };
+    const marcado = el('[data-csa-c-asin]');
+    const asin = ((porUrl && porUrl[1]) || (marcado && marcado.getAttribute('data-csa-c-asin')) || '').toUpperCase();
+    const titulo = texto('#productTitle');
+    const preco = texto('#corePrice_feature_div .priceToPay .a-offscreen') || texto('#corePrice_desktop .a-price .a-offscreen') ||
+      texto('#corePriceDisplay_desktop_feature_div .priceToPay .a-offscreen');
+    if (!/^[A-Z0-9]{10}$/.test(asin) || !titulo || !preco) return null;
+    const notaEl = el('#acrPopover');
+    const avalEl = el('#acrCustomerReviewText');
+    const categoria = [];
+    try {
+      doc.querySelectorAll('#wayfinding-breadcrumbs_feature_div li a').forEach(function (a) {
+        const t = String(a.textContent || '').replace(/\s+/g, ' ').trim();
+        if (t) categoria.push(t);
+      });
+    } catch (e) { /* sem categoria */ }
+    return {
+      asin: asin,
+      titulo: titulo.slice(0, 300),
+      preco: preco,
+      precoAntes: texto('#corePrice_feature_div .basisPrice .a-offscreen') || texto('#corePriceDisplay_desktop_feature_div .basisPrice .a-offscreen') || null,
+      desconto: texto('#corePrice_feature_div .savingsPercentage') || texto('#corePriceDisplay_desktop_feature_div .savingsPercentage') || null,
+      nota: (notaEl && notaEl.getAttribute('title')) || null,
+      avaliacoes: (avalEl && (avalEl.getAttribute('aria-label') || avalEl.textContent)) || null,
+      categoria: categoria.slice(0, 6),
+    };
+  }
+
   raiz.CofiliusNucleo = {
+    extrairProdutoAmazon: extrairProdutoAmazon,
     URL_GQL_SHOPEE: URL_GQL_SHOPEE,
     PAGINA_LINK_SHOPEE: PAGINA_LINK_SHOPEE,
     MAX_LINKS_POR_PEDIDO: MAX_LINKS_POR_PEDIDO,

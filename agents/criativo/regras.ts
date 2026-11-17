@@ -10,7 +10,7 @@ export type FormatoCriativo = 'carrossel' | 'stories' | 'reels';
 
 export interface EntradaCriativo {
   formato: FormatoCriativo;
-  oferta: { titulo: string; nicho: string; tem_desconto: boolean };
+  oferta: { titulo: string; nicho: string; tem_desconto: boolean; pode_mostrar_preco?: boolean };
   tom: string;
   telas: number;
 }
@@ -37,6 +37,7 @@ export function regrasCriativo(entrada: EntradaCriativo, saida: SaidaCriativo): 
   for (const [campo, texto] of textosDoRoteiro(saida)) {
     for (const p of verificarTextoModelo(texto, { exigirLink: false, proibirLink: true })) problemas.push(`${campo}: ${descreverProblema(p)}`);
     if (!entrada.oferta.tem_desconto && /\{\{\s*desconto\s*\}\}/i.test(texto)) problemas.push(`${campo}: usou {{desconto}} numa oferta sem desconto`);
+    if (entrada.oferta.pode_mostrar_preco === false && /\{\{\s*preco\s*\}\}/i.test(texto)) problemas.push(`${campo}: não use {{preco}} nesta oferta (convide a conferir o preço no link)`);
     const marca = texto.match(MARCAS);
     if (marca) problemas.push(`${campo}: não cite o nome da loja ("${marca[0]}"); os programas proíbem usar a marca no conteúdo e no perfil`);
   }

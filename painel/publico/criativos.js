@@ -196,11 +196,13 @@ function desenharTela(ctx, c, i, foto, anim = 1) {
     ctx.fillStyle = p.suave;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('por apenas', W / 2, y + desloc);
+    // Amazon: o preço não aparece (Políticas do Programa de Associados); chama para conferir no link.
+    const semPreco = c.plataforma === 'amazon';
+    ctx.fillText(semPreco ? 'confira o preço' : 'por apenas', W / 2, y + desloc);
     y += 70;
-    const s = selo(ctx, c.preco, W / 2, y + desloc, { tamanho: 110, fundo: p.destaque, cor: p.sobreDestaque, alinhar: 'center' });
+    const s = selo(ctx, semPreco ? 'no link' : c.preco, W / 2, y + desloc, { tamanho: 110, fundo: p.destaque, cor: p.sobreDestaque, alinhar: 'center' });
     y += s.h + 30;
-    if (c.desconto) {
+    if (c.desconto && !semPreco) {
       selo(ctx, `${c.desconto} de desconto`, W / 2, y + desloc, { tamanho: 46, fundo: p.texto, cor: p.fundo, alinhar: 'center' });
       y += 100;
     }
@@ -226,10 +228,12 @@ function desenharTela(ctx, c, i, foto, anim = 1) {
     ctx.fillStyle = p.suave;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    // Aviso de preço com data e hora (exigido pela Amazon; vale para todos: preço pode mudar).
-    const quando = c.precoConferidoEm || c.criadoEm;
-    const dataHora = new Date(quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    ctx.fillText(`preço consultado em ${dataHora}; sujeito a alteração`, W / 2, H - (c.formato === 'stories' ? 160 : 130));
+    // Aviso de preço com data e hora (preço pode mudar). Sem preço na arte (Amazon), sem aviso.
+    if (c.plataforma !== 'amazon') {
+      const quando = c.precoConferidoEm || c.criadoEm;
+      const dataHora = new Date(quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      ctx.fillText(`preço consultado em ${dataHora}; sujeito a alteração`, W / 2, H - (c.formato === 'stories' ? 160 : 130));
+    }
   }
   ctx.globalAlpha = 1;
 }
@@ -389,7 +393,7 @@ function secaoLink(c) {
   }
   if (!c.preparoLink) {
     caixa.append(el('p', { classe: 'aviso', texto: c.plataforma === 'amazon'
-      ? 'Amazon: para medir o Instagram separado, crie no painel de Associados um tracking ID só para o Instagram e gere o link do produto com ele.'
+      ? 'Amazon: para o link do Instagram sair pronto, crie no painel de Associados um tracking ID só para o Instagram e cadastre em Clientes › Amazon.'
       : 'Link próprio do Instagram ainda não disponível para esta plataforma.' }));
     return caixa;
   }

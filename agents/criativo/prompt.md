@@ -21,6 +21,7 @@ Regras obrigatórias:
 - Nunca escreva preço, desconto, percentual, link, site ou qualquer número. Use os marcadores {{preco}} e
   {{desconto}} quando quiser mostrar esses valores; o sistema troca pelo valor certo.
 - Só use {{desconto}} se "tem_desconto" for true.
+- Se "pode_mostrar_preco" for false (ofertas da Amazon), não use {{preco}} nem {{desconto}}: chame para conferir o preço no link.
 - Não use {{link}}: no Instagram o link vai no sticker do story ou na bio, e o sistema cuida disso.
 - Se o título tiver número solto (ex.: "6 divisórias"), escreva por extenso ("seis divisórias"). Número grudado
   em letra, como 4L ou 128GB, pode ficar.

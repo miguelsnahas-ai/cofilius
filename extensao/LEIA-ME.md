@@ -8,6 +8,7 @@ Com a extensão **pareada** com o painel, não há arquivo para subir:
 |---|---|---|
 | Vendas (conversões) | Shopee Afiliados › Relatório de conversões | Vendas, ligadas à postagem pelos Sub_ids; a situação (pendente, concluída, cancelada) se atualiza a cada busca |
 | Cliques | Shopee Afiliados › Relatório de cliques | Cliques por dia e por Sub_id |
+| Ofertas da Amazon | **Páginas de produto da Amazon que você abre** (a Amazon não tem página de ofertas para afiliados) | Oferta do dia com título, preço, desconto, nota e categoria (sem foto: a Amazon não deixa guardar); o Curador passa a considerá-la |
 | Links curtos | Barra SiteStripe na página de produto da Amazon | Link da Amazon (produto + tracking ID), para atribuir as vendas depois |
 | Ofertas | Shopee Afiliados › Ofertas de produtos (as listas que você navega) | Ofertas do dia, com preço, desconto, comissão, vendas, nota e foto; o nicho vem das palavras-chave do cliente |
 | Link personalizado | **Gerado pela própria extensão**: ao abrir o Dia do painel, ele pede à extensão os links que faltam; ela gera no painel da Shopee (com a sua sessão) e o link final aparece em cada oferta escolhida. Também pelo botão "Gerar os links que faltam" no ícone. | Link registrado na oferta (canal WhatsApp) ou no criativo (canal Instagram), sem copiar nem colar |
