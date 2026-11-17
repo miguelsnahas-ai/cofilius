@@ -16,7 +16,7 @@ import { redigirSelecionadas } from '../services/lista/redator.ts';
 import { curarDia, selecionadasDoDia } from '../services/curadoria/curador.ts';
 import { analisarPeriodo } from '../services/relatorios/analista.ts';
 import { montarFechamento } from '../services/relatorios/fechamento.ts';
-import { prepararFechamento } from '../services/relatorios/fechamentoAfiliada.ts';
+import { diaAnterior, prepararFechamento } from '../services/relatorios/fechamentoAfiliada.ts';
 import { resumoPeriodo } from '../services/vendas/atribuicao.ts';
 import { marcarMedidas } from '../services/lista/medicao.ts';
 import { gerarLinkShopee } from '../services/links/gerarLinkShopee.ts';
@@ -43,7 +43,8 @@ export const ETAPAS: Etapa[] = [
   { tipo: 'links.shopee.gerar', horario: '06:15', precisa: 'shopee_open_api', descricao: 'Links com rastreio das escolhidas (Shopee, via Open API)' },
   { tipo: 'redacao.redigir', horario: '06:30', descricao: 'Redator escreve as mensagens das escolhidas com link' },
   { tipo: 'lista.validar', horario: '06:45', descricao: 'Validadores da lista do dia' },
-  { tipo: 'analise.semanal', horario: '20:00', diaSemana: 0, descricao: 'Fechamento da semana e Analista (propõe diretrizes)' },
+  { tipo: 'fechamento.diario', horario: '06:50', descricao: 'Resumo de ontem para a afiliada (fica pronto no Dia)' },
+  { tipo: 'analise.semanal', horario: '20:00', diaSemana: 0, descricao: 'Analista lê a semana e propõe diretrizes ao Curador' },
 ];
 
 /** Segunda a domingo da semana que termina na data informada (um domingo). */
@@ -103,19 +104,23 @@ export function criarExecutores(deps: DepsEsteira): Record<string, Executor> {
       if (r.falhas.length && !r.redigidas.length) throw new Error(`nenhuma mensagem redigida: ${r.falhas.map((f) => f.erro).join('; ')}`);
       return { redigidas: r.redigidas.length, semLink: r.semLink.length, jaTinhamMensagem: r.jaTinhamMensagem, falhas: r.falhas };
     },
-    'analise.semanal': async (t) => {
+    'fechamento.diario': async (t) => {
+      // Resumo de ontem para a afiliada, com as vendas que já chegaram; o Dia o atualiza até ser enviado.
       const cliente = await buscarCliente(sql, t.clienteId);
+      const ontem = diaAnterior(String(t.entrada.dataLista));
+      const f = await prepararFechamento(sql, cliente, ontem, ontem);
+      return { dia: ontem, fechamentoId: f.id, situacao: f.situacao };
+    },
+    'analise.semanal': async (t) => {
+      // A leitura da semana serve ao Curador (propostas de diretriz); o resumo para a afiliada é diário.
+      const cliente = await buscarCliente(sql, t.clienteId);
+      if (!deps.modelo) return { pulada: 'IA não configurada (coloque a chave da IA na Configuração)' };
       const { inicio, fim } = semanaAte(String(t.entrada.dataLista));
-      // O fechamento para a afiliada sai sempre (números do banco); a leitura do Analista só com a IA.
-      const analise = deps.modelo
-        ? await analisarPeriodo(sql, { cliente, inicio, fim, modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id })
-        : null;
-      const paraEla = await prepararFechamento(sql, cliente, inicio, fim, (analise?.leituras ?? []).map((l) => l.texto));
+      const analise = await analisarPeriodo(sql, { cliente, inicio, fim, modelo: deps.modelo(), precos: deps.precos, tarefaId: t.id });
       const resumo = await resumoPeriodo(sql, cliente, inicio, fim);
       return {
-        inicio, fim, semDados: analise?.semDados ?? null, analista: analise ? 'feito' : 'IA não configurada',
-        propostas: (analise?.propostas ?? []).map((d) => ({ id: d.id, nicho: d.nicho, versao: d.versao })),
-        fechamentoId: paraEla.id,
+        inicio, fim, semDados: analise.semDados,
+        propostas: analise.propostas.map((d) => ({ id: d.id, nicho: d.nicho, versao: d.versao })),
         fechamento: montarFechamento(cliente.nome, resumo, analise),
       };
     },

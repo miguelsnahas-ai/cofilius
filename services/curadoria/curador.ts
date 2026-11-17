@@ -115,6 +115,8 @@ export interface Selecionada {
   titulo: string;
   plataforma: string;
   linkId: string | null;
+  /** Link final (canal WhatsApp), pronto para usar. */
+  linkUrl: string | null;
   mensagemId: string | null;
 }
 
@@ -122,7 +124,9 @@ export interface Selecionada {
 export async function selecionadasDoDia(sql: Sql, cliente: Cliente, data: string): Promise<Selecionada[]> {
   const linhas = await sql`
     select o.id, (o.curadoria ->> 'posicao')::int as posicao, o.curadoria ->> 'motivo' as motivo, o.titulo, o.plataforma,
-           (select l.id from links l where l.cliente_id = o.cliente_id and l.oferta_id = o.id order by l.criado_em desc limit 1) as link_id,
+           -- Link da mensagem do grupo (canal WhatsApp): o do Instagram é de outro canal e não serve aqui.
+           (select l.id from links l where l.cliente_id = o.cliente_id and l.oferta_id = o.id and l.canal <> 'ig' order by l.criado_em desc limit 1) as link_id,
+           (select l.url_afiliado from links l where l.cliente_id = o.cliente_id and l.oferta_id = o.id and l.canal <> 'ig' order by l.criado_em desc limit 1) as link_url,
            (select m.id from mensagens m where m.cliente_id = o.cliente_id and m.oferta_id = o.id
               and m.data_lista = ${data} and m.estado <> 'descartada' limit 1) as mensagem_id
     from ofertas o
@@ -130,6 +134,6 @@ export async function selecionadasDoDia(sql: Sql, cliente: Cliente, data: string
     order by 2`;
   return linhas.map((l) => ({
     ofertaId: l.id, posicao: l.posicao, motivo: l.motivo, titulo: l.titulo, plataforma: l.plataforma,
-    linkId: l.link_id, mensagemId: l.mensagem_id,
+    linkId: l.link_id, linkUrl: l.link_url, mensagemId: l.mensagem_id,
   }));
 }

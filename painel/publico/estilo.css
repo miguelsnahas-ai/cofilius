@@ -349,3 +349,10 @@ details.cartao[open] > summary { border-bottom: 1px solid var(--linha); border-r
 
 .criativo .link-instagram { margin-bottom: var(--space-3); }
 .criativo .link-instagram .subids { margin: var(--space-2) 0; }
+
+/* ---------- Link final das escolhidas ---------- */
+.link-final { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--lima-suave); }
+.link-final a { font-family: var(--font-mono); font-size: 14px; word-break: break-all; color: var(--tinta); }
+.link-manual { margin-top: var(--space-2); font-size: 14px; }
+.link-manual summary { cursor: pointer; color: var(--tinta-suave); }

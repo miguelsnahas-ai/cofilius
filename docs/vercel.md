@@ -48,8 +48,8 @@ O agendador do plano grátis roda **no máximo uma vez por dia** por agendamento
 
 | Agendamento | Horário (Brasília) | O que faz |
 |---|---|---|
-| Rodada da manhã | todo dia, entre 6h e 7h | agenda o dia e roda, em ordem, medição, coleta (com a API da Shopee), Curador, links, Redator e validação |
-| Rodada da noite | domingo, entre 20h e 21h | fechamento da semana (com a leitura do Analista, se a IA estiver ligada) |
+| Rodada da manhã | todo dia, entre 6h e 7h | agenda o dia e roda, em ordem, medição, coleta (com a API da Shopee), Curador, links, Redator, validação e o resumo de ontem para a afiliada |
+| Rodada da noite | domingo, entre 20h e 21h | leitura da semana pelo Analista (propõe diretrizes ao Curador), se a IA estiver ligada |
 
 - Uma etapa que falhar fica para a próxima rodada; para não esperar, use **Relatórios › Esteira automática › Rodar agora**.
 - Cada rodada tem até 5 minutos (limite do Vercel). Com muitos clientes, o que não couber termina na próxima rodada ou no "Rodar agora".

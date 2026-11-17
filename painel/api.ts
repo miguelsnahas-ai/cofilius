@@ -7,7 +7,7 @@ import type { ModeloIA, PrecoModelo } from '../harness/agentes.ts';
 import { buscarCliente, type Cliente } from '../db/clientes.ts';
 import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import { desempenhoParaCurador, desempenhoPostagens } from '../services/relatorios/desempenho.ts';
-import { enviarFechamento, fechamentoPronto } from '../services/relatorios/fechamentoAfiliada.ts';
+import { diaAnterior, enviarFechamento, fechamentoPronto, prepararFechamento } from '../services/relatorios/fechamentoAfiliada.ts';
 import { avisosCancelamento, marcarAvisosVistos } from '../services/vendas/avisos.ts';
 import { conformidadeDoCliente } from '../services/conformidade/cliente.ts';
 import {
@@ -58,6 +58,28 @@ async function horarioDoEnvio(sql: Sql, cliente: Cliente, dia: string): Promise<
   return { texto: textoHorario, quando: horarioLocalParaData(textoHorario, cliente.fusoHorario) };
 }
 
+/**
+ * Links da Shopee que faltam gerar hoje, para a extensão gerar no painel da Shopee (modo automático):
+ * escolhidas do Curador sem link (canal WhatsApp, horário de envio do cliente) e criativos sem link
+ * (canal Instagram). Os sub_ids são os mesmos que a tela mostra; o link gerado volta pela extensão e é
+ * registrado pelo padrão dos sub_ids.
+ */
+export async function linksPendentes(sql: Sql, cliente: Cliente) {
+  const dia = dataLocal(new Date(), cliente.fusoHorario);
+  const envio = await horarioDoEnvio(sql, cliente, dia);
+  const semLink = (await selecionadasDoDia(sql, cliente, dia)).filter((s) => !s.linkId && s.plataforma === 'shopee').map((s) => s.ofertaId);
+  const wa = semLink.length ? await prepararLinks(sql, cliente, { quando: envio.quando, ofertaIds: semLink }) : [];
+  const { criativosDoDia } = await import('../services/criativos/criativos.ts');
+  const ig = (await criativosDoDia(sql, cliente, dia)).filter((c) => c.preparoLink);
+  return {
+    dia,
+    links: [
+      ...wa.map((p) => ({ canal: 'wa', ofertaId: p.ofertaId, urlProduto: p.urlProduto, subIds: [...p.subIds] })),
+      ...ig.map((c) => ({ canal: 'ig', ofertaId: c.ofertaId, urlProduto: c.preparoLink!.urlProduto, subIds: c.preparoLink!.subIds })),
+    ].slice(0, 20),
+  };
+}
+
 export async function listarClientes(deps: DepsApi) {
   const r = await deps.sql`select codigo, nome from clientes where ativo order by codigo`;
   return r.map((c) => ({ codigo: c.codigo, nome: c.nome }));
@@ -85,7 +107,18 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const extra = new Map(extras.map((e) => [e.id, e]));
   const desempenho = new Map((await desempenhoPostagens(sql, cliente, { ids: mensagens.map((m) => m.id) })).map((d) => [d.mensagemId, d]));
   const aprendizado = await desempenhoParaCurador(sql, cliente, dia);
+  // Fechamento diário: o de ontem é (re)montado a cada abertura do dia de hoje, com as vendas que já
+  // chegaram; depois de enviado, não muda mais.
+  const hoje = dataLocal(new Date(), cliente.fusoHorario);
+  if (dia === hoje) await prepararFechamento(sql, cliente, diaAnterior(hoje), diaAnterior(hoje));
   const fechamento = await fechamentoPronto(sql, cliente, dia);
+  // Quando as vendas foram atualizadas pela última vez (extensão ou planilha): antes do fim do dia do
+  // fechamento, as vendas daquele dia podem não ter chegado ainda.
+  const [atual] = await sql`
+    select greatest(
+      (select max(criado_em) from recebimentos_extensao where cliente_id = ${cliente.clienteId} and tipo = 'shopee.conversoes' and erro is null),
+      (select max(atualizado_em) from vendas where cliente_id = ${cliente.clienteId})) as em`;
+  const vendasAtualizadasEm: Date | null = atual?.em ?? null;
   const cancelamentos = await avisosCancelamento(sql, cliente);
   const conformidade = await conformidadeDoCliente(sql, cliente);
 
@@ -95,7 +128,7 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const pedidos = await pedidosAbertos(sql, cliente);
   const [cad] = await sql`select whatsapp from clientes where cliente_id = ${cliente.clienteId}`;
   const [ext] = await sql`
-    select p.usado_em,
+    select p.usado_em, p.extensao_id,
            (select max(criado_em) from recebimentos_extensao r where r.cliente_id = p.cliente_id and r.erro is null) as ultimo,
            (select erro from recebimentos_extensao r where r.cliente_id = p.cliente_id order by criado_em desc limit 1) as ultimo_erro
     from pareamentos_extensao p where p.cliente_id = ${cliente.clienteId}`;
@@ -108,11 +141,17 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
     iaDisponivel: !!deps.modelo,
     whatsappDisponivel: !!deps.whatsapp && !!cad!.whatsapp,
     /** Extensão pareada: quando os dados chegaram pela última vez (null = não pareada). */
-    extensao: ext ? { ultimoRecebimento: ext.ultimo ?? null, ultimoErro: ext.ultimo_erro ?? null } : null,
+    extensao: ext ? { ultimoRecebimento: ext.ultimo ?? null, ultimoErro: ext.ultimo_erro ?? null, id: ext.extensao_id ?? null } : null,
     /** O mesmo resumo de desempenho que o Curador recebe (null sem postagens medidas). */
     aprendizado,
-    /** Fechamento semanal pronto para mandar (null se não há ou já foi enviado). */
-    fechamento,
+    /** Fechamento do dia anterior pronto para mandar (null se não há ou já foi enviado). */
+    fechamento: fechamento ? {
+      ...fechamento,
+      vendasAtualizadasEm,
+      // As vendas só valem completas se foram atualizadas depois que o dia do fechamento acabou.
+      vendasDoDiaCompletas: !!vendasAtualizadasEm
+        && dataLocal(vendasAtualizadasEm, cliente.fusoHorario) > fechamento.fim,
+    } : null,
     /** Vendas que caíram (pendente/validada → cancelada) e o operador ainda não viu. */
     cancelamentos,
     /** Itens da lista de conferência dos programas que a afiliada ainda não marcou como feitos. */

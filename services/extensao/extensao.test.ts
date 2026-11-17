@@ -7,6 +7,8 @@ import { registrarLinkManual } from '../links/linksManuaisShopee.ts';
 import { chaveDoUtm, cliquesShopee, conversoesShopee, dinheiroShopee, linkAmazon, linksPersonalizados, ofertasShopee, tipoDaCaptura, tipoPelaUrl, CHAVE_SEM_SUB_ID } from './conversores.ts';
 import { criarCriativo, criativosDoDia } from '../criativos/criativos.ts';
 import type { ModeloIA } from '../../harness/agentes.ts';
+import { linksPendentes } from '../../painel/api.ts';
+import { curarDia } from '../curadoria/curador.ts';
 import { clientePareado, gerarPareamento, receberCapturas, ultimosRecebimentos } from './receber.ts';
 
 // Formato da gravação de 13/11/2026, com valores inventados.
@@ -181,6 +183,32 @@ describe.skipIf(!BANCO_HABILITADO)('extensão → painel (banco)', () => {
       .toEqual([['https://s.shopee.com.br/IG1', 'ig', 'c1-ig-20261113-555-0816', true], ['https://s.shopee.com.br/WA1', 'wa', 'c1-wa-20261113-555-0815', true]]);
     const [c] = await criativosDoDia(sql, cliente, hoje);
     expect(c).toMatchObject({ id: criativo, link: 'https://s.shopee.com.br/IG1' });
+  });
+
+  it('pareamento guarda o id da extensão; links pendentes do dia (WhatsApp e Instagram) com os sub_ids da tela', async () => {
+    const codigo = await gerarPareamento(sql, 'c1');
+    await clientePareado(sql, codigo, 'abcdefghijklmnopabcdefghijklmnop');
+    await clientePareado(sql, codigo, 'id-invalido'); // id fora do formato não apaga o bom
+    const [p] = await sql`select extensao_id from pareamentos_extensao`;
+    expect(p!.extensao_id).toBe('abcdefghijklmnopabcdefghijklmnop');
+
+    const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    const quando = new Date();
+    const { importarPlanilhaShopee } = await import('../ofertas/importarPlanilhaShopee.ts');
+    await importarPlanilhaShopee(sql, cliente, 'link;titulo;preco\nhttps://shopee.com.br/A-i.9.555;Organizador;29,90\nhttps://shopee.com.br/B-i.9.556;Cesto;19,90', { quando });
+    const modelo: ModeloIA = { async gerar(pp) {
+      const e = JSON.parse(pp.entrada) as { candidatas: { id: string }[] };
+      return { texto: JSON.stringify({ escolhas: e.candidatas.map((c) => ({ oferta_id: c.id, motivo: 'ok' })) }), tokensEntrada: 1, tokensSaida: 1 };
+    } };
+    await curarDia(sql, { cliente, data: hoje, modelo, quantidade: 2 });
+    let r = await linksPendentes(sql, cliente);
+    expect(r.links.map((l) => [l.canal, l.subIds[0], l.subIds[1], l.subIds[3]]).sort()).toEqual([['wa', 'c1', 'wa', '555'], ['wa', 'c1', 'wa', '556']]);
+    // Link do Instagram não conta como link da mensagem do grupo.
+    const [o] = await sql`select id from ofertas where produto_id = '555'`;
+    await sql`insert into links (cliente_id, oferta_id, plataforma, url_origem, url_afiliado, sub_ids, chave_rastreio, canal, produto_id)
+              values (${cliente.clienteId}, ${o!.id}, 'shopee', 'https://shopee.com.br/product/9/555', 'https://s.shopee.com.br/IGX', ${['c1', 'ig', '20261117', '555', '0900']}, 'c1-ig-20261117-555-0900', 'ig', '555')`;
+    r = await linksPendentes(sql, cliente);
+    expect(r.links.filter((l) => l.canal === 'wa').map((l) => l.subIds[3]).sort()).toEqual(['555', '556']);
   });
 
   it('link da Amazon vira link (uma vez só); erro fica registrado', async () => {

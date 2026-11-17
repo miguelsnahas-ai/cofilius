@@ -20,32 +20,80 @@ let dados = null;
 // Seção 1: escolhidas do Curador
 // ---------------------------------------------------------------------------
 
+/** Estado da geração de links pela extensão, nesta abertura do Dia. */
+const geracao = { dia: null, tentou: false, rodando: false, mensagem: '' };
+
 function itemSelecionada(s) {
-  const situacao = s.mensagemId ? ['com mensagem', 'ok'] : s.linkId ? ['com link', 'destaque'] : ['sem link', 'alerta'];
+  const gerando = geracao.rodando && !s.linkUrl && s.plataforma === 'shopee';
+  const situacao = s.mensagemId ? ['com mensagem', 'ok'] : s.linkUrl ? ['link pronto', 'destaque'] : gerando ? ['gerando link…', 'alerta'] : ['sem link', 'alerta'];
   const li = el('li', { classe: 'cartao' },
     el('div', { classe: 'cartao-topo' },
       el('span', { classe: 'titulo' }, el('span', { classe: 'posicao', texto: String(s.posicao).padStart(2, '0') }), s.titulo),
       el('span', { classe: `chip ${situacao[1]}`, texto: situacao[0] })),
     el('p', { classe: 'motivo', texto: s.motivo }));
 
-  if (!s.linkId && s.preparoLink) {
-    const p = s.preparoLink;
-    const subids = el('div', { classe: 'subids' });
-    p.subIds.forEach((v, i) => {
-      subids.append(el('span', { classe: 'subid' }, `Sub_id${i + 1}: ${v}`,
-        el('button', { classe: 'secundario', texto: 'copiar', attrs: { type: 'button', 'aria-label': `Copiar Sub_id${i + 1}` },
-          onclick: () => navigator.clipboard.writeText(v).then(() => avisar(`Sub_id${i + 1} copiado`)) })));
-    });
-    const campo = el('input', { attrs: { type: 'url', placeholder: 'Cole o link gerado no painel (https://s.shopee.com.br/...)', 'aria-label': 'Link de afiliado' } });
-    const botao = el('button', { texto: 'Registrar link', attrs: { type: 'button' } });
-    botao.addEventListener('click', () => agir(botao,
-      () => api(`/api/ofertas/${s.ofertaId}/link`, { link: campo.value, quando: p.quando }), 'Link registrado'));
-    li.append(
-      el('p', { classe: 'motivo' }, 'Produto: ', el('a', { texto: p.urlProduto, attrs: { href: p.urlProduto, target: '_blank', rel: 'noopener noreferrer' } })),
-      subids,
-      el('div', { classe: 'linha-form' }, campo, botao));
+  if (s.linkUrl) {
+    li.append(el('div', { classe: 'link-final' },
+      el('a', { texto: s.linkUrl, attrs: { href: s.linkUrl, target: '_blank', rel: 'noopener noreferrer' } }),
+      el('button', { classe: 'secundario', texto: 'Copiar link', attrs: { type: 'button' },
+        onclick: () => navigator.clipboard.writeText(s.linkUrl).then(() => avisar('Link copiado')) })));
+    return li;
   }
+  if (!s.preparoLink) return li;
+
+  // Sem link ainda: a extensão gera sozinha. O caminho à mão fica recolhido, só para quando ela não estiver neste Chrome.
+  const p = s.preparoLink;
+  const subids = el('div', { classe: 'subids' });
+  p.subIds.forEach((v, i) => {
+    subids.append(el('span', { classe: 'subid' }, `Sub_id${i + 1}: ${v}`,
+      el('button', { classe: 'secundario', texto: 'copiar', attrs: { type: 'button', 'aria-label': `Copiar Sub_id${i + 1}` },
+        onclick: () => navigator.clipboard.writeText(v).then(() => avisar(`Sub_id${i + 1} copiado`)) })));
+  });
+  const campo = el('input', { attrs: { type: 'url', placeholder: 'Cole o link gerado no painel (https://s.shopee.com.br/...)', 'aria-label': 'Link de afiliado' } });
+  const botao = el('button', { texto: 'Registrar link', attrs: { type: 'button' } });
+  botao.addEventListener('click', () => {
+    if (!campo.value.trim()) { avisar('Cole o link gerado na Shopee no campo antes de registrar.', true); campo.focus(); return; }
+    agir(botao, () => api(`/api/ofertas/${s.ofertaId}/link`, { link: campo.value.trim(), quando: p.quando }), 'Link registrado');
+  });
+  li.append(el('details', { classe: 'link-manual' },
+    el('summary', { texto: 'Gerar à mão (sem a extensão)' }),
+    el('p', { classe: 'motivo' }, 'Na Shopee Afiliados › Link personalizado, use este produto e os 5 Sub_ids e cole o link: ',
+      el('a', { texto: 'abrir o produto', attrs: { href: p.urlProduto, target: '_blank', rel: 'noopener noreferrer' } })),
+    subids,
+    el('div', { classe: 'linha-form' }, campo, botao)));
   return li;
+}
+
+/**
+ * Pede à extensão do Chrome os links que faltam (ela gera no painel da Shopee com a sessão da afiliada).
+ * Roda sozinho uma vez por abertura do Dia; o botão "Gerar links" repete.
+ */
+async function gerarLinksPelaExtensao(manual) {
+  const d = dados;
+  const faltam = d.selecionadas.filter((s) => !s.linkUrl && s.plataforma === 'shopee').length;
+  if (!faltam || geracao.rodando) return;
+  const id = d.extensao && d.extensao.id;
+  geracao.dia = d.data;
+  geracao.tentou = true;
+  if (!id) {
+    geracao.mensagem = 'Para os links saírem sozinhos, instale e pareie a extensão do Cofilius neste Chrome (Configuração › Extensão do Chrome).';
+    desenhar();
+    return;
+  }
+  geracao.rodando = true;
+  geracao.mensagem = `Gerando ${faltam === 1 ? 'o link' : `os ${faltam} links`} na Shopee pela extensão…`;
+  desenhar();
+  const r = await window.Cofilius.falarComExtensao(id, { cofilius: 'gerarLinks' });
+  geracao.rodando = false;
+  if (r && r.gerados) {
+    geracao.mensagem = '';
+    avisar(`${r.gerados} ${r.gerados === 1 ? 'link gerado' : 'links gerados'} na Shopee`);
+    return window.Cofilius.recarregar();
+  }
+  geracao.mensagem = r && r.semExtensao
+    ? 'A extensão do Cofilius não respondeu neste Chrome. Ela está instalada (versão 0.7 ou mais nova) e pareada com este painel?'
+    : `Não consegui gerar os links: ${(r && (r.erro || (r.erros || []).join('; '))) || 'sem resposta da extensão'}.${manual ? '' : ' Tente "Gerar links".'}`;
+  desenhar();
 }
 
 // ---------------------------------------------------------------------------
@@ -152,9 +200,12 @@ function desenharFechamento(d) {
   acoes.append(enviado);
   caixa.replaceChildren(
     el('div', { classe: 'secao-topo' },
-      el('div', {}, el('span', { classe: 'rotulo', texto: `Fechamento · ${dataCurta(f.inicio)} a ${dataCurta(f.fim)}` }),
-        el('h2', { texto: `Resumo da semana pronto para ${primeiro}` }))),
-    el('p', { classe: 'ajuda', texto: 'Montado pelo sistema com os números das vendas e cliques. Confira e mande.' }),
+      el('div', {}, el('span', { classe: 'rotulo', texto: f.inicio === f.fim ? `Fechamento · ${dataCurta(f.fim)}` : `Fechamento · ${dataCurta(f.inicio)} a ${dataCurta(f.fim)}` }),
+        el('h2', { texto: `${f.inicio === f.fim ? 'Resumo de ontem' : 'Resumo do período'} pronto para ${primeiro}` }))),
+    f.vendasDoDiaCompletas === false
+      ? el('p', { classe: 'aviso', texto: `As vendas de ${dataCurta(f.fim)} podem não ter chegado todas: a última atualização foi ${f.vendasAtualizadasEm
+        ? `em ${new Date(f.vendasAtualizadasEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'nunca'}. Abra o relatório de conversões da Shopee (com a extensão) e recarregue esta página antes de mandar.` })
+      : el('p', { classe: 'ajuda', texto: 'Montado pelo sistema com os números das vendas e cliques, e atualizado até você mandar. Confira e mande.' }),
     el('div', { classe: 'conversa' }, el('div', { classe: 'balao', texto: f.texto })),
     acoes);
 }
@@ -277,7 +328,8 @@ function proximoPasso(d, n) {
       ? { titulo: `${d.candidatas} ofertas esperando o Curador`, texto: 'O Curador escolhe as melhores do dia, seguindo as diretrizes do nicho.', botao: 'Rodar Curador', acao: 'curar' }
       : { titulo: 'Ligue a IA para o Curador escolher', texto: 'Coloque a chave da IA (Gemini, gratuita) na Configuração.', botao: 'Abrir Configuração', acao: () => window.Cofilius.mostrarAba('config') };
   }
-  if (n.semLink) return { titulo: `Gere ${n.semLink === 1 ? 'o link que falta' : `os ${n.semLink} links que faltam`}`, texto: 'Use os Sub_ids de cada oferta no painel da Shopee e cole o link aqui.', botao: 'Ver as ofertas sem link', acao: ir('secao-escolhidas') };
+  if (n.semLink) return { titulo: geracao.rodando ? 'Gerando os links na Shopee…' : `Falta${n.semLink === 1 ? ' o link de uma oferta' : `m os links de ${n.semLink} ofertas`}`,
+    texto: 'A extensão do Cofilius gera os links personalizados na Shopee, com o rastreio certo.', botao: 'Gerar links', acao: () => gerarLinksPelaExtensao(true) };
   if (n.paraRedigir && d.iaDisponivel) return { titulo: 'Hora das mensagens', texto: `${n.paraRedigir} ${n.paraRedigir === 1 ? 'oferta tem' : 'ofertas têm'} link e ainda não ${n.paraRedigir === 1 ? 'tem' : 'têm'} mensagem.`, botao: 'Redigir mensagens', acao: 'redigir' };
   if (n.rascunho) return { titulo: `Valide ${n.rascunho === 1 ? 'a mensagem' : `as ${n.rascunho} mensagens`}`, texto: 'O sistema confere link, preço, repetição e o limite do dia.', botao: 'Validar todas', acao: 'validar' };
   if (n.validada) return { titulo: `Revise e aprove ${n.validada === 1 ? 'a mensagem' : `as ${n.validada} mensagens`}`, texto: 'Leia cada uma como ela vai receber e aprove.', botao: 'Ver mensagens', acao: ir('secao-mensagens') };
@@ -288,12 +340,14 @@ function proximoPasso(d, n) {
 
 function desenhar() {
   const d = dados;
+  if (geracao.dia !== d.data) Object.assign(geracao, { dia: d.data, tentou: false, rodando: false, mensagem: '' });
+  const faltamLinks = d.selecionadas.filter((s) => !s.linkUrl && s.plataforma === 'shopee').length;
   const n = { rascunho: 0, validada: 0, aprovada: 0, enviada: 0 };
   for (const m of d.mensagens) {
     if (m.estado === 'medida') n.enviada++;
     else if (m.estado in n) n[m.estado]++;
   }
-  n.semLink = d.selecionadas.filter((s) => !s.linkId && s.plataforma === 'shopee').length;
+  n.semLink = d.selecionadas.filter((s) => !s.linkUrl && s.plataforma === 'shopee').length;
   n.paraRedigir = d.selecionadas.filter((s) => s.linkId && !s.mensagemId).length;
 
   // Título com a data por extenso
@@ -333,6 +387,8 @@ function desenhar() {
 
   $('aviso-ia').hidden = d.iaDisponivel;
   desenharAprendizado(d.aprendizado);
+  // Links que faltam: pede à extensão uma vez por abertura (só para o dia de hoje).
+  if (faltamLinks && !geracao.tentou && d.data === window.Cofilius.dataLocal()) setTimeout(() => gerarLinksPelaExtensao(false), 0);
   desenharFechamento(d);
   desenharCancelamentos(d.cancelamentos || []);
   const pend = d.conformidadePendente || 0;
@@ -350,6 +406,10 @@ function desenhar() {
   $('rodar-redator').disabled = !d.iaDisponivel || !n.paraRedigir;
   $('validar-todas').disabled = !n.rascunho;
 
+  $('gerar-links').hidden = !faltamLinks || geracao.rodando;
+  $('estado-links').hidden = !geracao.mensagem || !faltamLinks;
+  $('estado-links').textContent = geracao.mensagem;
+  $('estado-links').className = geracao.rodando ? 'ajuda' : 'aviso';
   $('selecionadas').replaceChildren(...(d.selecionadas.length
     ? d.selecionadas.map(itemSelecionada)
     : [el('li', { classe: 'vazio', texto: d.candidatas ? 'O Curador ainda não escolheu as ofertas deste dia.' : 'Nenhuma oferta neste dia ainda. Importe a planilha na aba Importar.' })]));
@@ -378,6 +438,7 @@ window.Cofilius.registrar('dia', {
   iniciar() {
     $('data').value = window.Cofilius.dataLocal();
     $('data').addEventListener('change', () => carregar().catch((e) => avisar(e.message, true)));
+    $('gerar-links').addEventListener('click', () => gerarLinksPelaExtensao(true));
     $('rodar-curador').addEventListener('click', (ev) => agir(ev.currentTarget, () => api('/api/curar', { data: $('data').value }),
       (r) => `Curador escolheu ${r.escolhidas} de ${r.candidatas} candidatas`));
     $('rodar-redator').addEventListener('click', (ev) => agir(ev.currentTarget, () => api('/api/redigir', { data: $('data').value }),

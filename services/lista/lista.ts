@@ -103,7 +103,7 @@ export async function criarRascunho(sql: Sql, e: EntradaRascunho): Promise<Mensa
 
   const [link] = e.linkId
     ? await sql`select id, url_afiliado from links where cliente_id = ${clienteId} and id = ${e.linkId}`
-    : await sql`select id, url_afiliado from links where cliente_id = ${clienteId} and oferta_id = ${e.ofertaId}
+    : await sql`select id, url_afiliado from links where cliente_id = ${clienteId} and oferta_id = ${e.ofertaId} and canal <> 'ig'
                 order by criado_em desc limit 1`;
   if (!link) throw new Error('Esta oferta ainda não tem link de afiliado. Gere o link antes de montar a mensagem.');
 

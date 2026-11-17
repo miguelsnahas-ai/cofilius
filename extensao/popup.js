@@ -111,8 +111,8 @@ function quando(iso) {
 }
 
 async function desenharPainel() {
-  const { painel = null, sincronia = {}, buscaAutomatica = false, paginar = false, pendentes = [], ultimaBusca = '' } =
-    await chrome.storage.local.get(['painel', 'sincronia', 'buscaAutomatica', 'paginar', 'pendentes', 'ultimaBusca']);
+  const { painel = null, sincronia = {}, buscaAutomatica = false, paginar = false, linksAutomaticos = false, pendentes = [], ultimaBusca = '' } =
+    await chrome.storage.local.get(['painel', 'sincronia', 'buscaAutomatica', 'paginar', 'linksAutomaticos', 'pendentes', 'ultimaBusca']);
   const pareada = !!(painel && painel.codigo);
   $('form-parear').hidden = pareada;
   $('pareada').hidden = !pareada;
@@ -120,6 +120,7 @@ async function desenharPainel() {
   $('estado-painel').className = pareada ? 'ok' : 'suave';
   $('busca-auto').checked = buscaAutomatica;
   $('paginar').checked = paginar;
+  $('links-auto').checked = linksAutomaticos;
   const partes = [];
   if (sincronia.em) partes.push(`Último envio ${quando(sincronia.em)}`);
   if (sincronia.detalhe) partes.push(sincronia.detalhe);
@@ -160,6 +161,21 @@ const AVISO_AUTOMACAO = 'Os termos da Shopee proíbem extração automatizada de
 $('busca-auto').addEventListener('change', (ev) => {
   if (ev.target.checked && !window.confirm(AVISO_AUTOMACAO)) { ev.target.checked = false; return; }
   chrome.storage.local.set({ buscaAutomatica: ev.target.checked });
+});
+$('links-auto').addEventListener('change', (ev) => {
+  if (ev.target.checked && !window.confirm(AVISO_AUTOMACAO)) { ev.target.checked = false; return; }
+  chrome.storage.local.set({ linksAutomaticos: ev.target.checked });
+});
+$('gerar-links').addEventListener('click', async () => {
+  $('gerar-links').disabled = true;
+  $('sincronia').textContent = 'Gerando os links na Shopee…';
+  try {
+    const r = await chrome.runtime.sendMessage({ cofilius: 'gerarLinks' });
+    $('sincronia').textContent = !r ? 'Sem resposta.' : r.ok && !r.pedidos ? 'Nenhum link faltando hoje.'
+      : r.gerados ? `${r.gerados} ${r.gerados === 1 ? 'link gerado' : 'links gerados'} e enviados ao painel.` : `Não deu: ${r.erro || (r.erros || []).join('; ')}`;
+  } finally {
+    $('gerar-links').disabled = false;
+  }
 });
 $('paginar').addEventListener('change', (ev) => {
   if (ev.target.checked && !window.confirm(AVISO_AUTOMACAO)) { ev.target.checked = false; return; }

@@ -21,13 +21,25 @@ const { chromium } = playwright;
 
 const CODIGO = 'cof-teste-1234567890';
 const recebidas = [];
+const idsRecebidos = [];
 const painel = createServer((req, res) => {
   let corpo = '';
   req.on('data', (c) => { corpo += c; });
   req.on('end', () => {
+    if (req.url.startsWith('/dia-teste')) {
+      // Página do painel (sem senha, só para o teste): pede os links à extensão, como a aba Dia.
+      const id = new URL(req.url, 'http://x').searchParams.get('ext');
+      res.setHeader('Content-Type', 'text/html');
+      return res.end(`<!doctype html><title>Dia</title><pre id="r">esperando</pre><script>
+        chrome.runtime.sendMessage(${JSON.stringify(id)}, { cofilius: 'gerarLinks' }, (r) => { document.getElementById('r').textContent = JSON.stringify(r); });
+      </script>`);
+    }
     res.setHeader('Content-Type', 'application/json');
     if (req.headers['x-cofilius-extensao'] !== CODIGO) { res.statusCode = 401; return res.end('{"erro":"código"}'); }
-    if (req.url === '/extensao/estado') return res.end('{"ok":true,"cliente":"Silvana"}');
+    if (req.url === '/extensao/estado') { idsRecebidos.push(req.headers['x-cofilius-extensao-id']); return res.end('{"ok":true,"cliente":"Silvana"}'); }
+    if (req.url === '/extensao/pendencias') {
+      return res.end(JSON.stringify({ ok: true, links: [{ canal: 'wa', ofertaId: 'o1', urlProduto: 'https://shopee.com.br/product/9/555', subIds: ['sil', 'wa', '20261117', '555', '0700'] }] }));
+    }
     if (req.url === '/extensao/receber') {
       const capturas = JSON.parse(corpo).capturas;
       recebidas.push(...capturas);
@@ -47,6 +59,7 @@ const contexto = await chromium.launchPersistentContext(perfil, {
 });
 
 const cabecalhosVistos = [];
+const gqlVistos = [];
 await contexto.route('https://affiliate.shopee.com.br/**', (rota) => {
   const u = new URL(rota.request().url());
   if (u.pathname === '/offer/custom_link') {
@@ -54,10 +67,13 @@ await contexto.route('https://affiliate.shopee.com.br/**', (rota) => {
       const gql = (op) => fetch('/api/v3/gql', { method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ operationName: op, query: 'query', variables: { linkParams: [{ originalLink: 'https://shopee.com.br/x-i.9.555',
           advancedLinkParams: { subId1: 'c1', subId2: 'ig', subId3: '20261117', subId4: '555', subId5: '1000' } }] } }) });
+      fetch('/api/v3/gql', { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrftoken': 'abc' }, body: JSON.stringify({ operationName: 'getOfferTabList', query: 'q' }) });
       gql('productsRankList'); gql('batchGetCustomLink');
     </script>` });
   }
   if (u.pathname === '/api/v3/gql') {
+    const corpo = JSON.parse(rota.request().postData() || '{}');
+    gqlVistos.push({ op: corpo.operationName, csrf: rota.request().headers()['x-csrftoken'], params: corpo.variables && corpo.variables.linkParams });
     return rota.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: { batchCustomLink: [{ shortLink: 'https://s.shopee.com.br/IG1', longLink: 'x', failCode: 0 }] } }) });
   }
   if (u.pathname === '/report/conversion_report') {
@@ -128,9 +144,29 @@ assert.equal(recebidas[0].pedido.json.operationName, 'batchGetCustomLink');
 assert.equal(recebidas[0].pedido.json.variables.linkParams[0].advancedLinkParams.subId2, 'ig');
 await pagLink.close();
 
+// O painel pede os links que faltam; a extensão gera na Shopee (aba aberta em segundo plano) com os
+// cabeçalhos da própria página e o link volta ao painel com os sub_ids certos.
+assert.match(idsRecebidos[0] || '', /^[a-p]{32}$/, 'a extensão manda o próprio id no pareamento');
+recebidas.length = 0;
+gqlVistos.length = 0;
+const paginaDia = await contexto.newPage();
+await paginaDia.goto(`${enderecoPainel}/dia-teste?ext=${id}`);
+await paginaDia.waitForFunction(() => document.getElementById('r').textContent !== 'esperando', null, { timeout: 60000 });
+const resultado = JSON.parse(await paginaDia.textContent('#r'));
+assert.equal(resultado.ok, true, JSON.stringify(resultado));
+assert.equal(resultado.gerados, 1);
+const pedidoLink = gqlVistos.find((g) => g.op === 'batchGetCustomLink' && g.params && g.params[0].advancedLinkParams.subId1 === 'sil');
+assert.ok(pedidoLink, 'a extensão pediu o link à Shopee');
+assert.equal(pedidoLink.csrf, 'abc', 'com os cabeçalhos da página');
+assert.equal(pedidoLink.params[0].originalLink, 'https://shopee.com.br/product/9/555');
+const linkNoPainel = recebidas.find((c) => c.pedido && c.pedido.json && c.pedido.json.variables.linkParams[0].advancedLinkParams.subId1 === 'sil');
+assert.ok(linkNoPainel, 'o link gerado chegou ao painel');
+await paginaDia.close();
+
 // Painel fechado: fica na fila.
-await new Promise((ok) => painel.close(ok));
-await pag.reload();
+await new Promise((ok) => { painel.close(ok); painel.closeAllConnections(); });
+const pagFila = await contexto.newPage();
+await pagFila.goto('https://affiliate.shopee.com.br/report/conversion_report');
 let fila = [];
 const limite2 = Date.now() + 15000;
 while (fila.length < 1 && Date.now() < limite2) {

@@ -45,13 +45,13 @@ describe.skipIf(!BANCO_HABILITADO)('avisos de cancelamento', () => {
     expect(await avisosCancelamento(sql, cliente)).toEqual([]);
   });
 
-  it('o fechamento conta o que caiu de semanas anteriores', async () => {
+  it('o fechamento conta o que caiu de períodos anteriores', async () => {
     await importarVendas(sql, cliente, [venda({ situacao: 'validada' })]);
     await importarVendas(sql, cliente, [venda({ situacao: 'cancelada' })]);
     await sql`update eventos_vendas set criado_em = '2026-11-11T15:00:00Z'`;
     expect(await canceladosDePedidosAnteriores(sql, cliente, '2026-11-09', '2026-11-15')).toEqual({ pedidos: 1, comissao: 2.5 });
     expect(await canceladosDePedidosAnteriores(sql, cliente, '2026-11-02', '2026-11-08')).toEqual({ pedidos: 0, comissao: 0 });
     const f = await prepararFechamento(sql, cliente, '2026-11-09', '2026-11-15');
-    expect(f.texto).toContain('↩️ 1 pedido de semanas anteriores foi cancelado (R$ 2,50 saem do pendente)');
+    expect(f.texto).toContain('↩️ 1 pedido de períodos anteriores foi cancelado (R$ 2,50 saem do pendente)');
   });
 });

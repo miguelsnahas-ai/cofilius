@@ -10,10 +10,11 @@ Com a extensão **pareada** com o painel, não há arquivo para subir:
 | Cliques | Shopee Afiliados › Relatório de cliques | Cliques por dia e por Sub_id |
 | Links curtos | Barra SiteStripe na página de produto da Amazon | Link da Amazon (produto + tracking ID), para atribuir as vendas depois |
 | Ofertas | Shopee Afiliados › Ofertas de produtos (as listas que você navega) | Ofertas do dia, com preço, desconto, comissão, vendas, nota e foto; o nicho vem das palavras-chave do cliente |
-| Link personalizado | Shopee Afiliados › Link personalizado, gerado com os Sub_ids que o Cofilius mostra | Link registrado sozinho na oferta (canal WhatsApp) ou no criativo (canal Instagram), sem colar nada |
+| Link personalizado | **Gerado pela própria extensão**: ao abrir o Dia do painel, ele pede à extensão os links que faltam; ela gera no painel da Shopee (com a sua sessão) e o link final aparece em cada oferta escolhida. Também pelo botão "Gerar os links que faltam" no ícone. | Link registrado na oferta (canal WhatsApp) ou no criativo (canal Instagram), sem copiar nem colar |
 
 Como chega:
 - **Quando você abre os relatórios** de conversões e de cliques da Shopee (ou pelo botão **Abrir os relatórios agora**). Passe pelas páginas da tabela: cada página que a Shopee carrega vai para o painel.
+- **Links personalizados:** precisa estar logada na Shopee Afiliados neste Chrome. Se não houver uma aba da Shopee aberta, a extensão abre uma em segundo plano e fecha depois. A opção "Gerar sozinha os links que faltam, a cada 30 minutos" (em Automação) dispensa até abrir o painel.
 - **Automação desligada por padrão.** Os termos da Shopee proíbem extração automatizada de dados (item 4.3(d)). Em "Automação" no popup dá para ligar a abertura sozinha a cada 6 horas e a leitura das páginas seguintes, com aviso de que isso aumenta o risco de bloqueio.
 - Se o painel estiver fechado, os dados esperam numa fila e vão quando ele abrir (tentativa a cada 5 minutos).
 

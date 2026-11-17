@@ -63,7 +63,8 @@ async function chamarPainel(painel, caminho, corpo) {
   try {
     const resp = await fetch(painel.endereco.replace(/\/+$/, '') + caminho, {
       method: corpo ? 'POST' : 'GET',
-      headers: Object.assign({ 'X-Cofilius-Extensao': painel.codigo }, corpo ? { 'Content-Type': 'application/json' } : {}),
+      headers: Object.assign({ 'X-Cofilius-Extensao': painel.codigo, 'X-Cofilius-Extensao-Id': chrome.runtime.id },
+        corpo ? { 'Content-Type': 'application/json' } : {}),
       body: corpo ? JSON.stringify(corpo) : undefined,
       signal: controle.signal,
     });
@@ -150,8 +151,84 @@ async function buscarAgora() {
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------------
+// Links personalizados da Shopee: a extensão gera, no painel da Shopee, os links que o Cofilius pede
+// ---------------------------------------------------------------------------
+
+function esperarCarregar(tabId, limiteMs) {
+  return new Promise((ok) => {
+    const fim = setTimeout(() => { chrome.tabs.onUpdated.removeListener(ouvir); ok(false); }, limiteMs);
+    function ouvir(id, info) {
+      if (id === tabId && info.status === 'complete') { clearTimeout(fim); chrome.tabs.onUpdated.removeListener(ouvir); ok(true); }
+    }
+    chrome.tabs.onUpdated.addListener(ouvir);
+  });
+}
+
+let gerandoLinks = null;
+/**
+ * Pergunta ao painel quais links faltam e gera no painel da Shopee, numa aba da Shopee Afiliados
+ * (usa uma já aberta; se não houver, abre uma em segundo plano e fecha depois). O link gerado é capturado
+ * como qualquer outro e vai para o painel, que o registra pelos sub_ids.
+ */
+async function gerarLinksPendentes() {
+  if (gerandoLinks) return gerandoLinks;
+  gerandoLinks = (async () => {
+    const painel = await pareamento();
+    if (!painel) return { ok: false, erro: 'Extensão não pareada.' };
+    const { links = [] } = await chamarPainel(painel, '/extensao/pendencias');
+    const itens = links.map((l) => ({ originalLink: l.urlProduto, subIds: l.subIds })).filter(N.itemDeLinkValido);
+    if (!itens.length) return { ok: true, gerados: 0, pedidos: 0 };
+    let [aba] = await chrome.tabs.query({ url: 'https://affiliate.shopee.com.br/*' });
+    let abriu = false;
+    if (!aba) {
+      aba = await chrome.tabs.create({ url: N.PAGINA_LINK_SHOPEE, active: false });
+      abriu = true;
+      await esperarCarregar(aba.id, 30000);
+      await new Promise((r) => setTimeout(r, 2500)); // a página faz as primeiras chamadas (e mostra o login, se precisar)
+    }
+    try {
+      const atual = await chrome.tabs.get(aba.id);
+      if (!atual.url || !atual.url.startsWith('https://affiliate.shopee.com.br/')) {
+        return { ok: false, erro: 'Entre na sua conta da Shopee Afiliados neste Chrome e tente de novo.' };
+      }
+      const r = await chrome.tabs.sendMessage(aba.id, { cofilius: 'gerarLinks', itens });
+      // Os links capturados vão para a fila: manda já, para o painel registrar antes de responder.
+      await new Promise((ok) => setTimeout(ok, 800));
+      await enviarPendentes();
+      return Object.assign({ pedidos: itens.length }, r || { ok: false, erro: 'A página da Shopee não respondeu.' });
+    } catch (e) {
+      return { ok: false, erro: `Não consegui gerar na Shopee: ${e.message}` };
+    } finally {
+      if (abriu) chrome.tabs.remove(aba.id).catch(() => {});
+    }
+  })();
+  try { return await gerandoLinks; } finally { gerandoLinks = null; }
+}
+
+// O painel do Cofilius (no endereço pareado) pede os links direto à extensão.
+chrome.runtime.onMessageExternal.addListener((msg, remetente, responder) => {
+  (async () => {
+    const painel = await pareamento();
+    let origem = '';
+    try { origem = new URL(remetente.url || remetente.origin || '').origin; } catch { /* sem origem */ }
+    if (!painel || origem !== new URL(painel.endereco).origin) {
+      return { ok: false, pareada: false, erro: 'Esta extensão não está pareada com este painel.' };
+    }
+    if (msg && msg.cofilius === 'ping') return { ok: true, pareada: true, cliente: painel.cliente, versao: chrome.runtime.getManifest().version };
+    if (msg && msg.cofilius === 'gerarLinks') return gerarLinksPendentes();
+    return { ok: false, erro: 'Pedido desconhecido.' };
+  })().then(responder, (e) => responder({ ok: false, erro: e.message }));
+  return true;
+});
+
 chrome.alarms.onAlarm.addListener(async (alarme) => {
   if (alarme.name === 'reenviar') return enviarPendentes();
+  if (alarme.name === 'links') {
+    const { linksAutomaticos = false } = await chrome.storage.local.get('linksAutomaticos');
+    if (linksAutomaticos) await gerarLinksPendentes().catch(() => {});
+    return;
+  }
   if (alarme.name === 'buscar') {
     // Desligada por padrão: abrir relatórios sozinha é automação (termos da Shopee, 4.3(d)).
     const { buscaAutomatica = false } = await chrome.storage.local.get('buscaAutomatica');
@@ -162,6 +239,7 @@ chrome.alarms.onAlarm.addListener(async (alarme) => {
 function agendar() {
   chrome.alarms.create('reenviar', { periodInMinutes: 5 });
   chrome.alarms.create('buscar', { delayInMinutes: 2, periodInMinutes: HORAS_BUSCA * 60 });
+  chrome.alarms.create('links', { delayInMinutes: 5, periodInMinutes: 30 });
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +273,7 @@ chrome.runtime.onMessage.addListener((msg, remetente, responder) => {
     return true;
   }
   if (msg.cofilius === 'buscar') { abrirRelatorios().then(responder); return true; }
+  if (msg.cofilius === 'gerarLinks') { gerarLinksPendentes().then(responder, (e) => responder({ ok: false, erro: e.message })); return true; }
   if (msg.cofilius === 'enviar') { enviarPendentes().then(() => responder({ ok: true })); return true; }
 });
 

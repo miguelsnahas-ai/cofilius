@@ -80,6 +80,14 @@
     return saida;
   }
 
+  // Cabeçalhos das chamadas GraphQL que a própria página da Shopee faz (CSRF etc.): reusados para gerar
+  // links personalizados com a sessão dela. Ficam só na memória da página; nunca são gravados nem enviados.
+  let cabecalhosGql = null;
+  // Qualquer chamada da API da Shopee Afiliados serve (todas levam os mesmos cabeçalhos de sessão).
+  const ehGqlShopee = function (url) {
+    try { const u = new URL(url, location.href); return u.hostname === 'affiliate.shopee.com.br' && u.pathname.startsWith('/api/'); } catch (e) { return false; }
+  };
+
   // fetch
   const fetchOriginal = window.fetch;
   if (typeof fetchOriginal === 'function') {
@@ -89,6 +97,7 @@
         const url = typeof entrada === 'string' ? entrada : (entrada && entrada.url) || String(entrada);
         const metodo = (opcoes && opcoes.method) || (entrada && entrada.method) || 'GET';
         const corpo = opcoes && typeof opcoes.body === 'string' ? opcoes.body : null;
+        if (ehGqlShopee(url)) cabecalhosGql = Object.assign({}, cabecalhosGql, copiarCabecalhos((opcoes && opcoes.headers) || (entrada && entrada.headers)));
         if (N.deveGravar(url, location.href, location.href)) {
           const cabecalhos = N.tipoSincronia(url, location.href) ? copiarCabecalhos((opcoes && opcoes.headers) || (entrada && entrada.headers)) : null;
           promessa.then(function (resp) {
@@ -114,6 +123,7 @@
   };
   XMLHttpRequest.prototype.send = function (corpo) {
     const info = this.__cofilius;
+    if (info && ehGqlShopee(info.url)) cabecalhosGql = Object.assign({}, cabecalhosGql, info.cabecalhos);
     if (info && N.deveGravar(info.url, location.href, location.href)) {
       const xhr = this;
       xhr.addEventListener('loadend', function () {
@@ -128,4 +138,48 @@
     }
     return mandar.apply(this, arguments);
   };
+
+  // Gerar links personalizados (pedido vindo da ponte da extensão): o mesmo pedido da tela "Link
+  // personalizado", em lotes de até 5, com uma pausa entre eles. A resposta passa pelo registrar(),
+  // como se a página tivesse pedido, e assim chega ao painel.
+  async function gerarLinks(itens) {
+    if (location.hostname !== 'affiliate.shopee.com.br') return { ok: false, erro: 'Aba fora da Shopee Afiliados.' };
+    const validos = (itens || []).filter(N.itemDeLinkValido);
+    // Espera a página fazer a primeira chamada (para reaproveitar os cabeçalhos dela).
+    for (let i = 0; i < 20 && !cabecalhosGql; i++) await new Promise(function (r) { setTimeout(r, 300); });
+    let gerados = 0;
+    const erros = [];
+    for (let i = 0; i < validos.length; i += N.MAX_LINKS_POR_PEDIDO) {
+      const lote = validos.slice(i, i + N.MAX_LINKS_POR_PEDIDO);
+      const corpo = JSON.stringify(N.pedidoDeLinks(lote));
+      try {
+        const resp = await fetchOriginal.call(window, N.URL_GQL_SHOPEE, {
+          method: 'POST', credentials: 'include', body: corpo,
+          headers: Object.assign({}, cabecalhosGql || {}, { 'content-type': 'application/json' }),
+        });
+        const texto = await resp.text();
+        registrar('POST', N.URL_GQL_SHOPEE, resp.status, corpo, texto);
+        let json = null;
+        try { json = JSON.parse(texto); } catch (e) { /* sem JSON */ }
+        const lista = json && json.data && json.data.batchCustomLink;
+        if (resp.status === 200 && Array.isArray(lista)) {
+          lista.forEach(function (l) { if (l && l.failCode === 0 && l.shortLink) gerados++; else erros.push('a Shopee recusou um link (código ' + (l && l.failCode) + ')'); });
+        } else {
+          erros.push(resp.status === 401 || resp.status === 403 ? 'sessão da Shopee expirada: entre de novo na Shopee Afiliados' : 'a Shopee respondeu ' + resp.status);
+        }
+      } catch (e) {
+        erros.push('falha de rede ao falar com a Shopee');
+      }
+      if (i + N.MAX_LINKS_POR_PEDIDO < validos.length) await new Promise(function (r) { setTimeout(r, 1500 + Math.random() * 1500); });
+    }
+    return { ok: !erros.length, gerados: gerados, erros: erros };
+  }
+
+  window.addEventListener('message', function (ev) {
+    if (ev.source !== window || !ev.data || ev.data.cofilius !== 'gerarLinks') return;
+    const id = ev.data.id;
+    gerarLinks(ev.data.itens).then(function (resultado) {
+      window.postMessage({ cofilius: 'linksGerados', id: id, resultado: resultado }, window.location.origin);
+    });
+  });
 })();

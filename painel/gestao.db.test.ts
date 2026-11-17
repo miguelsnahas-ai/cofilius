@@ -104,13 +104,13 @@ describe.skipIf(!BANCO_HABILITADO)('painel: telas de gestão e configuração', 
     const f = await post('/api/fechamento', { cliente: 'c1', de: '2026-01-01', ate: '2030-12-31' });
     expect(f.json.texto).toContain('⏳ R$ 2,50 pendente');
     expect(f.json.textoOperador).toContain('Comissão pendente: R$ 2,50');
-    // Fica pronto no Dia e é marcado como enviado por lá.
-    const dia = (await get('/api/dia?cliente=c1&data=2030-12-31')).json;
+    // Fica pronto no Dia seguinte ao fim do período e é marcado como enviado por lá.
+    const dia = (await get('/api/dia?cliente=c1&data=2031-01-01')).json;
     expect(dia.fechamento).toMatchObject({ id: f.json.fechamentoId, situacao: 'pronto' });
     expect((await post(`/api/fechamentos/${f.json.fechamentoId}/whatsapp`, { cliente: 'c1' })).json.erro).toContain('não configurado');
     expect((await post(`/api/fechamentos/${f.json.fechamentoId}/enviado`, { cliente: 'c1' })).json).toEqual({ ok: true, situacao: 'enviado' });
     expect((await post(`/api/fechamentos/${f.json.fechamentoId}/enviado`, { cliente: 'c1' })).json.erro).toContain('já foi enviado');
-    expect((await get('/api/dia?cliente=c1&data=2030-12-31')).json.fechamento).toBeNull();
+    expect((await get('/api/dia?cliente=c1&data=2031-01-01')).json.fechamento).toBeNull();
     // Avisos de cancelamento: a venda P1 (pendente) cai e aparece no Dia até o operador dar ciência.
     await post('/api/importar/vendas', { cliente: 'c1', csv: 'plataforma;pedido;produto;comissao;situacao;data\nshopee;P1;1;2,50;cancelada;10/03/2026' });
     expect((await get('/api/dia?cliente=c1&data=2030-12-31')).json.cancelamentos).toMatchObject([{ pedidoId: 'P1', comissao: '2.50' }]);

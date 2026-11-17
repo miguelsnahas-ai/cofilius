@@ -132,5 +132,27 @@ window.Cofilius = (() => {
 
   document.addEventListener('DOMContentLoaded', () => { iniciar().catch((e) => avisar(e.message, true)); });
 
-  return { $, el, avisar, api, agir, estado, registrar, recarregar, carregarClientes, dataLocal, reais, lerForm, lerArquivo, mostrarAba };
+  /**
+   * Fala com a extensão do Cofilius instalada neste Chrome (id guardado no pareamento). Só funciona no
+   * endereço do painel pareado; sem extensão, devolve { semExtensao: true }.
+   */
+  function falarComExtensao(id, mensagem, limiteMs = 120000) {
+    return new Promise((ok) => {
+      const rt = window.chrome && window.chrome.runtime;
+      if (!id || !rt || typeof rt.sendMessage !== 'function') return ok({ ok: false, semExtensao: true });
+      const limite = setTimeout(() => ok({ ok: false, erro: 'a extensão demorou demais para responder' }), limiteMs);
+      try {
+        rt.sendMessage(id, mensagem, (r) => {
+          clearTimeout(limite);
+          if (rt.lastError) ok({ ok: false, semExtensao: true, erro: rt.lastError.message });
+          else ok(r || { ok: false });
+        });
+      } catch (e) {
+        clearTimeout(limite);
+        ok({ ok: false, semExtensao: true, erro: e.message });
+      }
+    });
+  }
+
+  return { $, el, avisar, api, agir, estado, registrar, recarregar, carregarClientes, dataLocal, reais, lerForm, lerArquivo, mostrarAba, falarComExtensao };
 })();
