@@ -17,11 +17,12 @@ import { aplicarConformidade, lerConformidade } from '../conformidade/regras.ts'
 import { prepararLinks, registrarLinkManual } from '../links/linksManuaisShopee.ts';
 import { gerarLinkShopee } from '../links/gerarLinkShopee.ts';
 import type { ClienteShopee } from '../shopee/client.ts';
+import { RAIZ } from '../../harness/configLocal.ts';
 
 /** Canal dos criativos nos sub_ids e em links.canal: o Instagram mede separado do WhatsApp ("wa"). */
 export const CANAL_INSTAGRAM = 'ig';
 
-const PASTA = join(dirname(fileURLToPath(import.meta.url)), '../../agents/criativo');
+const PASTA = join(RAIZ, 'agents', 'criativo');
 
 export const FORMATOS: FormatoCriativo[] = ['carrossel', 'stories', 'reels'];
 /** Telas (ou cenas) que o agente escreve, além da capa/gancho e da tela final de preço e chamada. */

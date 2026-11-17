@@ -7,8 +7,11 @@ import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** Pasta raiz do projeto (onde fica o .env). */
-export const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
+/**
+ * Pasta raiz do projeto (onde ficam .env, agents/, db/, painel/publico/).
+ * Na nuvem (Vercel), o código roda empacotado num arquivo só: COFILIUS_RAIZ diz onde os arquivos estão.
+ */
+export const RAIZ = process.env.COFILIUS_RAIZ || join(dirname(fileURLToPath(import.meta.url)), '..');
 export const ARQUIVO_ENV = join(RAIZ, '.env');
 
 const CHAVE = /^[A-Z][A-Z0-9_]*$/;

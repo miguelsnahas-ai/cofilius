@@ -12,8 +12,9 @@ import { carregarContrato, executarAgente, type ContratoAgente, type ModeloIA, t
 import type { Cliente } from '../../db/clientes.ts';
 import { regrasRedator, type EntradaRedator, type SaidaRedator } from '../../agents/redator/regras.ts';
 import { criarRascunho, type MensagemCriada } from './lista.ts';
+import { RAIZ } from '../../harness/configLocal.ts';
 
-const PASTA_REDATOR = join(dirname(fileURLToPath(import.meta.url)), '../../agents/redator');
+const PASTA_REDATOR = join(RAIZ, 'agents', 'redator');
 
 /** Contrato do Redator lido de agents/redator, com o modelo resolvido pelo ambiente. */
 export async function contratoRedator(

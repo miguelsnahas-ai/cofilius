@@ -22,6 +22,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { exec } from 'node:child_process';
 import { executadoDiretamente } from '../harness/execucao.ts';
 import { ARQUIVO_ENV, salvarNoEnv } from '../harness/configLocal.ts';
+import { bloqueado, registrarTentativaErrada, salvarConfigNoBanco } from '../harness/configBanco.ts';
 import { conectar, erroDeConexao, type Sql } from '../harness/db.ts';
 import { log } from '../harness/log.ts';
 import { precosDoAmbiente } from '../harness/modeloClaude.ts';
@@ -48,8 +49,9 @@ import { configWhatsappDoAmbiente } from '../services/disparador/whatsapp.ts';
 import { importarChave } from '../harness/cripto.ts';
 import { lerCredencialShopee } from '../db/credenciais.ts';
 import { criarClienteShopee, ENDPOINT_BRASIL } from '../services/shopee/client.ts';
+import { RAIZ } from '../harness/configLocal.ts';
 
-const PUBLICO = join(dirname(fileURLToPath(import.meta.url)), 'publico');
+const PUBLICO = join(RAIZ, 'painel', 'publico');
 const TIPOS: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png',
@@ -138,6 +140,20 @@ export interface OpcoesAplicacao {
   criarEsteira?: (deps: DepsPainel) => EsteiraAutomatica;
   /** Testa a conexão e cria as tabelas (substituível nos testes). */
   prepararBanco?: (url: string) => Promise<Sql>;
+  /**
+   * Rodando na nuvem (Vercel): sem tela de configuração inicial (as variáveis ficam no Vercel), configuração
+   * gravada no banco, bloqueio de quem erra a senha muitas vezes e esteira só pelo agendador do Vercel.
+   */
+  nuvem?: boolean;
+  /** Liga o temporizador da esteira (padrão: sim; na nuvem, não). */
+  iniciarEsteira?: boolean;
+}
+
+/** IP de quem pede: na nuvem vem do proxy do Vercel (x-forwarded-for); no computador, do socket. */
+function ipDe(req: IncomingMessage, nuvem: boolean): string {
+  const h = req.headers['x-forwarded-for'];
+  if (nuvem && typeof h === 'string' && h) return h.split(',')[0]!.trim();
+  return req.socket?.remoteAddress ?? 'desconhecido';
 }
 
 async function prepararBancoPadrao(url: string): Promise<Sql> {
@@ -156,9 +172,15 @@ async function prepararBancoPadrao(url: string): Promise<Sql> {
 }
 
 export function criarAplicacao(op: OpcoesAplicacao): Server {
+  return createServer(criarManipulador(op));
+}
+
+/** O tratamento de cada pedido, sem o servidor HTTP: o computador usa com createServer; o Vercel chama direto. */
+export function criarManipulador(op: OpcoesAplicacao): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+  const nuvem = op.nuvem === true;
   let deps = op.deps;
   let esteira = deps && op.criarEsteira ? op.criarEsteira(deps) : null;
-  esteira?.iniciar();
+  if (op.iniciarEsteira ?? !nuvem) esteira?.iniciar();
   const arquivoEnv = op.arquivoEnv ?? ARQUIVO_ENV;
 
   /** Registro de uso: cada ação (e cada abertura do dia) conta para os minutos do operador naquele cliente. */
@@ -247,7 +269,12 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     }
     if (typeof c.esteiraLigada === 'boolean') valores.PAINEL_ESTEIRA = c.esteiraLigada ? 'ligada' : 'desligada';
     if (!Object.keys(valores).length) throw new ErroPedido('Nada para salvar.');
-    await salvarNoEnv(valores, arquivoEnv);
+    if (nuvem) {
+      if ('PAINEL_SENHA' in valores) throw new ErroPedido('Na nuvem, a senha do painel fica na variável PAINEL_SENHA do Vercel: troque lá e publique de novo.');
+      await salvarConfigNoBanco(d.sql, valores);
+    } else {
+      await salvarNoEnv(valores, arquivoEnv);
+    }
     // Vale na hora, sem reiniciar.
     d.operador = process.env.PAINEL_OPERADOR || 'operador';
     d.senha = process.env.PAINEL_SENHA ?? d.senha;
@@ -267,7 +294,8 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
       modeloPequeno: modeloDoPorte('pequeno'),
       modeloForte: modeloDoPorte('forte'),
       whatsapp: !!d.whatsapp,
-      esteiraLigada: esteira?.estado.ligada ?? false,
+      esteiraLigada: esteira?.estado.ligada ?? process.env.PAINEL_ESTEIRA !== 'desligada',
+      nuvem,
       chaveCredenciais: !!process.env.CREDENCIAIS_CHAVE,
     };
   }
@@ -295,10 +323,15 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
     return { ok: true };
   }
 
-  return createServer(async (req, res) => {
+  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const url = new URL(req.url ?? '/', 'http://painel');
     try {
       // ---------------- modo configuração ----------------
+      if (!deps && nuvem) {
+        res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('O Cofilius ainda não foi configurado na nuvem: preencha DATABASE_URL, PAINEL_SENHA e CREDENCIAIS_CHAVE nas variáveis do projeto no Vercel e publique de novo.');
+        return;
+      }
       if (!deps) {
         if (!doProprioComputador(req)) return responder(res, 403, { erro: 'Configuração só pelo próprio computador.' });
         if (req.method === 'GET' && url.pathname === '/api/estado') return responder(res, 200, { modo: 'configuracao' });
@@ -317,8 +350,19 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
       // ---------------- modo normal ----------------
       const d = deps;
       // Extensão do Chrome: entra pelo código de pareamento do cliente, não pela senha do painel.
-      if (url.pathname.startsWith('/extensao/')) return await rotaExtensao(req, res, url, d);
+      const ip = ipDe(req, nuvem);
+      if (url.pathname.startsWith('/extensao/')) {
+        if (nuvem && await bloqueado(d.sql, ip, 'extensao')) return responder(res, 429, { erro: 'Muitas tentativas com código errado. Espere quinze minutos.' });
+        return await rotaExtensao(req, res, url, d, nuvem ? () => registrarTentativaErrada(d.sql, ip, 'extensao') : undefined);
+      }
+      if (nuvem && await bloqueado(d.sql, ip, 'senha')) {
+        res.writeHead(429, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '900' });
+        res.end('Muitas tentativas com senha errada. Espere quinze minutos.');
+        return;
+      }
       if (!senhaConfere(req, d.senha)) {
+        // Só conta tentativa quando veio uma senha (o primeiro acesso, sem senha, só abre a janela de login).
+        if (nuvem && req.headers.authorization) await registrarTentativaErrada(d.sql, ip, 'senha');
         res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Cofilius", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Senha necessária.');
         return;
@@ -330,7 +374,7 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
           case '/api/clientes': return responder(res, 200, await listarClientes(d));
           case '/api/gestao/clientes': return responder(res, 200, await cadastroClientes(d));
           case '/api/config': return responder(res, 200, config(d));
-          case '/api/esteira': return responder(res, 200, esteira ? await esteira.status() : { ligada: false, rodando: false, ultima: null, tarefas: [] });
+          case '/api/esteira': return responder(res, 200, { ...(esteira ? await esteira.status() : { ligada: false, rodando: false, ultima: null, tarefas: [] }), nuvem });
           case '/api/uso': return responder(res, 200, await uso(d, q.get('de'), q.get('ate')));
           case '/api/extensao': return responder(res, 200, await ultimosRecebimentos(d.sql, await buscarCliente(d.sql, q.get('cliente') ?? '')));
           case '/api/conformidade': return responder(res, 200, await conformidadeDoCliente(d.sql, await buscarCliente(d.sql, q.get('cliente') ?? '')));
@@ -391,16 +435,19 @@ export function criarAplicacao(op: OpcoesAplicacao): Server {
       if (!deUso) log.error('painel.erro', { rota: url.pathname, erro: msg });
       responder(res, deUso ? 400 : 500, { erro: deUso ? msg : `Erro interno: ${msg}` });
     }
-  });
+  };
 }
 
 /**
  * Rotas da extensão. O código vem no cabeçalho X-Cofilius-Extensao (outro site não consegue mandar
  * esse cabeçalho sem a permissão do painel, que não é dada: não há CORS).
  */
-async function rotaExtensao(req: IncomingMessage, res: ServerResponse, url: URL, d: DepsPainel): Promise<void> {
+async function rotaExtensao(
+  req: IncomingMessage, res: ServerResponse, url: URL, d: DepsPainel, aoErrar?: () => Promise<void>,
+): Promise<void> {
   const codigo = req.headers['x-cofilius-extensao'];
   const cliente = await clientePareado(d.sql, typeof codigo === 'string' ? codigo : undefined);
+  if (!cliente && aoErrar) await aoErrar();
   if (!cliente) return responder(res, 401, { erro: 'Código de pareamento inválido. Gere um novo no painel, em Configuração.' });
   if (req.method === 'GET' && url.pathname === '/extensao/estado') return responder(res, 200, { ok: true, cliente: cliente.nome });
   if (req.method === 'POST' && url.pathname === '/extensao/receber') {

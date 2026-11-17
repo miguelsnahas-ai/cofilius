@@ -54,6 +54,9 @@ function tabela(colunas, linhas) {
 
 async function mostrarEsteira() {
   const s = await api('/api/esteira');
+  if (s.nuvem) {
+    $('ajuda-esteira').textContent = 'Na nuvem, as etapas rodam sozinhas todo dia por volta das 6h (Curador, links, Redator e validação, nesta ordem) e o fechamento aos domingos por volta das 20h. O horário pode variar até uma hora. "Rodar agora" roda na hora o que já venceu.';
+  }
   const u = s.ultima;
   $('estado-esteira').className = 'motivo';
   $('estado-esteira').textContent = `${s.ligada ? 'Ligada' : 'Desligada (ligue na Configuração)'}${s.rodando ? ' · rodando agora' : ''}`

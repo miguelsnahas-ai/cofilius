@@ -12,8 +12,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { conectar, type Sql } from '../harness/db.ts';
 import { log } from '../harness/log.ts';
+import { RAIZ } from '../harness/configLocal.ts';
 
-const pasta = dirname(fileURLToPath(import.meta.url));
+const pasta = join(RAIZ, 'db');
 
 export async function migrar(sql: Sql, opcoes: { seed?: boolean } = {}): Promise<string[]> {
   await sql.unsafe(`

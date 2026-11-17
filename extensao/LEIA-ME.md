@@ -23,7 +23,8 @@ Como chega:
 2. Clique no ícone do Cofilius no Chrome, confira o endereço do painel (`http://127.0.0.1:3000`), cole o código e clique em **Parear**.
 3. Pronto: aparece "Pareada · cliente ...". No painel, o mesmo cartão mostra quando cada dado chegou.
 
-O painel e o Chrome precisam estar **no mesmo computador** (o painel só aceita conexões do próprio computador).
+Painel no computador: endereço `http://127.0.0.1:3000` (painel e Chrome no mesmo computador).
+Painel na nuvem (Vercel): endereço `https://<nome-do-projeto>.vercel.app`, de qualquer computador.
 
 ### Ainda não automatizado (falta gravar)
 

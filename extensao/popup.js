@@ -135,10 +135,22 @@ $('form-parear').addEventListener('submit', async (ev) => {
   const botao = ev.currentTarget.querySelector('button');
   botao.disabled = true;
   try {
-    const r = await chrome.runtime.sendMessage({ cofilius: 'parear', endereco: $('endereco').value, codigo: $('codigo').value });
+    // Painel no computador (http://127.0.0.1) ou na nuvem (https). Domínio próprio: pede permissão agora.
+    let endereco;
+    try { endereco = new URL($('endereco').value.trim()); } catch { throw new Error('Endereço inválido. Ex.: https://seu-projeto.vercel.app'); }
+    const local = endereco.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(endereco.hostname);
+    if (!local && endereco.protocol !== 'https:') throw new Error('Fora do computador, o endereço precisa começar com https://');
+    if (!local && !endereco.hostname.endsWith('.vercel.app')) {
+      const ok = await chrome.permissions.request({ origins: [`${endereco.origin}/*`] });
+      if (!ok) throw new Error('Sem a permissão, a extensão não consegue falar com esse endereço.');
+    }
+    const r = await chrome.runtime.sendMessage({ cofilius: 'parear', endereco: endereco.origin, codigo: $('codigo').value });
     $('estado-painel').textContent = r.ok ? `Pareada · cliente ${r.cliente}` : r.erro;
     $('estado-painel').className = r.ok ? 'ok' : 'aviso';
     if (r.ok) $('codigo').value = '';
+  } catch (e) {
+    $('estado-painel').textContent = e.message;
+    $('estado-painel').className = 'aviso';
   } finally {
     botao.disabled = false;
   }

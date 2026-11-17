@@ -7,6 +7,7 @@ import { log } from '../harness/log.ts';
 import { processarFila, statusFila, type ResumoFila } from '../harness/fila.ts';
 import { agendarDia, criarExecutores } from '../harness/esteira.ts';
 import { dataLocal } from '../services/lista/lista.ts';
+import { horarioLocalParaData } from '../services/etiquetas/etiquetas.ts';
 import type { DepsApi } from './api.ts';
 
 export interface EstadoEsteira {
@@ -69,3 +70,35 @@ export function criarEsteiraAutomatica(deps: DepsApi, opcoes: { intervaloMs?: nu
 }
 
 export type EsteiraAutomatica = ReturnType<typeof criarEsteiraAutomatica>;
+
+/**
+ * Rodada chamada pelo agendador da nuvem (Vercel, plano grátis: no máximo uma vez por dia por agendamento,
+ * com até 59 minutos de atraso). Em vez de olhar a fila a cada 5 minutos:
+ * - "manha" (perto das 6h): agenda o dia e roda, em ordem, tudo que vence até as 7h (medir, coletar,
+ *   Curador, links, Redator, validação), mesmo que o agendador tenha chamado um pouco antes;
+ * - "noite" (domingo, perto das 20h): roda o que já venceu (o fechamento da semana).
+ * Uma etapa que falhar fica com nova tentativa marcada e roda na próxima rodada (ou pelo botão "Rodar agora").
+ */
+export async function rodadaAgendada(
+  deps: DepsApi, rodada: 'manha' | 'noite', opcoes: { agora?: Date; fuso?: string } = {},
+): Promise<{ rodada: string; dia: string; agendadas: number; resumo: ResumoFila }> {
+  const fuso = opcoes.fuso ?? 'America/Sao_Paulo';
+  const agora = opcoes.agora ?? new Date();
+  const dia = dataLocal(agora, fuso);
+  const agendamentos = await agendarDia(deps.sql, dia);
+  const limite = rodada === 'manha' ? horarioLocalParaData(`${dia} 07:00`, fuso) : agora;
+  const referencia = new Date(Math.max(agora.getTime(), limite.getTime()));
+  const executores = criarExecutores({
+    sql: deps.sql,
+    shopeeDoCliente: async (c) => {
+      const s = await deps.shopeeDoCliente?.(c);
+      if (!s) throw new Error('cliente sem credencial da Open API da Shopee');
+      return s;
+    },
+    modelo: deps.modelo,
+    precos: deps.precos,
+  });
+  const resumo = await processarFila(deps.sql, executores, { agora: () => referencia, limite: 60 });
+  log.info('esteira.rodada_nuvem', { rodada, dia, ...resumo });
+  return { rodada, dia, agendadas: agendamentos.filter((a) => a.situacao === 'agendada').length, resumo };
+}

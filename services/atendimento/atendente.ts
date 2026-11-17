@@ -22,13 +22,14 @@ import { formatarPreco } from '../lista/marcadores.ts';
 import { resumoPeriodo } from '../vendas/atribuicao.ts';
 import { gerarLinkShopee, validarUrlShopee } from '../links/gerarLinkShopee.ts';
 import type { ClienteShopee } from '../shopee/client.ts';
+import { RAIZ } from '../../harness/configLocal.ts';
 
 /** O mesmo aviso chegou de novo (o canal reenvia quando não recebe resposta a tempo). */
 export class ErroPedidoRepetido extends Error {
   constructor() { super('mensagem já recebida'); this.name = 'ErroPedidoRepetido'; }
 }
 
-const PASTA = join(dirname(fileURLToPath(import.meta.url)), '../../agents/atendente');
+const PASTA = join(RAIZ, 'agents', 'atendente');
 
 export function contratoAtendente(ambiente: Record<string, string | undefined> = process.env) {
   return carregarContrato<EntradaAtendente, SaidaAtendente>(PASTA, regrasAtendente, ambiente);

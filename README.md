@@ -25,6 +25,12 @@ Arquitetura e roadmap: [docs/arquitetura.md](docs/arquitetura.md).
 - **Analista e fechamento semanal**: indicadores calculados em código, 3 leituras ligadas aos dados e propostas de diretriz que só valem com aprovação;
 - **extensão de Chrome (etapa 1: gravador para Mercado Livre, Shopee e Amazon)**: grava os dados que as páginas de afiliado carregam, para mapear o formato real. Instalação e uso em [extensao/LEIA-ME.md](extensao/LEIA-ME.md).
 
+## Na nuvem (Vercel), sem deixar o computador ligado
+
+Passo a passo em [`docs/vercel.md`](docs/vercel.md): conectar o GitHub ao Vercel (plano grátis), colar
+quatro variáveis (banco, senha, chave mestra, segredo do agendador) e parear a extensão com o endereço novo.
+A esteira roda todo dia por volta das 6h e o fechamento aos domingos por volta das 20h.
+
 ## Começar sem terminal (Windows)
 
 1. Instale o **Node.js** (versão LTS) em https://nodejs.org/pt (avançar, avançar, concluir).

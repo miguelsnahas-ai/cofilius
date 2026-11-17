@@ -13,8 +13,9 @@ import type { Cliente } from '../../db/clientes.ts';
 import { regrasAnalista, type EntradaAnalista, type SaidaAnalista } from '../../agents/analista/regras.ts';
 import { diretrizesVigentes, proporDiretriz, type Diretriz } from '../curadoria/diretrizes.ts';
 import { calcularIndicadores, type Indicador, type Indicadores } from './indicadores.ts';
+import { RAIZ } from '../../harness/configLocal.ts';
 
-const PASTA = join(dirname(fileURLToPath(import.meta.url)), '../../agents/analista');
+const PASTA = join(RAIZ, 'agents', 'analista');
 
 export function contratoAnalista(ambiente: Record<string, string | undefined> = process.env) {
   return carregarContrato<EntradaAnalista, SaidaAnalista>(PASTA, regrasAnalista, ambiente);

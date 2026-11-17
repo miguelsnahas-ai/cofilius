@@ -87,6 +87,8 @@ window.Cofilius.registrar('config', {
     const f = $('form-config');
     f.elements.operador.value = c.operador;
     f.elements.novaSenha.value = '';
+    // Na nuvem a senha fica na variável PAINEL_SENHA do Vercel.
+    $('campo-nova-senha').hidden = !!c.nuvem;
     f.elements.anthropicKey.value = '';
     f.elements.geminiKey.value = '';
     f.elements.provedor.value = c.provedor;

@@ -14,7 +14,8 @@ export function conectar(url: string | undefined = process.env.DATABASE_URL): Sq
     prepare: false,
     connect_timeout: 10,
     idle_timeout: 20,
-    max: 5,
+    // Na nuvem cada instância da função abre poucas conexões (o pooler do Supabase distribui).
+    max: Number(process.env.DB_MAX_CONEXOES) || 5,
     onnotice: () => {},
     connection: { statement_timeout: 30_000, application_name: 'cofilius' },
   });

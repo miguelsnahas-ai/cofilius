@@ -16,8 +16,9 @@ import { regrasCurador, type EntradaCurador, type SaidaCurador } from '../../age
 import { DIAS_SEM_REPETIR } from '../lista/lista.ts';
 import { diretrizesVigentes } from './diretrizes.ts';
 import { desempenhoParaCurador } from '../relatorios/desempenho.ts';
+import { RAIZ } from '../../harness/configLocal.ts';
 
-const PASTA = join(dirname(fileURLToPath(import.meta.url)), '../../agents/curador');
+const PASTA = join(RAIZ, 'agents', 'curador');
 export const QUANTIDADE_PADRAO = 5;
 export const MAX_CANDIDATAS = 40;
 
