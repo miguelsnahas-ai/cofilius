@@ -30,7 +30,7 @@ import { criarModeloDoAmbiente, iaConfigurada, modeloDoPorte, provedorAtual } fr
 import { migrar } from '../db/migrate.ts';
 import { registrarAcao } from '../services/relatorios/uso.ts';
 import {
-  acaoDiretriz, acaoFechamento, acaoMensagem, verCancelamentos, confirmarPrecoOferta, ErroPedido, listarClientes, painelDoDia, registrarLinkOferta,
+  acaoDiretriz, acaoFechamento, acaoMensagem, linksPendentes, verCancelamentos, confirmarPrecoOferta, ErroPedido, listarClientes, painelDoDia, registrarLinkOferta,
   rodarCurador, rodarRedator, simularRecebida, concluirPedidoAfiliado, validarDiaInteiro, type DepsApi,
 } from './api.ts';
 import {
@@ -446,10 +446,12 @@ async function rotaExtensao(
   req: IncomingMessage, res: ServerResponse, url: URL, d: DepsPainel, aoErrar?: () => Promise<void>,
 ): Promise<void> {
   const codigo = req.headers['x-cofilius-extensao'];
-  const cliente = await clientePareado(d.sql, typeof codigo === 'string' ? codigo : undefined);
+  const idExtensao = req.headers['x-cofilius-extensao-id'];
+  const cliente = await clientePareado(d.sql, typeof codigo === 'string' ? codigo : undefined, typeof idExtensao === 'string' ? idExtensao : undefined);
   if (!cliente && aoErrar) await aoErrar();
   if (!cliente) return responder(res, 401, { erro: 'Código de pareamento inválido. Gere um novo no painel, em Configuração.' });
   if (req.method === 'GET' && url.pathname === '/extensao/estado') return responder(res, 200, { ok: true, cliente: cliente.nome });
+  if (req.method === 'GET' && url.pathname === '/extensao/pendencias') return responder(res, 200, { ok: true, ...(await linksPendentes(d.sql, cliente)) });
   if (req.method === 'POST' && url.pathname === '/extensao/receber') {
     if (!(req.headers['content-type'] ?? '').startsWith('application/json')) return responder(res, 415, { erro: 'Envie JSON.' });
     const corpo = await lerCorpo(req);

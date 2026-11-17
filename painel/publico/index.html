@@ -56,9 +56,13 @@
       <section id="secao-escolhidas">
         <div class="secao-topo">
           <h2>Escolhidas do Curador</h2>
-          <button id="rodar-curador" class="secundario" type="button">Rodar Curador de novo</button>
+          <div class="acoes sem-margem">
+            <button id="gerar-links" class="secundario" type="button" hidden>Gerar links</button>
+            <button id="rodar-curador" class="secundario" type="button">Rodar Curador de novo</button>
+          </div>
         </div>
-        <p class="ajuda">As ofertas de hoje, na ordem do Curador. As que estão sem link: gere o link personalizado no painel da Shopee com estes Sub_ids. Com a extensão pareada, o link entra sozinho; sem ela, cole aqui.</p>
+        <p class="ajuda">As ofertas de hoje, na ordem do Curador, já com o link final de afiliado. A extensão do Cofilius gera os links na Shopee sozinha quando você abre esta tela.</p>
+        <p id="estado-links" class="ajuda" role="status" aria-live="polite" hidden></p>
         <details id="aprendizado" class="aprendizado" hidden></details>
         <ol id="selecionadas" class="lista"></ol>
       </section>

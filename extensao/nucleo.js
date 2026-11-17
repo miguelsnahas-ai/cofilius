@@ -184,7 +184,7 @@
     { tipo: 'shopee.cliques', host: 'affiliate.shopee.com.br', caminho: '/api/v1/click_report/list', paginas: true },
     { tipo: 'amazon.link', host: 'www.amazon.com.br', caminho: '/associates/sitestripe/getShortUrl', paginas: false },
     // Lista de ofertas que ela navega no painel (sem leitura automática de páginas).
-    { tipo: 'shopee.ofertas', host: 'affiliate.shopee.com.br', caminho: '/api/v3/offer/product/list', paginas: false },
+    { tipo: 'shopee.ofertas', host: 'affiliate.shopee.com.br', caminho: '/api/v3/offer/product/list', paginas: 'offset' },
     // Link personalizado gerado por ela: GraphQL, só a operação que cria o link com os sub_ids.
     { tipo: 'shopee.link', host: 'affiliate.shopee.com.br', caminho: '/api/v3/gql', paginas: false, operacao: 'batchGetCustomLink' },
   ];
@@ -193,8 +193,45 @@
   const PAGINAS_BUSCA = [
     'https://affiliate.shopee.com.br/report/conversion_report',
     'https://affiliate.shopee.com.br/report/click_report',
+    'https://affiliate.shopee.com.br/offer/product_offer',
   ];
   const MAX_PAGINAS = 25;
+  /** Lista de ofertas: até 5 páginas (100 ofertas) por lista aberta. */
+  const MAX_PAGINAS_OFERTAS = 5;
+
+  // -------------------------------------------------------------------------
+  // Link personalizado: o mesmo pedido que a tela "Link personalizado" da Shopee faz
+  // (gravação de 13/11/2026). A extensão gera os links que faltam com os sub_ids do Cofilius.
+  // -------------------------------------------------------------------------
+  const URL_GQL_SHOPEE = 'https://affiliate.shopee.com.br/api/v3/gql';
+  const PAGINA_LINK_SHOPEE = 'https://affiliate.shopee.com.br/offer/custom_link';
+  const QUERY_LINK_PERSONALIZADO = '\n    query batchGetCustomLink($linkParams: [CustomLinkParam!], $sourceCaller: SourceCaller){\n      batchCustomLink(linkParams: $linkParams, sourceCaller: $sourceCaller){\n        shortLink\n        longLink\n        failCode\n      }\n    }\n    ';
+  const MAX_LINKS_POR_PEDIDO = 5;
+
+  /** Item de link aceito: produto da Shopee (https) e 5 sub_ids só com letras minúsculas e números. */
+  function itemDeLinkValido(item) {
+    if (!item || typeof item.originalLink !== 'string' || !Array.isArray(item.subIds) || item.subIds.length !== 5) return false;
+    const u = urlAbsoluta(item.originalLink);
+    if (!u || u.protocol !== 'https:' || !/(^|\.)shopee\.com\.br$/.test(u.hostname)) return false;
+    return item.subIds.every(function (v) { return typeof v === 'string' && /^[a-z0-9]{0,32}$/.test(v); });
+  }
+
+  /** Corpo do pedido de links personalizados (até 5 por vez). */
+  function pedidoDeLinks(itens) {
+    return {
+      operationName: 'batchGetCustomLink',
+      query: QUERY_LINK_PERSONALIZADO,
+      variables: {
+        linkParams: itens.map(function (i) {
+          return {
+            originalLink: i.originalLink,
+            advancedLinkParams: { subId1: i.subIds[0], subId2: i.subIds[1], subId3: i.subIds[2], subId4: i.subIds[3], subId5: i.subIds[4] },
+          };
+        }),
+        sourceCaller: 'CUSTOM_LINK_CALLER',
+      },
+    };
+  }
 
   function regraSincronia(url, base, pedido) {
     const u = urlAbsoluta(url, base);
@@ -220,6 +257,16 @@
   function proximaPagina(url, base, json) {
     const r = regraSincronia(url, base);
     if (!r || !r.paginas || !json || json.code !== 0 || !json.data) return null;
+    if (r.paginas === 'offset') {
+      // Lista de ofertas: page_offset / page_limit / total_count.
+      const desloc = Number(json.data.page_offset) || 0;
+      const limite = Number(json.data.page_limit) || 0;
+      const totalOf = Number(json.data.total_count) || 0;
+      const uo = urlAbsoluta(url, base);
+      if (!limite || !uo.searchParams.has('page_offset') || desloc + limite >= totalOf || desloc / limite + 1 >= MAX_PAGINAS_OFERTAS) return null;
+      uo.searchParams.set('page_offset', String(desloc + limite));
+      return uo.toString();
+    }
     const pagina = Number(json.data.page_num) || 1;
     const tamanho = Number(json.data.page_size) || 0;
     const total = Number(json.data.total_count) || 0;
@@ -231,6 +278,11 @@
   }
 
   raiz.CofiliusNucleo = {
+    URL_GQL_SHOPEE: URL_GQL_SHOPEE,
+    PAGINA_LINK_SHOPEE: PAGINA_LINK_SHOPEE,
+    MAX_LINKS_POR_PEDIDO: MAX_LINKS_POR_PEDIDO,
+    itemDeLinkValido: itemDeLinkValido,
+    pedidoDeLinks: pedidoDeLinks,
     tipoSincronia: tipoSincronia,
     proximaPagina: proximaPagina,
     PAGINAS_BUSCA: PAGINAS_BUSCA,

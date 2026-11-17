@@ -97,11 +97,12 @@ export async function gerarPareamento(sql: Sql, codigoCliente: string): Promise<
   return codigo;
 }
 
-/** Cliente dono do código, ou null. */
-export async function clientePareado(sql: Sql, codigo: string | undefined): Promise<Cliente | null> {
+/** Cliente dono do código, ou null. Guarda o id da extensão (para o painel falar com ela). */
+export async function clientePareado(sql: Sql, codigo: string | undefined, extensaoId?: string): Promise<Cliente | null> {
   if (!codigo || codigo.length < 10 || codigo.length > 100) return null;
+  const id = extensaoId && /^[a-p]{32}$/.test(extensaoId) ? extensaoId : null;
   const [p] = await sql`
-    update pareamentos_extensao set usado_em = now() where codigo_hash = ${hash(codigo)}
+    update pareamentos_extensao set usado_em = now(), extensao_id = coalesce(${id}, extensao_id) where codigo_hash = ${hash(codigo)}
     returning (select codigo from clientes c where c.cliente_id = pareamentos_extensao.cliente_id) as codigo`;
   return p ? buscarCliente(sql, p.codigo) : null;
 }
@@ -218,12 +219,13 @@ export async function receberCapturas(sql: Sql, cliente: Cliente, capturas: unkn
 
 /** Últimos recebimentos do cliente, para a tela. */
 export async function ultimosRecebimentos(sql: Sql, cliente: Cliente) {
-  const [par] = await sql`select criado_em, usado_em from pareamentos_extensao where cliente_id = ${cliente.clienteId}`;
+  const [par] = await sql`select criado_em, usado_em, extensao_id from pareamentos_extensao where cliente_id = ${cliente.clienteId}`;
   const ultimos = await sql`
     select distinct on (tipo) tipo, criado_em, resultado, erro from recebimentos_extensao
     where cliente_id = ${cliente.clienteId} order by tipo, criado_em desc`;
   return {
     pareado: !!par,
+    extensaoId: par?.extensao_id ?? null,
     pareadoEm: par?.criado_em ?? null,
     usadoEm: par?.usado_em ?? null,
     ultimos: ultimos.map((u) => ({ tipo: u.tipo, em: u.criado_em, resultado: u.resultado, erro: u.erro })),

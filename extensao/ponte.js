@@ -21,4 +21,23 @@
     if (!c || (c.tipo !== 'resposta' && c.tipo !== 'visita')) return;
     chrome.runtime.sendMessage({ cofilius: 'captura', captura: c }).catch(function () {});
   });
+
+  // Pedido da extensão (service worker): gerar links personalizados nesta aba da Shopee Afiliados.
+  // A ponte repassa para o interceptor (que roda na página e usa a sessão dela) e devolve o resultado.
+  let sequencia = 0;
+  chrome.runtime.onMessage.addListener(function (msg, remetente, responder) {
+    if (remetente.id !== chrome.runtime.id || !msg || msg.cofilius !== 'gerarLinks') return;
+    if (location.hostname !== 'affiliate.shopee.com.br') { responder({ ok: false, erro: 'Aba fora da Shopee Afiliados.' }); return; }
+    const id = 'l' + Date.now() + '-' + (sequencia++);
+    const limite = setTimeout(function () { window.removeEventListener('message', ouvir); responder({ ok: false, erro: 'A Shopee demorou demais para responder.' }); }, 60000);
+    function ouvir(ev) {
+      if (ev.source !== window || !ev.data || ev.data.cofilius !== 'linksGerados' || ev.data.id !== id) return;
+      clearTimeout(limite);
+      window.removeEventListener('message', ouvir);
+      responder(ev.data.resultado);
+    }
+    window.addEventListener('message', ouvir);
+    window.postMessage({ cofilius: 'gerarLinks', id: id, itens: msg.itens }, window.location.origin);
+    return true;
+  });
 })();

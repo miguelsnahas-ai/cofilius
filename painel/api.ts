@@ -58,6 +58,28 @@ async function horarioDoEnvio(sql: Sql, cliente: Cliente, dia: string): Promise<
   return { texto: textoHorario, quando: horarioLocalParaData(textoHorario, cliente.fusoHorario) };
 }
 
+/**
+ * Links da Shopee que faltam gerar hoje, para a extensão gerar no painel da Shopee (modo automático):
+ * escolhidas do Curador sem link (canal WhatsApp, horário de envio do cliente) e criativos sem link
+ * (canal Instagram). Os sub_ids são os mesmos que a tela mostra; o link gerado volta pela extensão e é
+ * registrado pelo padrão dos sub_ids.
+ */
+export async function linksPendentes(sql: Sql, cliente: Cliente) {
+  const dia = dataLocal(new Date(), cliente.fusoHorario);
+  const envio = await horarioDoEnvio(sql, cliente, dia);
+  const semLink = (await selecionadasDoDia(sql, cliente, dia)).filter((s) => !s.linkId && s.plataforma === 'shopee').map((s) => s.ofertaId);
+  const wa = semLink.length ? await prepararLinks(sql, cliente, { quando: envio.quando, ofertaIds: semLink }) : [];
+  const { criativosDoDia } = await import('../services/criativos/criativos.ts');
+  const ig = (await criativosDoDia(sql, cliente, dia)).filter((c) => c.preparoLink);
+  return {
+    dia,
+    links: [
+      ...wa.map((p) => ({ canal: 'wa', ofertaId: p.ofertaId, urlProduto: p.urlProduto, subIds: [...p.subIds] })),
+      ...ig.map((c) => ({ canal: 'ig', ofertaId: c.ofertaId, urlProduto: c.preparoLink!.urlProduto, subIds: c.preparoLink!.subIds })),
+    ].slice(0, 20),
+  };
+}
+
 export async function listarClientes(deps: DepsApi) {
   const r = await deps.sql`select codigo, nome from clientes where ativo order by codigo`;
   return r.map((c) => ({ codigo: c.codigo, nome: c.nome }));
@@ -106,7 +128,7 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
   const pedidos = await pedidosAbertos(sql, cliente);
   const [cad] = await sql`select whatsapp from clientes where cliente_id = ${cliente.clienteId}`;
   const [ext] = await sql`
-    select p.usado_em,
+    select p.usado_em, p.extensao_id,
            (select max(criado_em) from recebimentos_extensao r where r.cliente_id = p.cliente_id and r.erro is null) as ultimo,
            (select erro from recebimentos_extensao r where r.cliente_id = p.cliente_id order by criado_em desc limit 1) as ultimo_erro
     from pareamentos_extensao p where p.cliente_id = ${cliente.clienteId}`;
@@ -119,7 +141,7 @@ export async function painelDoDia(deps: DepsApi, codigo: string, diaPedido?: str
     iaDisponivel: !!deps.modelo,
     whatsappDisponivel: !!deps.whatsapp && !!cad!.whatsapp,
     /** Extensão pareada: quando os dados chegaram pela última vez (null = não pareada). */
-    extensao: ext ? { ultimoRecebimento: ext.ultimo ?? null, ultimoErro: ext.ultimo_erro ?? null } : null,
+    extensao: ext ? { ultimoRecebimento: ext.ultimo ?? null, ultimoErro: ext.ultimo_erro ?? null, id: ext.extensao_id ?? null } : null,
     /** O mesmo resumo de desempenho que o Curador recebe (null sem postagens medidas). */
     aprendizado,
     /** Fechamento do dia anterior pronto para mandar (null se não há ou já foi enviado). */
