@@ -1,0 +1,13 @@
+{
+  "entrada": {
+    "mensagem": "bom dia! tudo bem com você?",
+    "links_na_mensagem": [],
+    "nichos_do_cliente": [
+      "casa",
+      "beleza"
+    ]
+  },
+  "espera": {
+    "intencao": "desconhecida"
+  }
+}

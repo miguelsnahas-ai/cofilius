@@ -1,0 +1,13 @@
+{
+  "entrada": {
+    "mensagem": "vou viajar, pode parar de mandar as listas até dia 20?",
+    "links_na_mensagem": [],
+    "nichos_do_cliente": [
+      "casa",
+      "beleza"
+    ]
+  },
+  "espera": {
+    "intencao": "pausar"
+  }
+}

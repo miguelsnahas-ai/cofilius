@@ -1,0 +1,29 @@
+{
+  "entrada": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["oferta", "tom", "exemplos"],
+    "properties": {
+      "oferta": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["titulo", "nicho", "tem_desconto"],
+        "properties": {
+          "titulo": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "nicho": { "type": "string", "minLength": 1, "maxLength": 50 },
+          "tem_desconto": { "type": "boolean" }
+        }
+      },
+      "tom": { "type": "string", "maxLength": 500 },
+      "exemplos": { "type": "array", "maxItems": 3, "items": { "type": "string", "maxLength": 1000 } }
+    }
+  },
+  "saida": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["texto_modelo"],
+    "properties": {
+      "texto_modelo": { "type": "string", "minLength": 10, "maxLength": 600 }
+    }
+  }
+}

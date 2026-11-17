@@ -1,0 +1,46 @@
+{
+  "entrada": {
+    "data": "2026-11-12",
+    "quantidade": 2,
+    "diretrizes": {},
+    "enviados_recentes": [],
+    "candidatas": [
+      {
+        "id": "o1",
+        "plataforma": "shopee",
+        "nicho": "casa",
+        "titulo": "Organizador de Gaveta 6 Divisórias",
+        "preco": 29.9,
+        "desconto_pct": 25,
+        "comissao_pct": 12,
+        "comissao_valor": 3.59,
+        "vendas": 1520,
+        "avaliacao": 4.8
+      },
+      {
+        "id": "o2",
+        "plataforma": "shopee",
+        "nicho": "beleza",
+        "titulo": "Kit Pincéis de Maquiagem 12 peças",
+        "preco": 39.9,
+        "desconto_pct": 50,
+        "comissao_pct": 9,
+        "comissao_valor": 3.59,
+        "vendas": 2100,
+        "avaliacao": 4.7
+      },
+      {
+        "id": "o3",
+        "plataforma": "shopee",
+        "nicho": "beleza",
+        "titulo": "Protetor Solar FPS 50 200ml",
+        "preco": 59.9,
+        "desconto_pct": 10,
+        "comissao_pct": 6,
+        "comissao_valor": 3.59,
+        "vendas": 800,
+        "avaliacao": 4.8
+      }
+    ]
+  }
+}

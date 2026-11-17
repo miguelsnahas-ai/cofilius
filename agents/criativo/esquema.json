@@ -1,0 +1,46 @@
+{
+  "entrada": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["formato", "oferta", "tom", "telas"],
+    "properties": {
+      "formato": { "type": "string", "enum": ["carrossel", "stories", "reels"] },
+      "oferta": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["titulo", "nicho", "tem_desconto"],
+        "properties": {
+          "titulo": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "nicho": { "type": "string", "minLength": 1, "maxLength": 50 },
+          "tem_desconto": { "type": "boolean" }
+        }
+      },
+      "tom": { "type": "string", "maxLength": 500 },
+      "telas": { "type": "integer", "minimum": 2, "maximum": 6 }
+    }
+  },
+  "saida": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["gancho", "telas", "cta", "legenda"],
+    "properties": {
+      "gancho": { "type": "string", "minLength": 3, "maxLength": 80 },
+      "telas": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["titulo", "texto"],
+          "properties": {
+            "titulo": { "type": "string", "minLength": 2, "maxLength": 60 },
+            "texto": { "type": "string", "minLength": 2, "maxLength": 160 }
+          }
+        }
+      },
+      "cta": { "type": "string", "minLength": 3, "maxLength": 80 },
+      "legenda": { "type": "string", "minLength": 10, "maxLength": 700 }
+    }
+  }
+}

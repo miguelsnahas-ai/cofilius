@@ -1,0 +1,31 @@
+{
+  "data": {
+    "productOfferV2": {
+      "nodes": [
+        {
+          "itemId": 555,
+          "shopId": 1,
+          "productName": "Produto sem preço",
+          "productLink": "https://shopee.com.br/product/1/555",
+          "commissionRate": "0.1"
+        },
+        {
+          "shopId": 1,
+          "productName": "Produto sem ID",
+          "productLink": "https://shopee.com.br/product/1/556",
+          "priceMin": "10.00"
+        },
+        {
+          "itemId": 557,
+          "shopId": 1,
+          "productName": "Produto válido",
+          "productLink": "https://shopee.com.br/product/1/557",
+          "priceMin": "10.00",
+          "priceDiscountRate": null,
+          "commissionRate": null
+        }
+      ],
+      "pageInfo": { "page": 1, "limit": 3, "hasNextPage": false }
+    }
+  }
+}

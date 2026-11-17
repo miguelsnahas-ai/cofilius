@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cofilius · Configuração inicial</title>
+  <link rel="icon" type="image/svg+xml" href="cofilius-simbolo.svg">
+  <link rel="stylesheet" href="estilo.css">
+  <script src="configurar.js" defer></script>
+</head>
+<body>
+  <main class="boas-vindas">
+    <div class="faixa">
+      <img class="marca" src="cofilius-horizontal-negativo.svg" alt="Cofilius">
+      <h1>Vamos ligar o seu painel</h1>
+      <p>Falta só conectar o banco de dados. Leva uns três minutos.</p>
+    </div>
+
+    <section class="cartao">
+      <span class="rotulo">Passo único</span>
+      <h2>Conecte o Supabase</h2>
+      <ol class="passos">
+        <li>Crie uma conta em <strong>supabase.com</strong> e um projeto novo, na região <strong>South America (São Paulo)</strong>. Anote a senha do banco que você escolher.</li>
+        <li>No projeto, clique em <strong>Connect</strong> (no topo), depois <strong>Connection string</strong> e <strong>Session pooler</strong>. Copie o endereço.</li>
+        <li>Cole abaixo e troque <code>[YOUR-PASSWORD]</code> pela senha do banco.</li>
+      </ol>
+      <form id="form-configurar" class="grade-form">
+        <label class="largo">Endereço do banco
+          <input name="databaseUrl" required autocomplete="off" placeholder="postgresql://postgres.xxxx:SUA-SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres">
+        </label>
+        <label>Seu nome <input name="operador" placeholder="Miguel" autocomplete="name"></label>
+        <span></span>
+        <label>Senha do painel <input name="senha" type="password" required minlength="6" autocomplete="new-password"><small>O navegador pede esta senha para abrir o painel.</small></label>
+        <label>Repita a senha <input name="senha2" type="password" required minlength="6" autocomplete="new-password"></label>
+        <label class="largo">Chave do Gemini (gratuita, opcional agora)
+          <input name="geminiKey" type="password" placeholder="Cole a chave do Google AI Studio" autocomplete="off">
+          <small>Em aistudio.google.com, entre com sua conta Google e clique em "Get API key". Liga o Curador e o Redator.</small>
+        </label>
+        <div class="largo"><button type="submit" class="primario">Conectar e criar as tabelas</button></div>
+      </form>
+      <p id="mensagem" class="aviso" role="status" aria-live="polite" hidden></p>
+    </section>
+  </main>
+</body>
+</html>

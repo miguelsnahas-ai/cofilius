@@ -1,0 +1,13 @@
+{
+  "entrada": {
+    "mensagem": "queria começar a divulgar coisas de pet também",
+    "links_na_mensagem": [],
+    "nichos_do_cliente": [
+      "casa",
+      "beleza"
+    ]
+  },
+  "espera": {
+    "intencao": "mudar_nicho"
+  }
+}

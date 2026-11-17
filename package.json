@@ -12,14 +12,23 @@
     "db:seed": "tsx db/migrate.ts --seed",
     "gerar-chave": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "extensao:e2e": "node extensao/testar-e2e.mjs",
+    "painel": "tsx painel/servidor.ts",
+    "webhook": "tsx harness/webhook.ts",
+    "extensao:sincronia": "node extensao/testar-sincronia-e2e.mjs",
+    "nuvem:build": "node scripts/nuvem-build.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
+    "@google/genai": "2.32.0",
+    "ajv": "^8.20.0",
     "dotenv": "^18.0.10",
     "postgres": "^4.1.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "esbuild": "0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"

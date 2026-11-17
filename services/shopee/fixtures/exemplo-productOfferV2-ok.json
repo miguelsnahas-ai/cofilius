@@ -1,0 +1,45 @@
+{
+  "data": {
+    "productOfferV2": {
+      "nodes": [
+        {
+          "itemId": 22912345678,
+          "shopId": 334455667,
+          "productName": "Organizador de Gaveta Ajustável 6 Divisórias",
+          "productLink": "https://shopee.com.br/product/334455667/22912345678",
+          "offerLink": "https://s.shopee.com.br/exemplo1",
+          "imageUrl": "https://cf.shopee.com.br/file/exemplo1",
+          "shopName": "Loja Casa Exemplo",
+          "priceMin": "29.90",
+          "priceMax": "34.90",
+          "priceDiscountRate": 25,
+          "commissionRate": "0.12",
+          "commission": "3.59",
+          "sales": 1520,
+          "ratingStar": "4.8",
+          "periodStartTime": 1793750400,
+          "periodEndTime": 1796428799
+        },
+        {
+          "itemId": "19876543210",
+          "shopId": "112233445",
+          "productName": "Fritadeira Air Fryer 4L Digital",
+          "productLink": "https://shopee.com.br/product/112233445/19876543210",
+          "offerLink": "https://s.shopee.com.br/exemplo2",
+          "imageUrl": "https://cf.shopee.com.br/file/exemplo2",
+          "shopName": "Eletro Exemplo Oficial",
+          "priceMin": 289.9,
+          "priceMax": 289.9,
+          "priceDiscountRate": 0,
+          "commissionRate": 0.075,
+          "commission": 21.74,
+          "sales": 87,
+          "ratingStar": 4.6,
+          "periodStartTime": 0,
+          "periodEndTime": 0
+        }
+      ],
+      "pageInfo": { "page": 1, "limit": 2, "hasNextPage": true }
+    }
+  }
+}

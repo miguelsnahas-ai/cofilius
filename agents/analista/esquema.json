@@ -1,0 +1,71 @@
+{
+  "entrada": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["periodo", "nichos", "diretrizes_atuais", "indicadores", "totais"],
+    "properties": {
+      "periodo": {
+        "type": "object", "additionalProperties": false, "required": ["inicio", "fim"],
+        "properties": { "inicio": { "type": "string" }, "fim": { "type": "string" } }
+      },
+      "nichos": { "type": "array", "items": { "type": "string" } },
+      "diretrizes_atuais": { "type": "object", "additionalProperties": { "type": "string" } },
+      "indicadores": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "dimensao", "rotulo", "mensagens", "cliques", "pedidos", "comissao"],
+          "properties": {
+            "ref": { "type": "string" },
+            "dimensao": { "type": "string" },
+            "rotulo": { "type": "string" },
+            "mensagens": { "type": "integer" },
+            "cliques": { "type": "integer" },
+            "pedidos": { "type": "integer" },
+            "comissao": { "type": "number" }
+          }
+        }
+      },
+      "totais": {
+        "type": "object", "additionalProperties": false, "required": ["mensagens", "cliques", "pedidos", "comissao"],
+        "properties": {
+          "mensagens": { "type": "integer" }, "cliques": { "type": "integer" },
+          "pedidos": { "type": "integer" }, "comissao": { "type": "number" }
+        }
+      }
+    }
+  },
+  "saida": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["diretrizes", "insights"],
+    "properties": {
+      "diretrizes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["nicho", "texto", "refs"],
+          "properties": {
+            "nicho": { "type": "string" },
+            "texto": { "type": "string", "maxLength": 600 },
+            "refs": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "insights": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["texto", "refs"],
+          "properties": {
+            "texto": { "type": "string", "maxLength": 300 },
+            "refs": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  }
+}

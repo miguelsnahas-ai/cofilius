@@ -1,0 +1,24 @@
+{
+  "entrada": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["mensagem", "links_na_mensagem", "nichos_do_cliente"],
+    "properties": {
+      "mensagem": { "type": "string", "maxLength": 2000 },
+      "links_na_mensagem": { "type": "array", "items": { "type": "string" } },
+      "nichos_do_cliente": { "type": "array", "items": { "type": "string" } }
+    }
+  },
+  "saida": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["intencao", "url", "periodo", "nicho", "resumo"],
+    "properties": {
+      "intencao": { "type": "string", "enum": ["transformar_link", "rastrear_produto", "quanto_ganhei", "mudar_nicho", "pausar", "desconhecida"] },
+      "url": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+      "periodo": { "anyOf": [{ "type": "string", "enum": ["hoje", "semana", "mes"] }, { "type": "null" }] },
+      "nicho": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+      "resumo": { "type": "string", "maxLength": 200 }
+    }
+  }
+}

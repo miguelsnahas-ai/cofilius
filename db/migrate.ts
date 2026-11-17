@@ -6,13 +6,15 @@
  * O controle do que já rodou fica em controle.migracoes (schema à parte, fora do modelo de negócio).
  */
 import 'dotenv/config';
+import { executadoDiretamente } from '../harness/execucao.ts';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { conectar, type Sql } from '../harness/db.ts';
 import { log } from '../harness/log.ts';
+import { RAIZ } from '../harness/configLocal.ts';
 
-const pasta = dirname(fileURLToPath(import.meta.url));
+const pasta = join(RAIZ, 'db');
 
 export async function migrar(sql: Sql, opcoes: { seed?: boolean } = {}): Promise<string[]> {
   await sql.unsafe(`
@@ -41,7 +43,7 @@ export async function migrar(sql: Sql, opcoes: { seed?: boolean } = {}): Promise
   return aplicadas;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (executadoDiretamente(import.meta.url)) {
   const sql = conectar();
   try {
     const aplicadas = await migrar(sql, { seed: process.argv.includes('--seed') });

@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "Cofilius",
+  "version": "0.6.0",
+  "description": "Leva ao painel do Cofilius (no seu computador) as vendas, cliques e links das páginas de afiliado da Shopee e da Amazon. Também grava formatos novos para o Cofilius aprender.",
+  "minimum_chrome_version": "111",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "activeTab",
+    "scripting",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.mercadolivre.com.br/*",
+    "https://*.shopee.com.br/*",
+    "https://*.amazon.com.br/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://*.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "servico.js"
+  },
+  "action": {
+    "default_title": "Cofilius",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.mercadolivre.com.br/*",
+        "https://*.shopee.com.br/*",
+        "https://*.amazon.com.br/*"
+      ],
+      "js": [
+        "nucleo.js",
+        "interceptor.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://*.mercadolivre.com.br/*",
+        "https://*.shopee.com.br/*",
+        "https://*.amazon.com.br/*"
+      ],
+      "js": [
+        "ponte.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ]
+}
